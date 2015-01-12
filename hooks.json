@@ -1,0 +1,40 @@
+[
+  {
+    "id": "draos",
+    "command": "dir",
+    "secret": "",
+    "trigger-rule": {
+      "and": [
+        {
+          "match": {
+              "parameter": "commits.100.id",
+              "value": "20c16a7055dae65c69b9ca3f2e8cd1ac8fe9bbf2"
+            }
+        },
+        {
+          "match": {
+            "parameter": "ref",
+            "value": "refs/heads/master"
+          }
+        },
+        {
+          "match": {
+            "parameter": "repository.id",
+            "value": "17341098"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "something",
+    "command": "",
+    "cwd": ".",
+    "trigger-rule": {
+      "match": {
+        "parameter": "second",
+        "value": "2"
+      }
+    }
+  }
+]
