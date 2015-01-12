@@ -103,6 +103,10 @@ func (h *Hook) UnmarshalJSON(j []byte) error {
 func New(hookFile string) (*Hooks, error) {
 	h := &Hooks{fileName: hookFile}
 
+	if hookFile == "" {
+		return h, nil
+	}
+
 	// parse hook file for hooks
 	file, e := ioutil.ReadFile(hookFile)
 

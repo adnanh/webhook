@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"net/http"
 	"os/exec"
@@ -14,23 +15,28 @@ import (
 
 const (
 	version string = "1.0.0"
-	ip      string = ""
-	port    int    = 9000
 )
 
 var (
-	webhooks *hooks.Hooks
-	appStart time.Time
+	webhooks      *hooks.Hooks
+	appStart      time.Time
+	ip            = flag.String("ip", "", "ip the webhook server should listen on")
+	port          = flag.Int("port", 9000, "port the webhook server should listen on")
+	hooksFilename = flag.String("hooks", "hooks.json", "path to the json file containing defined hooks the webhook should serve")
 )
+
+func init() {
+	flag.Parse()
+}
 
 func main() {
 	appStart = time.Now()
 	var e error
 
-	webhooks, e = hooks.New("hooks.json")
+	webhooks, e = hooks.New(*hooksFilename)
 
 	if e != nil {
-		fmt.Printf("Error while loading hooks from hooks.json:\n\t>>> %s\n", e)
+		fmt.Printf("Error while loading hooks from %s:\n\t>>> %s\n", *hooksFilename, e)
 	}
 
 	web := martini.Classic()
@@ -39,9 +45,9 @@ func main() {
 	web.Get("/hook/:id", hookHandler)
 	web.Post("/hook/:id", hookHandler)
 
-	fmt.Printf("Starting go-webhook with %d hook(s)\n\n", webhooks.Count())
+	fmt.Printf("Starting go-webhook with %d hook(s)\n", webhooks.Count())
 
-	web.RunOnAddr(fmt.Sprintf("%s:%d", ip, port))
+	web.RunOnAddr(fmt.Sprintf("%s:%d", *ip, *port))
 }
 
 func rootHandler() string {
@@ -49,7 +55,6 @@ func rootHandler() string {
 }
 
 func hookHandler(req *http.Request, params martini.Params) string {
-
 	decoder := json.NewDecoder(req.Body)
 	decoder.UseNumber()
 
@@ -68,5 +73,6 @@ func hookHandler(req *http.Request, params martini.Params) string {
 			fmt.Printf("Command output for %v >>> %s\n", hook, out)
 		}
 	}(params["id"], p)
+
 	return "Got it, thanks. :-)"
 }
