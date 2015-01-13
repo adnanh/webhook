@@ -11,6 +11,8 @@ import (
 	"github.com/adnanh/webhook/hooks"
 
 	"github.com/go-martini/martini"
+
+	l4g "code.google.com/p/log4go"
 )
 
 const (
@@ -23,10 +25,18 @@ var (
 	ip            = flag.String("ip", "", "ip the webhook server should listen on")
 	port          = flag.Int("port", 9000, "port the webhook server should listen on")
 	hooksFilename = flag.String("hooks", "hooks.json", "path to the json file containing defined hooks the webhook should serve")
+	logFilename   = flag.String("log", "webhook.log", "path to the log file")
 )
 
 func init() {
 	flag.Parse()
+
+	fileLogWriter := l4g.NewFileLogWriter(*logFilename, true)
+	fileLogWriter.SetRotateDaily(true)
+
+	martini.Env = "production"
+
+	l4g.AddFilter("file", l4g.FINE, fileLogWriter)
 }
 
 func main() {
@@ -36,7 +46,7 @@ func main() {
 	webhooks, e = hooks.New(*hooksFilename)
 
 	if e != nil {
-		fmt.Printf("Error while loading hooks from %s:\n\t>>> %s\n", *hooksFilename, e)
+		l4g.Warn("Error occurred while loading hooks from %s: %s", *hooksFilename, e)
 	}
 
 	web := martini.Classic()
@@ -45,32 +55,36 @@ func main() {
 	web.Get("/hook/:id", hookHandler)
 	web.Post("/hook/:id", hookHandler)
 
-	fmt.Printf("Starting go-webhook with %d hook(s)\n", webhooks.Count())
+	l4g.Info("Starting webhook %s with %d hook(s) on %s:%d", version, webhooks.Count(), *ip, *port)
 
 	web.RunOnAddr(fmt.Sprintf("%s:%d", *ip, *port))
 }
 
 func rootHandler() string {
-	return fmt.Sprintf("go-webhook %s running for %s serving %d hook(s)\n", version, time.Since(appStart).String(), webhooks.Count())
+	return fmt.Sprintf("webhook %s running for %s serving %d hook(s)\n", version, time.Since(appStart).String(), webhooks.Count())
 }
 
 func hookHandler(req *http.Request, params martini.Params) string {
-	decoder := json.NewDecoder(req.Body)
-	decoder.UseNumber()
+	var p map[string]interface{}
 
-	p := make(map[string]interface{})
+	if req.Header.Get("Content-Type") == "application/json" {
+		decoder := json.NewDecoder(req.Body)
+		decoder.UseNumber()
 
-	err := decoder.Decode(&p)
+		p = make(map[string]interface{})
 
-	if err != nil {
-		// log "Error occurred while parsing the payload :-("
+		err := decoder.Decode(&p)
+
+		if err != nil {
+			l4g.Warn("Error occurred while trying to parse the payload as JSON")
+		}
 	}
 
 	go func(id string, params interface{}) {
 		if hook := webhooks.Match(id, params); hook != nil {
 			cmd := exec.Command(hook.Command, "", "", hook.Cwd)
 			out, _ := cmd.Output()
-			fmt.Printf("Command output for %v >>> %s\n", hook, out)
+			l4g.Info("Hook %s triggered successfully! Command output:\n%s", hook.ID, out)
 		}
 	}(params["id"], p)
 
