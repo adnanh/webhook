@@ -4,12 +4,12 @@
 *Please note:* Before installing the webhook, make sure you have installed `go` and properly set up your `$GOPATH` environment variable.
 
 ```go
-go get github.com/adnanh/webhook
+$ go get github.com/adnanh/webhook
 ```
 
 ## Updating
 ```go
-go get -u github.com/adnanh/webhook
+$ go get -u github.com/adnanh/webhook
 ```
   
 ## Adding hooks
