@@ -74,7 +74,7 @@ func hookHandler(req *http.Request, params martini.Params) string {
 		err := decoder.Decode(&p)
 
 		if err != nil {
-			l4g.Warn("Error occurred while trying to parse the payload as JSON")
+			l4g.Warn("Error occurred while trying to parse the payload as JSON: %s", err)
 		}
 	}
 
