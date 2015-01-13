@@ -51,7 +51,7 @@ func main() {
 }
 
 func rootHandler() string {
-	return fmt.Sprintf("go-webhook %s running for %s serving %d hook(s)\n%+v", version, time.Since(appStart).String(), webhooks.Count(), webhooks)
+	return fmt.Sprintf("go-webhook %s running for %s serving %d hook(s)\n", version, time.Since(appStart).String(), webhooks.Count())
 }
 
 func hookHandler(req *http.Request, params martini.Params) string {
@@ -63,7 +63,7 @@ func hookHandler(req *http.Request, params martini.Params) string {
 	err := decoder.Decode(&p)
 
 	if err != nil {
-		return "Error occurred while parsing the payload :-("
+		// log "Error occurred while parsing the payload :-("
 	}
 
 	go func(id string, params interface{}) {
