@@ -126,7 +126,7 @@ func New(hookFile string) (*Hooks, error) {
 func (h *Hooks) Match(id string, params interface{}) *Hook {
 	for i := range h.list {
 		if h.list[i].ID == id {
-			if h.list[i].Rule.Evaluate(params) {
+			if h.list[i].Rule != nil && h.list[i].Rule.Evaluate(params) {
 				return &h.list[i]
 			}
 		}
