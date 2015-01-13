@@ -31,8 +31,8 @@ var (
 func init() {
 	flag.Parse()
 
-	fileLogWriter := l4g.NewFileLogWriter(*logFilename, true)
-	fileLogWriter.SetRotateDaily(true)
+	fileLogWriter := l4g.NewFileLogWriter(*logFilename, false)
+	fileLogWriter.SetRotateDaily(false)
 
 	martini.Env = "production"
 
