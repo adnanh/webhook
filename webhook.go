@@ -65,13 +65,11 @@ func rootHandler() string {
 }
 
 func hookHandler(req *http.Request, params martini.Params) string {
-	var p map[string]interface{}
+	p := make(map[string]interface{})
 
 	if req.Header.Get("Content-Type") == "application/json" {
 		decoder := json.NewDecoder(req.Body)
 		decoder.UseNumber()
-
-		p = make(map[string]interface{})
 
 		err := decoder.Decode(&p)
 
