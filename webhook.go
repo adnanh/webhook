@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os/exec"
 	"time"
@@ -11,6 +12,9 @@ import (
 	"github.com/adnanh/webhook/hooks"
 
 	"github.com/go-martini/martini"
+
+	"crypto/hmac"
+	"crypto/sha256"
 
 	l4g "code.google.com/p/log4go"
 )
@@ -78,13 +82,34 @@ func hookHandler(req *http.Request, params martini.Params) string {
 		}
 	}
 
-	go func(id string, params interface{}) {
+	body, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		l4g.Warn("Error occurred while trying to read the request body: %s", err)
+	}
+
+	go func(id string, body []byte, signature string, params interface{}) {
 		if hook := webhooks.Match(id, params); hook != nil {
+			if hook.Secret != "" {
+				if signature == "" {
+					l4g.Error("Hook %s got matched, but the request contained invalid signature.", hook.ID)
+					return
+				}
+
+				mac := hmac.New(sha256.New, []byte(hook.Secret))
+				mac.Write(body)
+				expectedMAC := mac.Sum(nil)
+
+				if !hmac.Equal([]byte(signature), expectedMAC) {
+					l4g.Error("Hook %s got matched, but the request contained invalid signature. Expected %s, got %s.", hook.ID, signature, expectedMAC)
+					return
+				}
+			}
+
 			cmd := exec.Command(hook.Command, "", "", hook.Cwd)
 			out, _ := cmd.Output()
 			l4g.Info("Hook %s triggered successfully! Command output:\n%s", hook.ID, out)
 		}
-	}(params["id"], p)
+	}(params["id"], body, req.Header.Get("X-Hub-Signature"), p)
 
 	return "Got it, thanks. :-)"
 }
