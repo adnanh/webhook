@@ -6,10 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"os/exec"
-	"os/signal"
-	"syscall"
 	"time"
 
 	"github.com/adnanh/webhook/hooks"
@@ -29,7 +26,6 @@ const (
 var (
 	webhooks      *hooks.Hooks
 	appStart      time.Time
-	signalChannel chan<- os.Signal
 	ip            = flag.String("ip", "", "ip the webhook server should listen on")
 	port          = flag.Int("port", 9000, "port the webhook server should listen on")
 	hooksFilename = flag.String("hooks", "hooks.json", "path to the json file containing defined hooks the webhook should serve")
@@ -45,18 +41,6 @@ func init() {
 	martini.Env = "production"
 
 	l4g.AddFilter("file", l4g.FINE, fileLogWriter)
-
-	signalChannel := make(chan os.Signal, 2)
-
-	signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		sig := <-signalChannel
-		switch sig {
-		case syscall.SIGTERM, syscall.SIGKILL, syscall.SIGQUIT, syscall.SIGHUP, syscall.SIGABRT:
-			l4g.Info("Caught kill signal, stopping webhook.", sig)
-			l4g.Close()
-		}
-	}()
 }
 
 func main() {
