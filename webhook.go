@@ -99,8 +99,10 @@ func hookHandler(req *http.Request, params martini.Params) string {
 				mac.Write(body)
 				expectedMAC := mac.Sum(nil)
 
+				l4g.Info("Expected %s, got %s.", expectedMAC, signature)
+
 				if !hmac.Equal([]byte(signature), expectedMAC) {
-					l4g.Error("Hook %s got matched, but the request contained invalid signature. Expected %s, got %s.", hook.ID, signature, expectedMAC)
+					l4g.Error("Hook %s got matched, but the request contained invalid signature. Expected %s, got %s.", hook.ID, expectedMAC, signature)
 					return
 				}
 			}
