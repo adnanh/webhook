@@ -81,7 +81,7 @@ Hooks are defined using JSON format. The _hooks file_ must contain an array of J
 }
 ```
 ### Not
-*Not rule* will evaluate to _true_, if and only if the sub rule evaluate to _false_.
+*Not rule* will evaluate to _true_, if and only if the sub rule evaluates to _false_.
 ```json
 {
 "not":
