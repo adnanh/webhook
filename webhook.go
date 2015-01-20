@@ -1,12 +1,14 @@
 package main
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/adnanh/webhook/hooks"
@@ -14,13 +16,13 @@ import (
 	"github.com/go-martini/martini"
 
 	"crypto/hmac"
-	"crypto/sha256"
+	"crypto/sha1"
 
 	l4g "code.google.com/p/log4go"
 )
 
 const (
-	version string = "1.0.1"
+	version string = "1.0.2"
 )
 
 var (
@@ -69,22 +71,23 @@ func rootHandler() string {
 }
 
 func hookHandler(req *http.Request, params martini.Params) string {
-	p := make(map[string]interface{})
+	defer req.Body.Close()
+	body, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		l4g.Warn("Error occurred while trying to read the request body: %s", err)
+	}
+
+	payloadJSON := make(map[string]interface{})
 
 	if req.Header.Get("Content-Type") == "application/json" {
-		decoder := json.NewDecoder(req.Body)
+		decoder := json.NewDecoder(strings.NewReader(string(body)))
 		decoder.UseNumber()
 
-		err := decoder.Decode(&p)
+		err := decoder.Decode(&payloadJSON)
 
 		if err != nil {
 			l4g.Warn("Error occurred while trying to parse the payload as JSON: %s", err)
 		}
-	}
-
-	body, err := ioutil.ReadAll(req.Body)
-	if err != nil {
-		l4g.Warn("Error occurred while trying to read the request body: %s", err)
 	}
 
 	go func(id string, body []byte, signature string, params interface{}) {
@@ -95,13 +98,11 @@ func hookHandler(req *http.Request, params martini.Params) string {
 					return
 				}
 
-				mac := hmac.New(sha256.New, []byte(hook.Secret))
+				mac := hmac.New(sha1.New, []byte(hook.Secret))
 				mac.Write(body)
-				expectedMAC := mac.Sum(nil)
+				expectedMAC := hex.EncodeToString(mac.Sum(nil))
 
-				l4g.Info("Expected %s, got %s.", expectedMAC, signature)
-
-				if !hmac.Equal([]byte(signature), expectedMAC) {
+				if !hmac.Equal([]byte(signature), []byte(expectedMAC)) {
 					l4g.Error("Hook %s got matched, but the request contained invalid signature. Expected %s, got %s.", hook.ID, expectedMAC, signature)
 					return
 				}
@@ -111,7 +112,7 @@ func hookHandler(req *http.Request, params martini.Params) string {
 			out, _ := cmd.Output()
 			l4g.Info("Hook %s triggered successfully! Command output:\n%s", hook.ID, out)
 		}
-	}(params["id"], body, req.Header.Get("X-Hub-Signature"), p)
+	}(params["id"], body, req.Header.Get("X-Hub-Signature")[5:], payloadJSON)
 
 	return "Got it, thanks. :-)"
 }
