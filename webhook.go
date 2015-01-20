@@ -94,7 +94,7 @@ func hookHandler(req *http.Request, params martini.Params) string {
 		if hook := webhooks.Match(id, params); hook != nil {
 			if hook.Secret != "" {
 				if signature == "" {
-					l4g.Error("Hook %s got matched, but the request contained invalid signature.", hook.ID)
+					l4g.Error("Hook %s got matched and contains the secret, but the request didn't contain any signature.", hook.ID)
 					return
 				}
 
@@ -103,7 +103,7 @@ func hookHandler(req *http.Request, params martini.Params) string {
 				expectedMAC := hex.EncodeToString(mac.Sum(nil))
 
 				if !hmac.Equal([]byte(signature), []byte(expectedMAC)) {
-					l4g.Error("Hook %s got matched, but the request contained invalid signature. Expected %s, got %s.", hook.ID, expectedMAC, signature)
+					l4g.Error("Hook %s got matched and contains the secret, but the request contained invalid signature. Expected %s, got %s.", hook.ID, expectedMAC, signature)
 					return
 				}
 			}
