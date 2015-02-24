@@ -30,7 +30,7 @@ type Hooks struct {
 
 // ParseFormArgs gets arguments from the Form payload that should be passed to the command
 func (h *Hook) ParseFormArgs(form url.Values) []string {
-	var args = make([]string, len(h.Args))
+	var args = make([]string, 0)
 
 	args = append(args, h.Command)
 
@@ -49,7 +49,7 @@ func (h *Hook) ParseFormArgs(form url.Values) []string {
 
 // ParseJSONArgs gets arguments from the JSON payload that should be passed to the command
 func (h *Hook) ParseJSONArgs(payload interface{}) []string {
-	var args = make([]string, len(h.Args))
+	var args = make([]string, 0)
 
 	args = append(args, h.Command)
 
