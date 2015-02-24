@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -12,12 +11,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/adnanh/webhook/helpers"
 	"github.com/adnanh/webhook/hooks"
 
 	"github.com/go-martini/martini"
-
-	"crypto/hmac"
-	"crypto/sha1"
 
 	l4g "code.google.com/p/log4go"
 )
@@ -71,48 +68,35 @@ func rootHandler() string {
 	return fmt.Sprintf("webhook %s running for %s serving %d hook(s)\n", version, time.Since(appStart).String(), webhooks.Count())
 }
 
-func githubHandler(id string, body []byte, signature string, params interface{}) {
-	if hook := webhooks.Match(id, params); hook != nil {
+func jsonHandler(id string, body []byte, signature string, payload interface{}) {
+	if hook := webhooks.Match(id, payload); hook != nil {
 		if hook.Secret != "" {
 			if signature == "" {
 				l4g.Error("Hook %s got matched and contains the secret, but the request didn't contain any signature.", hook.ID)
 				return
 			}
 
-			mac := hmac.New(sha1.New, []byte(hook.Secret))
-			mac.Write(body)
-			expectedMAC := hex.EncodeToString(mac.Sum(nil))
-
-			if !hmac.Equal([]byte(signature), []byte(expectedMAC)) {
+			if expectedMAC, ok := helpers.CheckPayloadSignature(body, hook.Secret, signature); ok {
 				l4g.Error("Hook %s got matched and contains the secret, but the request contained invalid signature. Expected %s, got %s.", hook.ID, expectedMAC, signature)
 				return
 			}
 		}
 
 		cmd := exec.Command(hook.Command)
+		cmd.Args = hook.ParseJSONArgs(payload)
 		cmd.Dir = hook.Cwd
 		out, err := cmd.Output()
-		l4g.Info("Hook %s triggered successfully! Command output:\n%s\nError: %+v", hook.ID, out, err)
+		l4g.Info("Hook %s triggered successfully! Command output:\n%s\n%+v", hook.ID, out, err)
 	}
 }
 
-func defaultPostHookHandler(id string, formValues url.Values) {
-	if hook := webhooks.Match(id, make(map[string]interface{})); hook != nil {
-		args := make([]string, 0)
-		args = append(args, hook.Command)
-		for i := range hook.Args {
-			if arg := formValues[hook.Args[i]]; len(arg) > 0 {
-				args = append(args, arg[0])
-			}
-		}
-
+func formHandler(id string, formValues url.Values) {
+	if hook := webhooks.Match(id, helpers.FormValuesToMap(formValues)); hook != nil {
 		cmd := exec.Command(hook.Command)
-		cmd.Args = args
+		cmd.Args = hook.ParseFormArgs(formValues)
 		cmd.Dir = hook.Cwd
-
 		out, err := cmd.Output()
-
-		l4g.Info("Hook %s triggered successfully! Command output:\n%s\nError: %+v", hook.ID, out, err)
+		l4g.Info("Hook %s triggered successfully! Command output:\n%s\n%+v", hook.ID, out, err)
 	}
 }
 
@@ -136,18 +120,18 @@ func hookHandler(req *http.Request, params martini.Params) string {
 			l4g.Warn("Error occurred while trying to parse the payload as JSON: %s", err)
 		}
 
-		githubSignature := ""
-
-		if len(req.Header.Get("X-Hub-Signature")) > 5 {
-			githubSignature = req.Header.Get("X-Hub-Signature")[5:]
-		}
+		payloadSignature := ""
 
 		if strings.Contains(req.Header.Get("User-Agent"), "Github") {
-			go githubHandler(params["id"], body, githubSignature, payloadJSON)
+			if len(req.Header.Get("X-Hub-Signature")) > 5 {
+				payloadSignature = req.Header.Get("X-Hub-Signature")[5:]
+			}
+
+			go jsonHandler(params["id"], body, payloadSignature, payloadJSON)
 		}
 	} else {
 		req.ParseForm()
-		go defaultPostHookHandler(params["id"], req.Form)
+		go formHandler(params["id"], req.Form)
 	}
 
 	return "Got it, thanks. :-)"

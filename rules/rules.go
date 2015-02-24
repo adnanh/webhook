@@ -2,10 +2,8 @@ package rules
 
 import (
 	"encoding/json"
-	"fmt"
-	"reflect"
-	"strconv"
-	"strings"
+
+	"github.com/adnanh/webhook/helpers"
 )
 
 // Rule interface
@@ -79,45 +77,10 @@ func (r NotRule) Evaluate(params interface{}) bool {
 	return !r.SubRule.Evaluate(params)
 }
 
-func extract(s string, params interface{}) (string, bool) {
-	var p []string
-
-	if paramsValue := reflect.ValueOf(params); paramsValue.Kind() == reflect.Slice {
-		if paramsValueSliceLength := paramsValue.Len(); paramsValueSliceLength > 0 {
-
-			if p = strings.SplitN(s, ".", 3); len(p) > 3 {
-				index, err := strconv.ParseInt(p[1], 10, 64)
-
-				if err != nil {
-					return "", false
-				} else if paramsValueSliceLength <= int(index) {
-					return "", false
-				}
-
-				return extract(p[2], params.([]map[string]interface{})[index])
-			}
-		}
-
-		return "", false
-	}
-
-	if p = strings.SplitN(s, ".", 2); len(p) > 1 {
-		if pValue, ok := params.(map[string]interface{})[p[0]]; ok {
-			return extract(p[1], pValue)
-		}
-	} else {
-		if pValue, ok := params.(map[string]interface{})[p[0]]; ok {
-			return fmt.Sprintf("%v", pValue), true
-		}
-	}
-
-	return "", false
-}
-
 // Evaluate MatchRule will return true if and only if the MatchParameter.Parameter
 // named property value in supplied params matches the MatchParameter.Value
 func (r MatchRule) Evaluate(params interface{}) bool {
-	if v, ok := extract(r.MatchParameter.Parameter, params); ok {
+	if v, ok := helpers.ExtractJSONParameter(r.MatchParameter.Parameter, params); ok {
 		return v == r.MatchParameter.Value
 	}
 

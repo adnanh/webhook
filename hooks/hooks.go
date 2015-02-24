@@ -3,7 +3,9 @@ package hooks
 import (
 	"encoding/json"
 	"io/ioutil"
+	"net/url"
 
+	"github.com/adnanh/webhook/helpers"
 	"github.com/adnanh/webhook/rules"
 )
 
@@ -23,6 +25,40 @@ type Hook struct {
 type Hooks struct {
 	fileName string
 	list     []Hook
+}
+
+// ParseFormArgs gets arguments from the Form payload that should be passed to the command
+func (h *Hook) ParseFormArgs(form url.Values) []string {
+	var args = make([]string, len(h.Args))
+
+	args = append(args, h.Command)
+
+	for i := range h.Args {
+		if arg := form[h.Args[i]]; len(arg) > 0 {
+			args = append(args, arg[0])
+		} else {
+			args = append(args, "")
+		}
+	}
+
+	return args
+}
+
+// ParseJSONArgs gets arguments from the JSON payload that should be passed to the command
+func (h *Hook) ParseJSONArgs(payload interface{}) []string {
+	var args = make([]string, len(h.Args))
+
+	args = append(args, h.Command)
+
+	for i := range h.Args {
+		if arg, ok := helpers.ExtractJSONParameter(h.Args[i], payload); ok {
+			args = append(args, arg)
+		} else {
+			args = append(args, "")
+		}
+	}
+
+	return args
 }
 
 // UnmarshalJSON implementation for a single hook

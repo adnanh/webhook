@@ -20,6 +20,10 @@ Hooks are defined using JSON format. The _hooks file_ must contain an array of J
   {
     "id": "hook-1",
     "command": "OS command to be executed when the hook gets triggered",
+    "args": [
+      "ref",
+      "repository.owner.name"
+    ],
     "cwd": "current working directory under which the specified command will be executed (optional, defaults to the directory where the binary resides)",
     "secret": "secret key used to compute the hash of the payload (optional)",
     "trigger-rule":
@@ -138,7 +142,6 @@ All hooks are served under the `http://ip:port/hook/:id`, where the `:id` corres
 Visiting `http://ip:port` will show version, uptime and number of hooks the webhook is serving.
 
 ## Todo
-* Add support for passing parameters from payload to the command that gets executed as part of the hook
 * Add support for ip white/black listing
 * Add "match-regex" rule
 * ???
