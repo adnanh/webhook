@@ -2,6 +2,9 @@
   {
     "id": "webhook",
     "command": "/home/adnan/redeploy-go-webhook.sh",
+    "args": [
+      "head"
+    ],
     "cwd": "/home/adnan/go",
     "trigger-rule":
     {
