@@ -122,7 +122,7 @@ func hookHandler(req *http.Request, params martini.Params) string {
 
 		payloadSignature := ""
 
-		if strings.Contains(req.Header.Get("User-Agent"), "Github") {
+		if strings.Contains(req.Header.Get("User-Agent"), "GitHub-Hookshot") {
 			if len(req.Header.Get("X-Hub-Signature")) > 5 {
 				payloadSignature = req.Header.Get("X-Hub-Signature")[5:]
 			}
