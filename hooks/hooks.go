@@ -14,6 +14,7 @@ type Hook struct {
 	Command string     `json:"command"`
 	Cwd     string     `json:"cwd"`
 	Secret  string     `json:"secret"`
+	Args    []string   `json:"args"`
 	Rule    rules.Rule `json:"trigger-rule"`
 }
 
@@ -47,6 +48,14 @@ func (h *Hook) UnmarshalJSON(j []byte) error {
 
 	if v, ok := m["secret"]; ok {
 		h.Secret = v.(string)
+	}
+
+	if v, ok := m["args"]; ok {
+		h.Args = make([]string, 0)
+
+		for i := range v.([]interface{}) {
+			h.Args = append(h.Args, v.([]interface{})[i].(string))
+		}
 	}
 
 	if v, ok := m["trigger-rule"]; ok {
@@ -149,6 +158,10 @@ func (h *Hooks) SetDefaults() {
 	for i := range h.list {
 		if h.list[i].Cwd == "" {
 			h.list[i].Cwd = "."
+		}
+
+		if h.list[i].Args == nil {
+			h.list[i].Args = make([]string, 1)
 		}
 	}
 }
