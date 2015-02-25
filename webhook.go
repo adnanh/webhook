@@ -76,7 +76,7 @@ func jsonHandler(id string, body []byte, signature string, payload interface{}) 
 				return
 			}
 
-			if expectedMAC, ok := helpers.CheckPayloadSignature(body, hook.Secret, signature); ok {
+			if expectedMAC, ok := helpers.CheckPayloadSignature(body, hook.Secret, signature); !ok {
 				l4g.Error("Hook %s got matched and contains the secret, but the request contained invalid signature. Expected %s, got %s.", hook.ID, expectedMAC, signature)
 				return
 			}
