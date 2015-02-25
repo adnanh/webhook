@@ -2,7 +2,6 @@ package hooks
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net/url"
 
@@ -42,8 +41,6 @@ func (h *Hook) ParseFormArgs(form url.Values) []string {
 		}
 	}
 
-	fmt.Printf("parse form args %+v\n", args)
-
 	return args
 }
 
@@ -60,8 +57,6 @@ func (h *Hook) ParseJSONArgs(payload interface{}) []string {
 			args = append(args, "")
 		}
 	}
-
-	fmt.Printf("parse json args %+v\n", args)
 
 	return args
 }
