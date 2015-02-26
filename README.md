@@ -37,6 +37,9 @@ Hooks are defined using JSON format. The _hooks file_ must contain an array of J
   }
 ]
 ```
+## Passing parameters to the command
+If you wish to pass parameters from the payload to the command that will be executed, you can use the `args` field in the `hook` definition. The parameters will be passed in order they are specified. If the payload does not contain the specified parameter, an empty string will be passed to the command instead.
+
 ## Trigger rules
 ### And
 *And rule* will evaluate to _true_, if and only if all of the sub rules evaluate to _true_.
