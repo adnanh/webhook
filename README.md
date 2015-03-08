@@ -145,6 +145,10 @@ All hooks are served under the `http://ip:port/hook/:id`, where the `:id` corres
 Visiting `http://ip:port` will show version, uptime and number of hooks the webhook is serving.
 
 ## Todo
+* Architecture overhaul to support vendor specific handlers and hook options
 * Add support for ip white/black listing
+* Add "match-header" rule
 * Add "match-regex" rule
+* Update README file with the description of what the tool is really trying to achieve and provide some real-life examples of usage
+* Move the specific details to their respective wiki pages
 * ???
