@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	version string = "1.0.3"
+	version string = "1.0.4"
 )
 
 var (
@@ -126,9 +126,9 @@ func hookHandler(req *http.Request, params martini.Params) string {
 			if len(req.Header.Get("X-Hub-Signature")) > 5 {
 				payloadSignature = req.Header.Get("X-Hub-Signature")[5:]
 			}
-
-			go jsonHandler(params["id"], body, payloadSignature, payloadJSON)
 		}
+		
+		go jsonHandler(params["id"], body, payloadSignature, payloadJSON)
 	} else {
 		req.ParseForm()
 		go formHandler(params["id"], req.Form)
