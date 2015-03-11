@@ -1,12 +1,28 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"net/http"
 
 	"github.com/codegangsta/negroni"
 	"github.com/gorilla/mux"
 )
+
+var (
+	ip            = flag.String("ip", "", "ip the webhook should serve hooks on")
+	port          = flag.Int("port", 9000, "port the webhook should serve hooks on")
+	verbose       = flag.Bool("verbose", false, "show verbose output")
+	hooksFilePath = flag.String("hooks", "hooks.json", "path to the json file containing defined hooks the webhook should serve")
+)
+
+func init() {
+	flag.Parse()
+
+	// load and parse hooks
+
+	// set up file watcher
+}
 
 func main() {
 	router := mux.NewRouter()
@@ -15,7 +31,7 @@ func main() {
 	n := negroni.Classic()
 	n.UseHandler(router)
 
-	n.Run(":9000")
+	n.Run(fmt.Sprintf("%s:%d", *ip, *port))
 }
 
 func hookHandler(w http.ResponseWriter, r *http.Request) {
