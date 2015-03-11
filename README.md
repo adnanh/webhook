@@ -22,7 +22,7 @@ $ go get github.com/adnanh/webhook
 ```
 to get the latest version of the [webhook](https://github.com/adnanh/webhook/).
 
-Next step is to define some hooks you want [webhook](https://github.com/adnanh/webhook/) to serve. Begin by creating an empty file named `hooks.json`. This file will contain an array of hooks the [webhook](https://github.com/adnanh/webhook/) will serve. Check [Hook definition page](Hook-Definition) to see the detailed description of what properties a hook can contain, and how to use them.
+Next step is to define some hooks you want [webhook](https://github.com/adnanh/webhook/) to serve. Begin by creating an empty file named `hooks.json`. This file will contain an array of hooks the [webhook](https://github.com/adnanh/webhook/) will serve. Check [Hook definition page](https://github.com/adnanh/webhook/wiki/Hook-Definition) to see the detailed description of what properties a hook can contain, and how to use them.
 
 Let's define a simple hook named `redeploy-webhook` that will run a redeploy script located in `/var/scripts/redeploy.sh`.
 
@@ -47,14 +47,14 @@ It will start up on default port 9000 and will provide you with one HTTP endpoin
 http://yourserver:9000/hooks/redeploy-webhook
 ```
 
-Check [webhook parameters page](Webhook-Parameters) to see how to override the ip, port and other settings when starting the [webhook](https://github.com/adnanh/webhook/).
+Check [webhook parameters page](https://github.com/adnanh/webhook/wiki/Webhook-Parameters) to see how to override the ip, port and other settings when starting the [webhook](https://github.com/adnanh/webhook/).
 
 By performing a simple HTTP GET or POST request to that endpoint, your specified redeploy script would be executed. Neat!
 
-However, hook defined like that could pose a security threat to your system, because anyone who knows your endpoint, can send a request and execute your command. To prevent that, you can use the `"trigger-rule"` property for your hook, to specify the exact circumstances under which the hook would be triggered. For example, you can use them to add a secret that you must supply as a parameter in order to successfully trigger the hook. Please check out the [Hook rules page](Hook-Rules) for detailed list of available rules and their  usage.
+However, hook defined like that could pose a security threat to your system, because anyone who knows your endpoint, can send a request and execute your command. To prevent that, you can use the `"trigger-rule"` property for your hook, to specify the exact circumstances under which the hook would be triggered. For example, you can use them to add a secret that you must supply as a parameter in order to successfully trigger the hook. Please check out the [Hook rules page](https://github.com/adnanh/webhook/wiki/Hook-Rules) for detailed list of available rules and their  usage.
 
 # Examples
-Check out [Hook examples page](Hook-Examples) for more complex examples of hooks.
+Check out [Hook examples page](https://github.com/adnanh/webhook/wiki/Hook-Examples) for more complex examples of hooks.
 
 # Contributing
 Any form of contribution is welcome and highly appreciated.
