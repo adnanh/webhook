@@ -3,6 +3,8 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
+	"log"
 	"net/http"
 
 	"github.com/codegangsta/negroni"
@@ -19,9 +21,20 @@ var (
 func init() {
 	flag.Parse()
 
+	log.SetPrefix("[webhook] ")
+	log.SetFlags(log.Ldate | log.Ltime)
+
+	if !*verbose {
+		log.SetOutput(ioutil.Discard)
+	}
+
+	log.Println("starting")
+
 	// load and parse hooks
+	log.Printf("attempting to load hooks from %s\n", *hooksFilePath)
 
 	// set up file watcher
+	log.Printf("setting up file watcher for %s\n", *hooksFilePath)
 }
 
 func main() {
