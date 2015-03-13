@@ -5,7 +5,6 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
-	"net/url"
 	"reflect"
 	"strconv"
 	"strings"
@@ -20,11 +19,11 @@ func CheckPayloadSignature(payload []byte, secret string, signature string) (str
 	return expectedMAC, hmac.Equal([]byte(signature), []byte(expectedMAC))
 }
 
-// FormValuesToMap converts url.Values to a map[string]interface{} object
-func FormValuesToMap(formValues url.Values) map[string]interface{} {
+// ValuesToMap converts map[string][]string to a map[string]string object
+func ValuesToMap(values map[string][]string) map[string]interface{} {
 	ret := make(map[string]interface{})
 
-	for key, value := range formValues {
+	for key, value := range values {
 		if len(value) > 0 {
 			ret[key] = value[0]
 		}
@@ -33,8 +32,12 @@ func FormValuesToMap(formValues url.Values) map[string]interface{} {
 	return ret
 }
 
-// ExtractJSONParameter extracts value from payload based on the passed string
-func ExtractJSONParameter(s string, params interface{}) (string, bool) {
+// ExtractParameter extracts value from interface{} based on the passed string
+func ExtractParameter(s string, params interface{}) (string, bool) {
+	if params == nil {
+		return "", false
+	}
+
 	var p []string
 
 	if paramsValue := reflect.ValueOf(params); paramsValue.Kind() == reflect.Slice {
@@ -49,7 +52,7 @@ func ExtractJSONParameter(s string, params interface{}) (string, bool) {
 					return "", false
 				}
 
-				return ExtractJSONParameter(p[2], params.([]map[string]interface{})[index])
+				return ExtractParameter(p[2], params.([]map[string]interface{})[index])
 			}
 		}
 
@@ -58,7 +61,7 @@ func ExtractJSONParameter(s string, params interface{}) (string, bool) {
 
 	if p = strings.SplitN(s, ".", 2); len(p) > 1 {
 		if pValue, ok := params.(map[string]interface{})[p[0]]; ok {
-			return ExtractJSONParameter(p[1], pValue)
+			return ExtractParameter(p[1], pValue)
 		}
 	} else {
 		if pValue, ok := params.(map[string]interface{})[p[0]]; ok {

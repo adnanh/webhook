@@ -5,134 +5,160 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"os/exec"
 	"strings"
-	"time"
 
 	"github.com/adnanh/webhook/helpers"
-	"github.com/adnanh/webhook/hooks"
+	"github.com/adnanh/webhook/hook"
 
-	"github.com/go-martini/martini"
-
-	l4g "code.google.com/p/log4go"
+	"github.com/codegangsta/negroni"
+	"github.com/gorilla/mux"
 )
 
 const (
-	version string = "1.0.4"
+	version = "2.0.0"
 )
 
 var (
-	webhooks      *hooks.Hooks
-	appStart      time.Time
-	ip            = flag.String("ip", "", "ip the webhook server should listen on")
-	port          = flag.Int("port", 9000, "port the webhook server should listen on")
-	hooksFilename = flag.String("hooks", "hooks.json", "path to the json file containing defined hooks the webhook should serve")
-	logFilename   = flag.String("log", "webhook.log", "path to the log file")
+	ip            = flag.String("ip", "", "ip the webhook should serve hooks on")
+	port          = flag.Int("port", 9000, "port the webhook should serve hooks on")
+	verbose       = flag.Bool("verbose", false, "show verbose output")
+	hooksFilePath = flag.String("hooks", "hooks.json", "path to the json file containing defined hooks the webhook should serve")
+
+	hooks hook.Hooks
 )
 
 func init() {
+	hooks = hook.Hooks{}
+
 	flag.Parse()
 
-	fileLogWriter := l4g.NewFileLogWriter(*logFilename, false)
-	fileLogWriter.SetRotateDaily(false)
+	log.SetPrefix("[webhook] ")
+	log.SetFlags(log.Ldate | log.Ltime)
 
-	martini.Env = "production"
+	if !*verbose {
+		log.SetOutput(ioutil.Discard)
+	}
 
-	l4g.AddFilter("file", l4g.FINE, fileLogWriter)
+	log.Println("version " + version + " starting")
+
+	// load and parse hooks
+	log.Printf("attempting to load hooks from %s\n", *hooksFilePath)
+
+	err := hooks.LoadFromFile(*hooksFilePath)
+
+	if err != nil {
+		log.Printf("couldn't load hooks from file! %+v\n", err)
+	} else {
+		log.Printf("loaded %d hook(s) from file\n", len(hooks))
+
+		for _, hook := range hooks {
+			log.Printf("\t> %s\n", hook.ID)
+		}
+	}
+	// set up file watcher
+	//log.Printf("setting up file watcher for %s\n", *hooksFilePath)
 }
 
 func main() {
-	appStart = time.Now()
-	var e error
+	l := log.New(os.Stdout, "[webhook] ", log.Ldate|log.Ltime)
 
-	webhooks, e = hooks.New(*hooksFilename)
+	negroniLogger := &negroni.Logger{l}
 
-	if e != nil {
-		l4g.Warn("Error occurred while loading hooks from %s: %s", *hooksFilename, e)
+	negroniRecovery := &negroni.Recovery{
+		Logger:     l,
+		PrintStack: true,
+		StackAll:   false,
+		StackSize:  1024 * 8,
 	}
 
-	web := martini.Classic()
+	n := negroni.New(negroniRecovery, negroniLogger)
 
-	web.Get("/", rootHandler)
-	web.Get("/hook/:id", hookHandler)
-	web.Post("/hook/:id", hookHandler)
+	router := mux.NewRouter()
+	router.HandleFunc("/hooks/{id}", hookHandler)
 
-	l4g.Info("Starting webhook %s with %d hook(s) on %s:%d", version, webhooks.Count(), *ip, *port)
+	n.UseHandler(router)
 
-	web.RunOnAddr(fmt.Sprintf("%s:%d", *ip, *port))
+	log.Fatal(http.ListenAndServe(fmt.Sprintf("%s:%d", *ip, *port), n))
+
+	log.Printf("listening on %s:%d", *ip, *port)
 }
 
-func rootHandler() string {
-	return fmt.Sprintf("webhook %s running for %s serving %d hook(s)\n", version, time.Since(appStart).String(), webhooks.Count())
-}
+func hookHandler(w http.ResponseWriter, r *http.Request) {
+	id := mux.Vars(r)["id"]
 
-func jsonHandler(id string, body []byte, signature string, payload interface{}) {
-	if hook := webhooks.Match(id, payload); hook != nil {
-		if hook.Secret != "" {
-			if signature == "" {
-				l4g.Error("Hook %s got matched and contains the secret, but the request didn't contain any signature.", hook.ID)
-				return
-			}
+	hook := hooks.Match(id)
 
-			if expectedMAC, ok := helpers.CheckPayloadSignature(body, hook.Secret, signature); !ok {
-				l4g.Error("Hook %s got matched and contains the secret, but the request contained invalid signature. Expected %s, got %s.", hook.ID, expectedMAC, signature)
-				return
-			}
-		}
+	if hook != nil {
+		log.Printf("%s got matched\n", id)
 
-		cmd := exec.Command(hook.Command)
-		cmd.Args = hook.ParseJSONArgs(payload)
-		cmd.Dir = hook.Cwd
-		out, err := cmd.Output()
-		l4g.Info("Hook %s triggered successfully! Command output:\n%s\n%+v", hook.ID, out, err)
-	}
-}
-
-func formHandler(id string, formValues url.Values) {
-	if hook := webhooks.Match(id, helpers.FormValuesToMap(formValues)); hook != nil {
-		cmd := exec.Command(hook.Command)
-		cmd.Args = hook.ParseFormArgs(formValues)
-		cmd.Dir = hook.Cwd
-		out, err := cmd.Output()
-		l4g.Info("Hook %s triggered successfully! Command output:\n%s\n%+v", hook.ID, out, err)
-	}
-}
-
-func hookHandler(req *http.Request, params martini.Params) string {
-	if req.Header.Get("Content-Type") == "application/json" {
-		defer req.Body.Close()
-
-		body, err := ioutil.ReadAll(req.Body)
+		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
-			l4g.Warn("Error occurred while trying to read the request body: %s", err)
+			log.Printf("error reading the request body. %+v\n", err)
 		}
 
-		payloadJSON := make(map[string]interface{})
+		// parse headers
+		headers := helpers.ValuesToMap(r.Header)
 
-		decoder := json.NewDecoder(strings.NewReader(string(body)))
-		decoder.UseNumber()
+		// parse query variables
+		query := helpers.ValuesToMap(r.URL.Query())
 
-		err = decoder.Decode(&payloadJSON)
+		// parse body
+		var payload map[string]interface{}
 
-		if err != nil {
-			l4g.Warn("Error occurred while trying to parse the payload as JSON: %s", err)
-		}
+		contentType := r.Header.Get("Content-Type")
 
-		payloadSignature := ""
+		if contentType == "application/json" {
+			decoder := json.NewDecoder(strings.NewReader(string(body)))
+			decoder.UseNumber()
 
-		if strings.Contains(req.Header.Get("User-Agent"), "GitHub-Hookshot") {
-			if len(req.Header.Get("X-Hub-Signature")) > 5 {
-				payloadSignature = req.Header.Get("X-Hub-Signature")[5:]
+			err := decoder.Decode(&payload)
+
+			if err != nil {
+				log.Printf("error parsing JSON payload %+v\n", err)
+			}
+		} else if contentType == "application/x-www-form-urlencoded" {
+			fd, err := url.ParseQuery(string(body))
+			if err != nil {
+				log.Printf("error parsing form payload %+v\n", err)
+			} else {
+				payload = helpers.ValuesToMap(fd)
 			}
 		}
-		
-		go jsonHandler(params["id"], body, payloadSignature, payloadJSON)
+
+		// handle hook
+		go handleHook(hook, &headers, &query, &payload, &body)
+
+		// say thanks
+		fmt.Fprintf(w, "Thanks.")
 	} else {
-		req.ParseForm()
-		go formHandler(params["id"], req.Form)
+		fmt.Fprintf(w, "Hook not found.")
 	}
+}
 
-	return "Got it, thanks. :-)"
+func handleHook(hook *hook.Hook, headers, query, payload *map[string]interface{}, body *[]byte) {
+	if hook.TriggerRule == nil || hook.TriggerRule != nil && hook.TriggerRule.Evaluate(headers, query, payload, body) {
+		log.Printf("%s hook triggered successfully\n", hook.ID)
+
+		cmd := exec.Command(hook.ExecuteCommand)
+		cmd.Args = hook.ExtractCommandArguments(headers, query, payload)
+		cmd.Dir = hook.CommandWorkingDirectory
+
+		log.Printf("executing %s (%s) with arguments %s using %s as cwd\n", hook.ExecuteCommand, cmd.Path, cmd.Args, cmd.Dir)
+
+		out, err := cmd.Output()
+
+		log.Printf("stdout: %s\n", out)
+
+		if err != nil {
+			log.Printf("stderr: %+v\n", err)
+		}
+		log.Printf("finished handling %s\n", hook.ID)
+	} else {
+		log.Printf("%s hook did not get triggered\n", hook.ID)
+	}
 }
