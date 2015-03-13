@@ -12,6 +12,10 @@ import (
 
 // CheckPayloadSignature calculates and verifies SHA1 signature of the given payload
 func CheckPayloadSignature(payload []byte, secret string, signature string) (string, bool) {
+	if strings.HasPrefix(signature, "sha1=") {
+		signature = signature[5:]
+	}
+
 	mac := hmac.New(sha1.New, []byte(secret))
 	mac.Write(payload)
 	expectedMAC := hex.EncodeToString(mac.Sum(nil))
