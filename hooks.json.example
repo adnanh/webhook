@@ -7,7 +7,7 @@
     [
       {
         "source": "payload",
-        "name": "head"
+        "name": "head_commit.id"
       },
       {
         "source": "payload",
