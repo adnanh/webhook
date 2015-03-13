@@ -39,7 +39,7 @@ Our `hooks.json` file will now look like this:
 
 You can now run [webhook](https://github.com/adnanh/webhook/) using
 ```bash
-$ /path/to/webhook -h hooks.json
+$ /path/to/webhook -hooks hooks.json -verbose
 ```
 
 It will start up on default port 9000 and will provide you with one HTTP endpoint
