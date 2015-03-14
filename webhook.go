@@ -17,6 +17,8 @@ import (
 
 	"github.com/codegangsta/negroni"
 	"github.com/gorilla/mux"
+
+	fsnotify "gopkg.in/fsnotify.v1"
 )
 
 const (
@@ -27,7 +29,10 @@ var (
 	ip            = flag.String("ip", "", "ip the webhook should serve hooks on")
 	port          = flag.Int("port", 9000, "port the webhook should serve hooks on")
 	verbose       = flag.Bool("verbose", false, "show verbose output")
+	hotReload     = flag.Bool("hotreload", false, "watch hooks file for changes and reload them automatically")
 	hooksFilePath = flag.String("hooks", "hooks.json", "path to the json file containing defined hooks the webhook should serve")
+
+	watcher *fsnotify.Watcher
 
 	hooks hook.Hooks
 )
@@ -60,11 +65,30 @@ func init() {
 			log.Printf("\t> %s\n", hook.ID)
 		}
 	}
-	// set up file watcher
-	//log.Printf("setting up file watcher for %s\n", *hooksFilePath)
 }
 
 func main() {
+	if *hotReload {
+		// set up file watcher
+		log.Printf("setting up file watcher for %s\n", *hooksFilePath)
+
+		var err error
+
+		watcher, err = fsnotify.NewWatcher()
+		if err != nil {
+			log.Fatal("error creating file watcher instance", err)
+		}
+
+		defer watcher.Close()
+
+		go watchForFileChange()
+
+		err = watcher.Add(*hooksFilePath)
+		if err != nil {
+			log.Fatal("error adding hooks file to the watcher", err)
+		}
+	}
+
 	l := log.New(os.Stdout, "[webhook] ", log.Ldate|log.Ltime)
 
 	negroniLogger := &negroni.Logger{l}
@@ -83,9 +107,8 @@ func main() {
 
 	n.UseHandler(router)
 
-	log.Fatal(http.ListenAndServe(fmt.Sprintf("%s:%d", *ip, *port), n))
-
 	log.Printf("listening on %s:%d", *ip, *port)
+	log.Fatal(http.ListenAndServe(fmt.Sprintf("%s:%d", *ip, *port), n))
 }
 
 func hookHandler(w http.ResponseWriter, r *http.Request) {
@@ -160,5 +183,37 @@ func handleHook(hook *hook.Hook, headers, query, payload *map[string]interface{}
 		log.Printf("finished handling %s\n", hook.ID)
 	} else {
 		log.Printf("%s hook did not get triggered\n", hook.ID)
+	}
+}
+
+func watchForFileChange() {
+	for {
+		select {
+		case event := <-(*watcher).Events:
+			if event.Op&fsnotify.Write == fsnotify.Write {
+				log.Println("hooks file modified")
+
+				newHooks := hook.Hooks{}
+
+				// parse and swap
+				log.Printf("attempting to reload hooks from %s\n", *hooksFilePath)
+
+				err := newHooks.LoadFromFile(*hooksFilePath)
+
+				if err != nil {
+					log.Printf("couldn't load hooks from file! %+v\n", err)
+				} else {
+					log.Printf("loaded %d hook(s) from file\n", len(hooks))
+
+					for _, hook := range hooks {
+						log.Printf("\t> %s\n", hook.ID)
+					}
+
+					hooks = newHooks
+				}
+			}
+		case err := <-(*watcher).Errors:
+			log.Println("watcher error:", err)
+		}
 	}
 }
