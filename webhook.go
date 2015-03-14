@@ -31,6 +31,9 @@ var (
 	verbose       = flag.Bool("verbose", false, "show verbose output")
 	hotReload     = flag.Bool("hotreload", false, "watch hooks file for changes and reload them automatically")
 	hooksFilePath = flag.String("hooks", "hooks.json", "path to the json file containing defined hooks the webhook should serve")
+	secure        = flag.Bool("secure", false, "use HTTPS instead of HTTP")
+	cert          = flag.String("cert", "cert.pem", "path to the HTTPS certificate pem file")
+	key           = flag.String("key", "key.pem", "path to the HTTPS certificate private key pem file")
 
 	watcher *fsnotify.Watcher
 
@@ -107,8 +110,14 @@ func main() {
 
 	n.UseHandler(router)
 
-	log.Printf("listening on %s:%d", *ip, *port)
-	log.Fatal(http.ListenAndServe(fmt.Sprintf("%s:%d", *ip, *port), n))
+	if *secure {
+		log.Printf("starting secure (https) webhook on %s:%d", *ip, *port)
+		log.Fatal(http.ListenAndServeTLS(fmt.Sprintf("%s:%d", *ip, *port), *cert, *key, n))
+	} else {
+		log.Printf("starting insecure (http) webhook on %s:%d", *ip, *port)
+		log.Fatal(http.ListenAndServe(fmt.Sprintf("%s:%d", *ip, *port), n))
+	}
+
 }
 
 func hookHandler(w http.ResponseWriter, r *http.Request) {
