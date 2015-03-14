@@ -47,7 +47,7 @@ It will start up on default port 9000 and will provide you with one HTTP endpoin
 http://yourserver:9000/hooks/redeploy-webhook
 ```
 
-Check [webhook parameters page](https://github.com/adnanh/webhook/wiki/Webhook-Parameters) to see how to override the ip, port and other settings when starting the [webhook](https://github.com/adnanh/webhook/).
+Check [webhook parameters page](https://github.com/adnanh/webhook/wiki/Webhook-Parameters) to see how to override the ip, port and other settings such as hook hotreload, verbose output, etc, when starting the [webhook](https://github.com/adnanh/webhook/).
 
 By performing a simple HTTP GET or POST request to that endpoint, your specified redeploy script would be executed. Neat!
 
