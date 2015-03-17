@@ -49,6 +49,7 @@ type Hook struct {
 	ID                      string     `json:"id"`
 	ExecuteCommand          string     `json:"execute-command"`
 	CommandWorkingDirectory string     `json:"command-working-directory"`
+	ResponseMessage         string     `json:"response-message"`
 	PassArgumentsToCommand  []Argument `json:"pass-arguments-to-command"`
 	TriggerRule             *Rules     `json:"trigger-rule"`
 }

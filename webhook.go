@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	version = "2.2.1"
+	version = "2.2.2"
 )
 
 var (
@@ -175,9 +175,10 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 		// handle hook
 		go handleHook(hook, &headers, &query, &payload, &body)
 
-		// say thanks
-		fmt.Fprintf(w, "Thanks.")
+		// send the hook defined response message
+		fmt.Fprintf(w, hook.ResponseMessage)
 	} else {
+		w.WriteHeader(http.StatusNotFound)
 		fmt.Fprintf(w, "Hook not found.")
 	}
 }
