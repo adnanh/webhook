@@ -22,18 +22,19 @@ import (
 )
 
 const (
-	version = "2.2.0"
+	version = "2.2.1"
 )
 
 var (
-	ip            = flag.String("ip", "", "ip the webhook should serve hooks on")
-	port          = flag.Int("port", 9000, "port the webhook should serve hooks on")
-	verbose       = flag.Bool("verbose", false, "show verbose output")
-	hotReload     = flag.Bool("hotreload", false, "watch hooks file for changes and reload them automatically")
-	hooksFilePath = flag.String("hooks", "hooks.json", "path to the json file containing defined hooks the webhook should serve")
-	secure        = flag.Bool("secure", false, "use HTTPS instead of HTTP")
-	cert          = flag.String("cert", "cert.pem", "path to the HTTPS certificate pem file")
-	key           = flag.String("key", "key.pem", "path to the HTTPS certificate private key pem file")
+	ip             = flag.String("ip", "", "ip the webhook should serve hooks on")
+	port           = flag.Int("port", 9000, "port the webhook should serve hooks on")
+	verbose        = flag.Bool("verbose", false, "show verbose output")
+	hotReload      = flag.Bool("hotreload", false, "watch hooks file for changes and reload them automatically")
+	hooksFilePath  = flag.String("hooks", "hooks.json", "path to the json file containing defined hooks the webhook should serve")
+	hooksURLPrefix = flag.String("urlprefix", "hooks", "url prefix to use for served hooks (protocol://yourserver:port/PREFIX/:hook-id)")
+	secure         = flag.Bool("secure", false, "use HTTPS instead of HTTP")
+	cert           = flag.String("cert", "cert.pem", "path to the HTTPS certificate pem file")
+	key            = flag.String("key", "key.pem", "path to the HTTPS certificate private key pem file")
 
 	watcher *fsnotify.Watcher
 
@@ -106,7 +107,16 @@ func main() {
 	n := negroni.New(negroniRecovery, negroniLogger)
 
 	router := mux.NewRouter()
-	router.HandleFunc("/hooks/{id}", hookHandler)
+
+	var hooksURL string
+
+	if *hooksURLPrefix == "" {
+		hooksURL = "/{id}"
+	} else {
+		hooksURL = "/" + *hooksURLPrefix + "/{id}"
+	}
+
+	router.HandleFunc(hooksURL, hookHandler)
 
 	n.UseHandler(router)
 
