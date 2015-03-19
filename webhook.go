@@ -93,18 +93,17 @@ func main() {
 		}
 	}
 
-	l := log.New(os.Stdout, "[webhook] ", log.Ldate|log.Ltime)
-
-	negroniLogger := &negroni.Logger{l}
+	l := negroni.NewLogger()
+	l.Logger = log.New(os.Stdout, "[webhook] ", log.Ldate|log.Ltime)
 
 	negroniRecovery := &negroni.Recovery{
-		Logger:     l,
+		Logger:     l.Logger,
 		PrintStack: true,
 		StackAll:   false,
 		StackSize:  1024 * 8,
 	}
 
-	n := negroni.New(negroniRecovery, negroniLogger)
+	n := negroni.New(negroniRecovery, l)
 
 	router := mux.NewRouter()
 
