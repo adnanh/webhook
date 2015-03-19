@@ -42,12 +42,10 @@ func ExtractParameter(s string, params interface{}) (string, bool) {
 		return "", false
 	}
 
-	var p []string
-
 	if paramsValue := reflect.ValueOf(params); paramsValue.Kind() == reflect.Slice {
 		if paramsValueSliceLength := paramsValue.Len(); paramsValueSliceLength > 0 {
 
-			if p = strings.SplitN(s, ".", 3); len(p) > 3 {
+			if p := strings.SplitN(s, ".", 3); len(p) > 3 {
 				index, err := strconv.ParseInt(p[1], 10, 64)
 
 				if err != nil {
@@ -63,7 +61,7 @@ func ExtractParameter(s string, params interface{}) (string, bool) {
 		return "", false
 	}
 
-	if p = strings.SplitN(s, ".", 2); len(p) > 1 {
+	if p := strings.SplitN(s, ".", 2); len(p) > 1 {
 		if pValue, ok := params.(map[string]interface{})[p[0]]; ok {
 			return ExtractParameter(p[1], pValue)
 		}
