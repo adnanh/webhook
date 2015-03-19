@@ -12,6 +12,7 @@ var extractParameterTests = []struct {
 	{"a.b", map[string]interface{}{"a": map[string]interface{}{"b": "z"}}, "z", true},
 	{"a.b.c", map[string]interface{}{"a": map[string]interface{}{"b": map[string]interface{}{"c": "z"}}}, "z", true},
 	{"a.1.b", map[string]interface{}{"a": []interface{}{map[string]interface{}{"b": "y"}, map[string]interface{}{"b": "z"}}}, "z", true},
+	{"a.1.b.c", map[string]interface{}{"a": []interface{}{map[string]interface{}{"b": map[string]interface{}{"c": "y"}}, map[string]interface{}{"b": map[string]interface{}{"c": "z"}}}}, "z", true},
 	// failures
 	{"a.X", map[string]interface{}{"a": map[string]interface{}{"b": "z"}}, "", false},
 	{"a.500.b", map[string]interface{}{"a": map[string]interface{}{"b": "z"}}, "", false},
