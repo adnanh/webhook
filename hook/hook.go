@@ -225,7 +225,7 @@ type NotRule Rules
 
 // Evaluate NotRule will return true if and only if ChildRule evaluates to false
 func (r NotRule) Evaluate(headers, query, payload *map[string]interface{}, body *[]byte) bool {
-	return !r.Evaluate(headers, query, payload, body)
+	return !Rules(r).Evaluate(headers, query, payload, body)
 }
 
 // MatchRule will evaluate to true based on the type
