@@ -12,7 +12,6 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/adnanh/webhook/helpers"
 	"github.com/adnanh/webhook/hook"
 
 	"github.com/codegangsta/negroni"
@@ -143,10 +142,10 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// parse headers
-		headers := helpers.ValuesToMap(r.Header)
+		headers := valuesToMap(r.Header)
 
 		// parse query variables
-		query := helpers.ValuesToMap(r.URL.Query())
+		query := valuesToMap(r.URL.Query())
 
 		// parse body
 		var payload map[string]interface{}
@@ -167,7 +166,7 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				log.Printf("error parsing form payload %+v\n", err)
 			} else {
-				payload = helpers.ValuesToMap(fd)
+				payload = valuesToMap(fd)
 			}
 		}
 
@@ -235,4 +234,17 @@ func watchForFileChange() {
 			log.Println("watcher error:", err)
 		}
 	}
+}
+
+// valuesToMap converts map[string][]string to a map[string]string object
+func valuesToMap(values map[string][]string) map[string]interface{} {
+	ret := make(map[string]interface{})
+
+	for key, value := range values {
+		if len(value) > 0 {
+			ret[key] = value[0]
+		}
+	}
+
+	return ret
 }
