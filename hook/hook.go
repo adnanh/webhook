@@ -44,7 +44,7 @@ func ExtractParameter(s string, params interface{}) (string, bool) {
 		if paramsValueSliceLength := paramsValue.Len(); paramsValueSliceLength > 0 {
 
 			if p := strings.SplitN(s, ".", 2); len(p) > 1 {
-				index, err := strconv.ParseInt(p[0], 10, 64)
+				index, err := strconv.ParseUint(p[0], 10, 64)
 
 				if err != nil {
 					return "", false
