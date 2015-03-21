@@ -34,10 +34,12 @@ func CheckPayloadSignature(payload []byte, secret string, signature string) (str
 	return expectedMAC, hmac.Equal([]byte(signature), []byte(expectedMAC))
 }
 
-// ExtractParameter extracts value from interface{} based on the passed string
-func ExtractParameter(s string, params interface{}) (string, bool) {
+// ReplaceParameter replaces parameter value with the passed value in the passed map
+// (please note you should pass pointer to the map, because we're modifying it)
+// based on the passed string
+func ReplaceParameter(s string, params interface{}, value interface{}) bool {
 	if params == nil {
-		return "", false
+		return false
 	}
 
 	if paramsValue := reflect.ValueOf(params); paramsValue.Kind() == reflect.Slice {
@@ -46,29 +48,80 @@ func ExtractParameter(s string, params interface{}) (string, bool) {
 			if p := strings.SplitN(s, ".", 2); len(p) > 1 {
 				index, err := strconv.ParseUint(p[0], 10, 64)
 
-				if err != nil {
-					return "", false
-				} else if paramsValueSliceLength <= int(index) {
-					return "", false
+				if err != nil || paramsValueSliceLength <= int(index) {
+					return false
 				}
 
-				return ExtractParameter(p[1], params.([]interface{})[index])
+				return ReplaceParameter(p[1], params.([]interface{})[index], value)
 			}
 		}
 
-		return "", false
+		return false
 	}
 
 	if p := strings.SplitN(s, ".", 2); len(p) > 1 {
 		if pValue, ok := params.(map[string]interface{})[p[0]]; ok {
-			return ExtractParameter(p[1], pValue)
+			return ReplaceParameter(p[1], pValue, value)
 		}
 	} else {
-		if pValue, ok := params.(map[string]interface{})[p[0]]; ok {
-			return fmt.Sprintf("%v", pValue), true
+		if _, ok := (*params.(*map[string]interface{}))[p[0]]; ok {
+			(*params.(*map[string]interface{}))[p[0]] = value
+			return true
 		}
 	}
 
+	return false
+}
+
+// GetParameter extracts interface{} value based on the passed string
+func GetParameter(s string, params interface{}) (interface{}, bool) {
+	if params == nil {
+		return nil, false
+	}
+
+	if paramsValue := reflect.ValueOf(params); paramsValue.Kind() == reflect.Slice {
+		if paramsValueSliceLength := paramsValue.Len(); paramsValueSliceLength > 0 {
+
+			if p := strings.SplitN(s, ".", 2); len(p) > 1 {
+				index, err := strconv.ParseUint(p[0], 10, 64)
+
+				if err != nil || paramsValueSliceLength <= int(index) {
+					return nil, false
+				}
+
+				return GetParameter(p[1], params.([]interface{})[index])
+			}
+
+			index, err := strconv.ParseUint(s, 10, 64)
+
+			if err != nil || paramsValueSliceLength <= int(index) {
+				return nil, false
+			}
+
+			return params.([]interface{})[index], true
+		}
+
+		return nil, false
+	}
+
+	if p := strings.SplitN(s, ".", 2); len(p) > 1 {
+		if pValue, ok := params.(map[string]interface{})[p[0]]; ok {
+			return GetParameter(p[1], pValue)
+		}
+	} else {
+		if pValue, ok := params.(map[string]interface{})[p[0]]; ok {
+			return pValue, true
+		}
+	}
+
+	return nil, false
+}
+
+// ExtractParameterAsString extracts value from interface{} as string based on the passed string
+func ExtractParameterAsString(s string, params interface{}) (string, bool) {
+	if pValue, ok := GetParameter(s, params); ok {
+		return fmt.Sprintf("%v", pValue), true
+	}
 	return "", false
 }
 
@@ -94,7 +147,7 @@ func (ha *Argument) Get(headers, query, payload *map[string]interface{}) (string
 	}
 
 	if source != nil {
-		return ExtractParameter(ha.Name, *source)
+		return ExtractParameterAsString(ha.Name, *source)
 	}
 
 	return "", false
@@ -107,7 +160,42 @@ type Hook struct {
 	CommandWorkingDirectory string     `json:"command-working-directory"`
 	ResponseMessage         string     `json:"response-message"`
 	PassArgumentsToCommand  []Argument `json:"pass-arguments-to-command"`
+	JSONStringParameters    []Argument `json:"parse-parameters-as-json"`
 	TriggerRule             *Rules     `json:"trigger-rule"`
+}
+
+// ParseJSONParameters decodes specified arguments to JSON objects and replaces the
+// string with the newly created object
+func (h *Hook) ParseJSONParameters(headers, query, payload *map[string]interface{}) {
+	for i := range h.JSONStringParameters {
+		if arg, ok := h.JSONStringParameters[i].Get(headers, query, payload); ok {
+			var newArg map[string]interface{}
+
+			decoder := json.NewDecoder(strings.NewReader(string(arg)))
+			decoder.UseNumber()
+
+			err := decoder.Decode(&newArg)
+
+			if err != nil {
+				log.Printf("error parsing argument as JSON payload %+v\n", err)
+			} else {
+				var source *map[string]interface{}
+
+				switch h.JSONStringParameters[i].Source {
+				case SourceHeader:
+					source = headers
+				case SourcePayload:
+					source = payload
+				case SourceQuery:
+					source = query
+				}
+
+				ReplaceParameter(h.JSONStringParameters[i].Name, source, newArg)
+			}
+		} else {
+			log.Printf("couldn't retrieve argument for %+v\n", h.JSONStringParameters[i])
+		}
+	}
 }
 
 // ExtractCommandArguments creates a list of arguments, based on the

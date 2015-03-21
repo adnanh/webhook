@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	version = "2.2.2"
+	version = "2.3.0"
 )
 
 var (
@@ -169,6 +169,10 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 				payload = valuesToMap(fd)
 			}
 		}
+
+		hook.ParseJSONParameters(&headers, &query, &payload)
+
+		fmt.Printf("%+v", payload)
 
 		// handle hook
 		go handleHook(hook, &headers, &query, &payload, &body)

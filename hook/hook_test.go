@@ -37,6 +37,7 @@ var extractParameterTests = []struct {
 	{"a", map[string]interface{}{"a": "z"}, "z", true},
 	{"a.b", map[string]interface{}{"a": map[string]interface{}{"b": "z"}}, "z", true},
 	{"a.b.c", map[string]interface{}{"a": map[string]interface{}{"b": map[string]interface{}{"c": "z"}}}, "z", true},
+	{"a.b.0", map[string]interface{}{"a": map[string]interface{}{"b": []interface{}{"x", "y", "z"}}}, "x", true},
 	{"a.1.b", map[string]interface{}{"a": []interface{}{map[string]interface{}{"b": "y"}, map[string]interface{}{"b": "z"}}}, "z", true},
 	{"a.1.b.c", map[string]interface{}{"a": []interface{}{map[string]interface{}{"b": map[string]interface{}{"c": "y"}}, map[string]interface{}{"b": map[string]interface{}{"c": "z"}}}}, "z", true},
 	// failures
@@ -51,7 +52,7 @@ var extractParameterTests = []struct {
 
 func TestExtractParameter(t *testing.T) {
 	for _, tt := range extractParameterTests {
-		value, ok := ExtractParameter(tt.s, tt.params)
+		value, ok := ExtractParameterAsString(tt.s, tt.params)
 		if ok != tt.ok || value != tt.value {
 			t.Errorf("failed to extract parameter %q:\nexpected {value:%#v, ok:%#v},\ngot {value:%#v, ok:%#v}", tt.s, tt.value, tt.ok, value, ok)
 		}
