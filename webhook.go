@@ -172,8 +172,6 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 
 		hook.ParseJSONParameters(&headers, &query, &payload)
 
-		fmt.Printf("%+v", payload)
-
 		// handle hook
 		go handleHook(hook, &headers, &query, &payload, &body)
 

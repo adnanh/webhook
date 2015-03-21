@@ -105,8 +105,12 @@ func GetParameter(s string, params interface{}) (interface{}, bool) {
 	}
 
 	if p := strings.SplitN(s, ".", 2); len(p) > 1 {
-		if pValue, ok := params.(map[string]interface{})[p[0]]; ok {
-			return GetParameter(p[1], pValue)
+		if paramsValue := reflect.ValueOf(params); paramsValue.Kind() == reflect.Map {
+			if pValue, ok := params.(map[string]interface{})[p[0]]; ok {
+				return GetParameter(p[1], pValue)
+			}
+		} else {
+			return nil, false
 		}
 	} else {
 		if pValue, ok := params.(map[string]interface{})[p[0]]; ok {
