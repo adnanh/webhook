@@ -85,6 +85,30 @@ func TestArgumentGet(t *testing.T) {
 	}
 }
 
+var hookParseJSONParametersTests = []struct {
+	params                     []Argument
+	headers, query, payload    *map[string]interface{}
+	rheaders, rquery, rpayload *map[string]interface{}
+}{
+	{[]Argument{Argument{"header", "a"}}, &map[string]interface{}{"a": `{"b": "y"}`}, nil, nil, &map[string]interface{}{"a": map[string]interface{}{"b": "y"}}, nil, nil},
+	{[]Argument{Argument{"url", "a"}}, nil, &map[string]interface{}{"a": `{"b": "y"}`}, nil, nil, &map[string]interface{}{"a": map[string]interface{}{"b": "y"}}, nil},
+	{[]Argument{Argument{"payload", "a"}}, nil, nil, &map[string]interface{}{"a": `{"b": "y"}`}, nil, nil, &map[string]interface{}{"a": map[string]interface{}{"b": "y"}}},
+	{[]Argument{Argument{"header", "z"}}, &map[string]interface{}{"z": `{}`}, nil, nil, &map[string]interface{}{"z": map[string]interface{}{}}, nil, nil},
+	// failures
+	{[]Argument{Argument{"header", "z"}}, &map[string]interface{}{"z": ``}, nil, nil, &map[string]interface{}{"z": ``}, nil, nil},     // empty string
+	{[]Argument{Argument{"header", "y"}}, &map[string]interface{}{"X": `{}`}, nil, nil, &map[string]interface{}{"X": `{}`}, nil, nil}, // missing parameter
+}
+
+func TestHookParseJSONParameters(t *testing.T) {
+	for _, tt := range hookParseJSONParametersTests {
+		h := &Hook{JSONStringParameters: tt.params}
+		h.ParseJSONParameters(tt.headers, tt.query, tt.payload)
+		if !reflect.DeepEqual(tt.headers, tt.rheaders) {
+			t.Errorf("failed to parse %v:\nexpected %#v,\ngot %#v", tt.params, *tt.rheaders, *tt.headers)
+		}
+	}
+}
+
 var hookExtractCommandArgumentsTests = []struct {
 	exec                    string
 	args                    []Argument
