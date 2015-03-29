@@ -152,7 +152,7 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 
 		contentType := r.Header.Get("Content-Type")
 
-		if contentType == "application/json" {
+		if strings.HasPrefix(contentType, "application/json") {
 			decoder := json.NewDecoder(strings.NewReader(string(body)))
 			decoder.UseNumber()
 
@@ -161,7 +161,7 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				log.Printf("error parsing JSON payload %+v\n", err)
 			}
-		} else if contentType == "application/x-www-form-urlencoded" {
+		} else if strings.HasPrefix(contentType, "application/x-www-form-urlencoded") {
 			fd, err := url.ParseQuery(string(body))
 			if err != nil {
 				log.Printf("error parsing form payload %+v\n", err)
