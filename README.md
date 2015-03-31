@@ -62,6 +62,8 @@ Check out [Hook examples page](https://github.com/adnanh/webhook/wiki/Hook-Examp
 # Contributing
 Any form of contribution is welcome and highly appreciated.
 
+Big thanks to [all the current contributors](https://github.com/adnanh/webhook/graphs/contributors) for their contributions!
+
 # License
 
 The MIT License (MIT)
