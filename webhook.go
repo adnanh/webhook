@@ -10,7 +10,9 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	"github.com/adnanh/webhook/hook"
 
@@ -21,7 +23,7 @@ import (
 )
 
 const (
-	version = "2.3.1"
+	version = "2.3.2"
 )
 
 var (
@@ -36,6 +38,7 @@ var (
 	key            = flag.String("key", "key.pem", "path to the HTTPS certificate private key pem file")
 
 	watcher *fsnotify.Watcher
+	signals chan os.Signal
 
 	hooks hook.Hooks
 )
@@ -53,6 +56,14 @@ func init() {
 	}
 
 	log.Println("version " + version + " starting")
+
+	// set os signal watcher
+	log.Printf("setting up os signal watcher\n")
+
+	signals = make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.Signal(0xa))
+
+	go watchForSignals()
 
 	// load and parse hooks
 	log.Printf("attempting to load hooks from %s\n", *hooksFilePath)
@@ -206,6 +217,27 @@ func handleHook(hook *hook.Hook, headers, query, payload *map[string]interface{}
 	}
 }
 
+func reloadHooks() {
+	newHooks := hook.Hooks{}
+
+	// parse and swap
+	log.Printf("attempting to reload hooks from %s\n", *hooksFilePath)
+
+	err := newHooks.LoadFromFile(*hooksFilePath)
+
+	if err != nil {
+		log.Printf("couldn't load hooks from file! %+v\n", err)
+	} else {
+		log.Printf("loaded %d hook(s) from file\n", len(hooks))
+
+		for _, hook := range hooks {
+			log.Printf("\t> %s\n", hook.ID)
+		}
+
+		hooks = newHooks
+	}
+}
+
 func watchForFileChange() {
 	for {
 		select {
@@ -213,27 +245,25 @@ func watchForFileChange() {
 			if event.Op&fsnotify.Write == fsnotify.Write {
 				log.Println("hooks file modified")
 
-				newHooks := hook.Hooks{}
-
-				// parse and swap
-				log.Printf("attempting to reload hooks from %s\n", *hooksFilePath)
-
-				err := newHooks.LoadFromFile(*hooksFilePath)
-
-				if err != nil {
-					log.Printf("couldn't load hooks from file! %+v\n", err)
-				} else {
-					log.Printf("loaded %d hook(s) from file\n", len(hooks))
-
-					for _, hook := range hooks {
-						log.Printf("\t> %s\n", hook.ID)
-					}
-
-					hooks = newHooks
-				}
+				reloadHooks()
 			}
 		case err := <-(*watcher).Errors:
 			log.Println("watcher error:", err)
+		}
+	}
+}
+
+func watchForSignals() {
+	log.Println("os signal watcher ready")
+
+	for {
+		sig := <-signals
+		if sig == syscall.Signal(0xa) {
+			log.Println("caught USR1 signal")
+
+			reloadHooks()
+		} else {
+			log.Printf("caught unhandled signal %+v\n", sig)
 		}
 	}
 }
