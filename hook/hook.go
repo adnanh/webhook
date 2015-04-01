@@ -5,9 +5,9 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -25,8 +25,48 @@ const (
 	SourceEntireHeaders string = "entire-headers"
 )
 
+var (
+	ErrInvalidPayloadSignature = errors.New("invalid payload signature")
+)
+
+// An ArgumentError describes an invalid argument passed to Hook.
+type ArgumentError struct {
+	Argument Argument
+}
+
+func (e *ArgumentError) Error() string {
+	if e == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("couldn't retrieve argument for %+v", e.Argument)
+}
+
+// An SourceError describes an invalid source passed to Hook.
+type SourceError struct {
+	Argument Argument
+}
+
+func (e *SourceError) Error() string {
+	if e == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("invalid source for argument %+v", e.Argument)
+}
+
+// A ParseError describes an error parsing user input.
+type ParseError struct {
+	Err error
+}
+
+func (e *ParseError) Error() string {
+	if e == nil {
+		return "<nil>"
+	}
+	return e.Err.Error()
+}
+
 // CheckPayloadSignature calculates and verifies SHA1 signature of the given payload
-func CheckPayloadSignature(payload []byte, secret string, signature string) (string, bool) {
+func CheckPayloadSignature(payload []byte, secret string, signature string) (string, error) {
 	if strings.HasPrefix(signature, "sha1=") {
 		signature = signature[5:]
 	}
@@ -35,7 +75,12 @@ func CheckPayloadSignature(payload []byte, secret string, signature string) (str
 	mac.Write(payload)
 	expectedMAC := hex.EncodeToString(mac.Sum(nil))
 
-	return expectedMAC, hmac.Equal([]byte(signature), []byte(expectedMAC))
+	var err error = nil
+	if !hmac.Equal([]byte(signature), []byte(expectedMAC)) {
+		err = ErrInvalidPayloadSignature
+	}
+
+	return expectedMAC, err
 }
 
 // ReplaceParameter replaces parameter value with the passed value in the passed map
@@ -201,7 +246,7 @@ type Hook struct {
 
 // ParseJSONParameters decodes specified arguments to JSON objects and replaces the
 // string with the newly created object
-func (h *Hook) ParseJSONParameters(headers, query, payload *map[string]interface{}) {
+func (h *Hook) ParseJSONParameters(headers, query, payload *map[string]interface{}) error {
 	for i := range h.JSONStringParameters {
 		if arg, ok := h.JSONStringParameters[i].Get(headers, query, payload); ok {
 			var newArg map[string]interface{}
@@ -212,7 +257,7 @@ func (h *Hook) ParseJSONParameters(headers, query, payload *map[string]interface
 			err := decoder.Decode(&newArg)
 
 			if err != nil {
-				log.Printf("error parsing argument as JSON payload %+v\n", err)
+				return &ParseError{err}
 			} else {
 				var source *map[string]interface{}
 
@@ -228,18 +273,20 @@ func (h *Hook) ParseJSONParameters(headers, query, payload *map[string]interface
 				if source != nil {
 					ReplaceParameter(h.JSONStringParameters[i].Name, source, newArg)
 				} else {
-					log.Printf("invalid source for argument %+v\n", h.JSONStringParameters[i])
+					return &SourceError{h.JSONStringParameters[i]}
 				}
 			}
 		} else {
-			log.Printf("couldn't retrieve argument for %+v\n", h.JSONStringParameters[i])
+			return &ArgumentError{h.JSONStringParameters[i]}
 		}
 	}
+
+	return nil
 }
 
 // ExtractCommandArguments creates a list of arguments, based on the
 // PassArgumentsToCommand property that is ready to be used with exec.Command()
-func (h *Hook) ExtractCommandArguments(headers, query, payload *map[string]interface{}) []string {
+func (h *Hook) ExtractCommandArguments(headers, query, payload *map[string]interface{}) ([]string, error) {
 	var args = make([]string, 0)
 
 	args = append(args, h.ExecuteCommand)
@@ -249,11 +296,11 @@ func (h *Hook) ExtractCommandArguments(headers, query, payload *map[string]inter
 			args = append(args, arg)
 		} else {
 			args = append(args, "")
-			log.Printf("couldn't retrieve argument for %+v\n", h.PassArgumentsToCommand[i])
+			return args, &ArgumentError{h.PassArgumentsToCommand[i]}
 		}
 	}
 
-	return args
+	return args, nil
 }
 
 // Hooks is an array of Hook objects
@@ -315,7 +362,7 @@ type Rules struct {
 
 // Evaluate finds the first rule property that is not nil and returns the value
 // it evaluates to
-func (r Rules) Evaluate(headers, query, payload *map[string]interface{}, body *[]byte) bool {
+func (r Rules) Evaluate(headers, query, payload *map[string]interface{}, body *[]byte) (bool, error) {
 	switch {
 	case r.And != nil:
 		return r.And.Evaluate(headers, query, payload, body)
@@ -327,49 +374,60 @@ func (r Rules) Evaluate(headers, query, payload *map[string]interface{}, body *[
 		return r.Match.Evaluate(headers, query, payload, body)
 	}
 
-	return false
+	return false, nil
 }
 
 // AndRule will evaluate to true if and only if all of the ChildRules evaluate to true
 type AndRule []Rules
 
 // Evaluate AndRule will return true if and only if all of ChildRules evaluate to true
-func (r AndRule) Evaluate(headers, query, payload *map[string]interface{}, body *[]byte) bool {
+func (r AndRule) Evaluate(headers, query, payload *map[string]interface{}, body *[]byte) (bool, error) {
 	res := true
 
 	for _, v := range r {
-		res = res && v.Evaluate(headers, query, payload, body)
+		rv, err := v.Evaluate(headers, query, payload, body)
+		if err != nil {
+			return false, err
+		}
+
+		res = res && rv
 		if res == false {
-			return res
+			return res, nil
 		}
 	}
 
-	return res
+	return res, nil
 }
 
 // OrRule will evaluate to true if any of the ChildRules evaluate to true
 type OrRule []Rules
 
 // Evaluate OrRule will return true if any of ChildRules evaluate to true
-func (r OrRule) Evaluate(headers, query, payload *map[string]interface{}, body *[]byte) bool {
+func (r OrRule) Evaluate(headers, query, payload *map[string]interface{}, body *[]byte) (bool, error) {
 	res := false
 
 	for _, v := range r {
-		res = res || v.Evaluate(headers, query, payload, body)
+		rv, err := v.Evaluate(headers, query, payload, body)
+		if err != nil {
+			return false, err
+		}
+
+		res = res || rv
 		if res == true {
-			return res
+			return res, nil
 		}
 	}
 
-	return res
+	return res, nil
 }
 
 // NotRule will evaluate to true if any and only if the ChildRule evaluates to false
 type NotRule Rules
 
 // Evaluate NotRule will return true if and only if ChildRule evaluates to false
-func (r NotRule) Evaluate(headers, query, payload *map[string]interface{}, body *[]byte) bool {
-	return !Rules(r).Evaluate(headers, query, payload, body)
+func (r NotRule) Evaluate(headers, query, payload *map[string]interface{}, body *[]byte) (bool, error) {
+	rv, err := Rules(r).Evaluate(headers, query, payload, body)
+	return !rv, err
 }
 
 // MatchRule will evaluate to true based on the type
@@ -389,29 +447,20 @@ const (
 )
 
 // Evaluate MatchRule will return based on the type
-func (r MatchRule) Evaluate(headers, query, payload *map[string]interface{}, body *[]byte) bool {
+func (r MatchRule) Evaluate(headers, query, payload *map[string]interface{}, body *[]byte) (bool, error) {
 	if arg, ok := r.Parameter.Get(headers, query, payload); ok {
 		switch r.Type {
 		case MatchValue:
-			return arg == r.Value
+			return arg == r.Value, nil
 		case MatchRegex:
-			ok, err := regexp.MatchString(r.Regex, arg)
-			if err != nil {
-				log.Printf("error while trying to evaluate regex: %+v", err)
-			}
-			return ok
+			return regexp.MatchString(r.Regex, arg)
 		case MatchHashSHA1:
-			expected, ok := CheckPayloadSignature(*body, r.Secret, arg)
-			if !ok {
-				log.Printf("payload signature mismatch, expected %s got %s", expected, arg)
-			}
-
-			return ok
+			_, err := CheckPayloadSignature(*body, r.Secret, arg)
+			return err == nil, err
 		}
-	} else {
-		log.Printf("couldn't retrieve argument for %+v\n", r.Parameter)
 	}
-	return false
+
+	return false, &ArgumentError{r.Parameter}
 }
 
 // CommandStatusResponse type encapsulates the executed command exit code, message, stdout and stderr
