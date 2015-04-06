@@ -61,7 +61,7 @@ func init() {
 	log.Printf("setting up os signal watcher\n")
 
 	signals = make(chan os.Signal, 1)
-	signal.Notify(signals, syscall.Signal(0xa))
+	signal.Notify(signals, syscall.SIGUSR1)
 
 	go watchForSignals()
 
@@ -258,7 +258,7 @@ func watchForSignals() {
 
 	for {
 		sig := <-signals
-		if sig == syscall.Signal(0xa) {
+		if sig == syscall.SIGUSR1 {
 			log.Println("caught USR1 signal")
 
 			reloadHooks()
