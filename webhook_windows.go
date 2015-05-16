@@ -1,4 +1,4 @@
-//+build !windows
+//+build windows
 
 package main
 
@@ -12,9 +12,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
-	"os/signal"
 	"strings"
-	"syscall"
 
 	"github.com/adnanh/webhook/hook"
 
@@ -40,7 +38,6 @@ var (
 	key            = flag.String("key", "key.pem", "path to the HTTPS certificate private key pem file")
 
 	watcher *fsnotify.Watcher
-	signals chan os.Signal
 
 	hooks hook.Hooks
 )
@@ -58,14 +55,6 @@ func init() {
 	}
 
 	log.Println("version " + version + " starting")
-
-	// set os signal watcher
-	log.Printf("setting up os signal watcher\n")
-
-	signals = make(chan os.Signal, 1)
-	signal.Notify(signals, syscall.SIGUSR1)
-
-	go watchForSignals()
 
 	// load and parse hooks
 	log.Printf("attempting to load hooks from %s\n", *hooksFilePath)
@@ -251,21 +240,6 @@ func watchForFileChange() {
 			}
 		case err := <-(*watcher).Errors:
 			log.Println("watcher error:", err)
-		}
-	}
-}
-
-func watchForSignals() {
-	log.Println("os signal watcher ready")
-
-	for {
-		sig := <-signals
-		if sig == syscall.SIGUSR1 {
-			log.Println("caught USR1 signal")
-
-			reloadHooks()
-		} else {
-			log.Printf("caught unhandled signal %+v\n", sig)
 		}
 	}
 }

@@ -19,6 +19,7 @@ const (
 	SourceHeader  string = "header"
 	SourceQuery   string = "url"
 	SourcePayload string = "payload"
+	SourceString  string = "string"
 )
 
 // CheckPayloadSignature calculates and verifies SHA1 signature of the given payload
@@ -148,6 +149,8 @@ func (ha *Argument) Get(headers, query, payload *map[string]interface{}) (string
 		source = query
 	case SourcePayload:
 		source = payload
+	case SourceString:
+		return ha.Name, true
 	}
 
 	if source != nil {
@@ -194,7 +197,11 @@ func (h *Hook) ParseJSONParameters(headers, query, payload *map[string]interface
 					source = query
 				}
 
-				ReplaceParameter(h.JSONStringParameters[i].Name, source, newArg)
+				if source != nil {
+					ReplaceParameter(h.JSONStringParameters[i].Name, source, newArg)
+				} else {
+					log.Printf("invalid source for argument %+v\n", h.JSONStringParameters[i])
+				}
 			}
 		} else {
 			log.Printf("couldn't retrieve argument for %+v\n", h.JSONStringParameters[i])
