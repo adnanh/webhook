@@ -70,6 +70,7 @@ var argumentGetTests = []struct {
 	{"header", "a", &map[string]interface{}{"a": "z"}, nil, nil, "z", true},
 	{"url", "a", nil, &map[string]interface{}{"a": "z"}, nil, "z", true},
 	{"payload", "a", nil, nil, &map[string]interface{}{"a": "z"}, "z", true},
+	{"string", "a", nil, nil, &map[string]interface{}{"a": "z"}, "a", true},
 	// failures
 	{"header", "a", nil, &map[string]interface{}{"a": "z"}, &map[string]interface{}{"a": "z"}, "", false},  // nil headers
 	{"url", "a", &map[string]interface{}{"a": "z"}, nil, &map[string]interface{}{"a": "z"}, "", false},     // nil query
@@ -99,6 +100,7 @@ var hookParseJSONParametersTests = []struct {
 	// failures
 	{[]Argument{Argument{"header", "z"}}, &map[string]interface{}{"z": ``}, nil, nil, &map[string]interface{}{"z": ``}, nil, nil},     // empty string
 	{[]Argument{Argument{"header", "y"}}, &map[string]interface{}{"X": `{}`}, nil, nil, &map[string]interface{}{"X": `{}`}, nil, nil}, // missing parameter
+	{[]Argument{Argument{"string", "z"}}, &map[string]interface{}{"z": ``}, nil, nil, &map[string]interface{}{"z": ``}, nil, nil},     // invalid argument source
 }
 
 func TestHookParseJSONParameters(t *testing.T) {
