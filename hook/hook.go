@@ -260,6 +260,23 @@ func (h *Hooks) Match(id string) *Hook {
 	return nil
 }
 
+// MatchAll iterates through Hooks and returns all of the hooks that match the
+// given ID, if no hook matches the given ID, nil is returned
+func (h *Hooks) MatchAll(id string) []*Hook {
+	matchedHooks := make([]*Hook, 0)
+	for i := range *h {
+		if (*h)[i].ID == id {
+			matchedHooks = append(matchedHooks, &(*h)[i])
+		}
+	}
+
+	if len(matchedHooks) > 0 {
+		return matchedHooks
+	}
+
+	return nil
+}
+
 // Rules is a structure that contains one of the valid rule types
 type Rules struct {
 	And   *AndRule   `json:"and"`

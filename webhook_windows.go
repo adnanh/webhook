@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	version = "2.3.3"
+	version = "2.3.4"
 )
 
 var (
@@ -133,10 +133,10 @@ func main() {
 func hookHandler(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
 
-	hook := hooks.Match(id)
+	matchedHooks := hooks.MatchAll(id)
 
-	if hook != nil {
-		log.Printf("%s got matched\n", id)
+	if matchedHooks != nil {
+		log.Printf("%s got matched (%d time(s))\n", id, len(matchedHooks))
 
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
@@ -172,13 +172,27 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		hook.ParseJSONParameters(&headers, &query, &payload)
-
 		// handle hook
-		go handleHook(hook, &headers, &query, &payload, &body)
+		for _, hook := range matchedHooks {
+			hook.ParseJSONParameters(&headers, &query, &payload)
 
-		// send the hook defined response message
-		fmt.Fprintf(w, hook.ResponseMessage)
+			if hook.TriggerRule == nil || hook.TriggerRule != nil && hook.TriggerRule.Evaluate(&headers, &query, &payload, &body) {
+				log.Printf("%s hook triggered successfully\n", hook.ID)
+
+				go handleHook(hook, &headers, &query, &payload, &body)
+
+				// send the hook defined response message
+				fmt.Fprintf(w, hook.ResponseMessage)
+
+				return
+			}
+		}
+
+		// if none of the hooks got triggered
+		log.Printf("%s got matched (%d time(s)), but didn't get triggered because the trigger rules were not satisfied\n", matchedHooks[0].ID, len(matchedHooks))
+
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, "Hook rules were not satisfied.")
 	} else {
 		w.WriteHeader(http.StatusNotFound)
 		fmt.Fprintf(w, "Hook not found.")
@@ -186,26 +200,21 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleHook(hook *hook.Hook, headers, query, payload *map[string]interface{}, body *[]byte) {
-	if hook.TriggerRule == nil || hook.TriggerRule != nil && hook.TriggerRule.Evaluate(headers, query, payload, body) {
-		log.Printf("%s hook triggered successfully\n", hook.ID)
+	cmd := exec.Command(hook.ExecuteCommand)
+	cmd.Args = hook.ExtractCommandArguments(headers, query, payload)
+	cmd.Dir = hook.CommandWorkingDirectory
 
-		cmd := exec.Command(hook.ExecuteCommand)
-		cmd.Args = hook.ExtractCommandArguments(headers, query, payload)
-		cmd.Dir = hook.CommandWorkingDirectory
+	log.Printf("executing %s (%s) with arguments %s using %s as cwd\n", hook.ExecuteCommand, cmd.Path, cmd.Args, cmd.Dir)
 
-		log.Printf("executing %s (%s) with arguments %s using %s as cwd\n", hook.ExecuteCommand, cmd.Path, cmd.Args, cmd.Dir)
+	out, err := cmd.Output()
 
-		out, err := cmd.Output()
+	log.Printf("stdout: %s\n", out)
 
-		log.Printf("stdout: %s\n", out)
-
-		if err != nil {
-			log.Printf("stderr: %+v\n", err)
-		}
-		log.Printf("finished handling %s\n", hook.ID)
-	} else {
-		log.Printf("%s hook did not get triggered\n", hook.ID)
+	if err != nil {
+		log.Printf("stderr: %+v\n", err)
 	}
+
+	log.Printf("finished handling %s\n", hook.ID)
 }
 
 func reloadHooks() {
