@@ -1,4 +1,6 @@
 # What is webhook?
+
+[![Join the chat at https://gitter.im/adnanh/webhook](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/adnanh/webhook?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 [webhook](https://github.com/adnanh/webhook/) is a lightweight configurable tool written in Go, that allows you to easily create HTTP endpoints (hooks) on your server, which you can use to execute configured commands. You can also pass data from the HTTP request (such as headers, payload or query variables) to your commands. [webhook](https://github.com/adnanh/webhook/) also allows you to specify rules which have to be satisfied in order for the hook to be triggered.
 
 For example, if you're using Github or Bitbucket, you can use [webhook](https://github.com/adnanh/webhook/) to set up a hook that runs a redeploy script for your project on your staging server, whenever you push changes to the master branch of your project.
