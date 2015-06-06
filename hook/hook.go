@@ -21,6 +21,8 @@ const (
 	SourcePayload       string = "payload"
 	SourceString        string = "string"
 	SourceEntirePayload string = "entire-payload"
+	SourceEntireQuery   string = "entire-query"
+	SourceEntireHeaders string = "entire-headers"
 )
 
 // CheckPayloadSignature calculates and verifies SHA1 signature of the given payload
@@ -154,6 +156,22 @@ func (ha *Argument) Get(headers, query, payload *map[string]interface{}) (string
 		return ha.Name, true
 	case SourceEntirePayload:
 		r, err := json.Marshal(payload)
+
+		if err != nil {
+			return "", false
+		}
+
+		return string(r), true
+	case SourceEntireHeaders:
+		r, err := json.Marshal(headers)
+
+		if err != nil {
+			return "", false
+		}
+
+		return string(r), true
+	case SourceEntireQuery:
+		r, err := json.Marshal(query)
 
 		if err != nil {
 			return "", false
