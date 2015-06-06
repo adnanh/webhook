@@ -16,10 +16,11 @@ import (
 
 // Constants used to specify the parameter source
 const (
-	SourceHeader  string = "header"
-	SourceQuery   string = "url"
-	SourcePayload string = "payload"
-	SourceString  string = "string"
+	SourceHeader        string = "header"
+	SourceQuery         string = "url"
+	SourcePayload       string = "payload"
+	SourceString        string = "string"
+	SourceEntirePayload string = "entire-payload"
 )
 
 // CheckPayloadSignature calculates and verifies SHA1 signature of the given payload
@@ -151,6 +152,14 @@ func (ha *Argument) Get(headers, query, payload *map[string]interface{}) (string
 		source = payload
 	case SourceString:
 		return ha.Name, true
+	case SourceEntirePayload:
+		r, err := json.Marshal(payload)
+
+		if err != nil {
+			return "", false
+		}
+
+		return string(r), true
 	}
 
 	if source != nil {
@@ -166,6 +175,7 @@ type Hook struct {
 	ExecuteCommand          string     `json:"execute-command"`
 	CommandWorkingDirectory string     `json:"command-working-directory"`
 	ResponseMessage         string     `json:"response-message"`
+	CaptureCommandOutput    bool       `json:"include-command-output-in-response"`
 	PassArgumentsToCommand  []Argument `json:"pass-arguments-to-command"`
 	JSONStringParameters    []Argument `json:"parse-parameters-as-json"`
 	TriggerRule             *Rules     `json:"trigger-rule"`
@@ -384,4 +394,11 @@ func (r MatchRule) Evaluate(headers, query, payload *map[string]interface{}, bod
 		log.Printf("couldn't retrieve argument for %+v\n", r.Parameter)
 	}
 	return false
+}
+
+// CommandStatusResponse type encapsulates the executed command exit code, message, stdout and stderr
+type CommandStatusResponse struct {
+	ResponseMessage string `json:"message"`
+	Output          string `json:"output"`
+	Error           string `json:"error"`
 }
