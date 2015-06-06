@@ -16,10 +16,13 @@ import (
 
 // Constants used to specify the parameter source
 const (
-	SourceHeader  string = "header"
-	SourceQuery   string = "url"
-	SourcePayload string = "payload"
-	SourceString  string = "string"
+	SourceHeader        string = "header"
+	SourceQuery         string = "url"
+	SourcePayload       string = "payload"
+	SourceString        string = "string"
+	SourceEntirePayload string = "entire-payload"
+	SourceEntireQuery   string = "entire-query"
+	SourceEntireHeaders string = "entire-headers"
 )
 
 // CheckPayloadSignature calculates and verifies SHA1 signature of the given payload
@@ -151,6 +154,30 @@ func (ha *Argument) Get(headers, query, payload *map[string]interface{}) (string
 		source = payload
 	case SourceString:
 		return ha.Name, true
+	case SourceEntirePayload:
+		r, err := json.Marshal(payload)
+
+		if err != nil {
+			return "", false
+		}
+
+		return string(r), true
+	case SourceEntireHeaders:
+		r, err := json.Marshal(headers)
+
+		if err != nil {
+			return "", false
+		}
+
+		return string(r), true
+	case SourceEntireQuery:
+		r, err := json.Marshal(query)
+
+		if err != nil {
+			return "", false
+		}
+
+		return string(r), true
 	}
 
 	if source != nil {
@@ -166,6 +193,7 @@ type Hook struct {
 	ExecuteCommand          string     `json:"execute-command"`
 	CommandWorkingDirectory string     `json:"command-working-directory"`
 	ResponseMessage         string     `json:"response-message"`
+	CaptureCommandOutput    bool       `json:"include-command-output-in-response"`
 	PassArgumentsToCommand  []Argument `json:"pass-arguments-to-command"`
 	JSONStringParameters    []Argument `json:"parse-parameters-as-json"`
 	TriggerRule             *Rules     `json:"trigger-rule"`
@@ -255,6 +283,23 @@ func (h *Hooks) Match(id string) *Hook {
 		if (*h)[i].ID == id {
 			return &(*h)[i]
 		}
+	}
+
+	return nil
+}
+
+// MatchAll iterates through Hooks and returns all of the hooks that match the
+// given ID, if no hook matches the given ID, nil is returned
+func (h *Hooks) MatchAll(id string) []*Hook {
+	matchedHooks := make([]*Hook, 0)
+	for i := range *h {
+		if (*h)[i].ID == id {
+			matchedHooks = append(matchedHooks, &(*h)[i])
+		}
+	}
+
+	if len(matchedHooks) > 0 {
+		return matchedHooks
 	}
 
 	return nil
@@ -367,4 +412,11 @@ func (r MatchRule) Evaluate(headers, query, payload *map[string]interface{}, bod
 		log.Printf("couldn't retrieve argument for %+v\n", r.Parameter)
 	}
 	return false
+}
+
+// CommandStatusResponse type encapsulates the executed command exit code, message, stdout and stderr
+type CommandStatusResponse struct {
+	ResponseMessage string `json:"message"`
+	Output          string `json:"output"`
+	Error           string `json:"error"`
 }

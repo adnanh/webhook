@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	version = "2.3.3"
+	version = "2.3.4"
 )
 
 var (
@@ -144,10 +144,10 @@ func main() {
 func hookHandler(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
 
-	hook := hooks.Match(id)
+	matchedHooks := hooks.MatchAll(id)
 
-	if hook != nil {
-		log.Printf("%s got matched\n", id)
+	if matchedHooks != nil {
+		log.Printf("%s got matched (%d time(s))\n", id, len(matchedHooks))
 
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
@@ -165,7 +165,7 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 
 		contentType := r.Header.Get("Content-Type")
 
-		if strings.HasPrefix(contentType, "application/json") {
+		if strings.Contains(contentType, "json") {
 			decoder := json.NewDecoder(strings.NewReader(string(body)))
 			decoder.UseNumber()
 
@@ -174,7 +174,7 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				log.Printf("error parsing JSON payload %+v\n", err)
 			}
-		} else if strings.HasPrefix(contentType, "application/x-www-form-urlencoded") {
+		} else if strings.Contains(contentType, "form") {
 			fd, err := url.ParseQuery(string(body))
 			if err != nil {
 				log.Printf("error parsing form payload %+v\n", err)
@@ -183,40 +183,64 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		hook.ParseJSONParameters(&headers, &query, &payload)
-
 		// handle hook
-		go handleHook(hook, &headers, &query, &payload, &body)
+		for _, h := range matchedHooks {
+			h.ParseJSONParameters(&headers, &query, &payload)
+			if h.TriggerRule == nil || h.TriggerRule != nil && h.TriggerRule.Evaluate(&headers, &query, &payload, &body) {
+				log.Printf("%s hook triggered successfully\n", h.ID)
 
-		// send the hook defined response message
-		fmt.Fprintf(w, hook.ResponseMessage)
+				if h.CaptureCommandOutput {
+					response := handleHook(h, &headers, &query, &payload, &body)
+					fmt.Fprintf(w, response)
+				} else {
+					go handleHook(h, &headers, &query, &payload, &body)
+					fmt.Fprintf(w, h.ResponseMessage)
+				}
+
+				return
+			}
+		}
+
+		// if none of the hooks got triggered
+		log.Printf("%s got matched (%d time(s)), but didn't get triggered because the trigger rules were not satisfied\n", matchedHooks[0].ID, len(matchedHooks))
+
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, "Hook rules were not satisfied.")
 	} else {
 		w.WriteHeader(http.StatusNotFound)
 		fmt.Fprintf(w, "Hook not found.")
 	}
 }
 
-func handleHook(hook *hook.Hook, headers, query, payload *map[string]interface{}, body *[]byte) {
-	if hook.TriggerRule == nil || hook.TriggerRule != nil && hook.TriggerRule.Evaluate(headers, query, payload, body) {
-		log.Printf("%s hook triggered successfully\n", hook.ID)
+func handleHook(h *hook.Hook, headers, query, payload *map[string]interface{}, body *[]byte) string {
+	cmd := exec.Command(h.ExecuteCommand)
+	cmd.Args = h.ExtractCommandArguments(headers, query, payload)
+	cmd.Dir = h.CommandWorkingDirectory
 
-		cmd := exec.Command(hook.ExecuteCommand)
-		cmd.Args = hook.ExtractCommandArguments(headers, query, payload)
-		cmd.Dir = hook.CommandWorkingDirectory
+	log.Printf("executing %s (%s) with arguments %s using %s as cwd\n", h.ExecuteCommand, cmd.Path, cmd.Args, cmd.Dir)
 
-		log.Printf("executing %s (%s) with arguments %s using %s as cwd\n", hook.ExecuteCommand, cmd.Path, cmd.Args, cmd.Dir)
+	out, err := cmd.CombinedOutput()
 
-		out, err := cmd.Output()
+	log.Printf("command output: %s\n", out)
 
-		log.Printf("stdout: %s\n", out)
+	var errorResponse string
 
-		if err != nil {
-			log.Printf("stderr: %+v\n", err)
-		}
-		log.Printf("finished handling %s\n", hook.ID)
-	} else {
-		log.Printf("%s hook did not get triggered\n", hook.ID)
+	if err != nil {
+		log.Printf("error occurred: %+v\n", err)
+		errorResponse = fmt.Sprintf("%+v", err)
 	}
+
+	log.Printf("finished handling %s\n", h.ID)
+
+	var response []byte
+	response, err = json.Marshal(&hook.CommandStatusResponse{ResponseMessage: h.ResponseMessage, Output: string(out), Error: errorResponse})
+
+	if err != nil {
+		log.Printf("error marshalling response: %+v", err)
+		return h.ResponseMessage
+	}
+
+	return string(response)
 }
 
 func reloadHooks() {

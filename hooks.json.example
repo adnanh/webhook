@@ -3,6 +3,7 @@
     "id": "webhook",
     "execute-command": "/home/adnan/redeploy-go-webhook.sh",
     "command-working-directory": "/home/adnan/go",
+    "response-message": "I got the payload!",
     "pass-arguments-to-command":
     [
       {
