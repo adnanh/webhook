@@ -179,12 +179,12 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 			if h.TriggerRule == nil || h.TriggerRule != nil && h.TriggerRule.Evaluate(&headers, &query, &payload, &body) {
 				log.Printf("%s hook triggered successfully\n", h.ID)
 
-				if !h.CaptureCommandOutput {
-					go handleHook(h, &headers, &query, &payload, &body)
-					fmt.Fprintf(w, h.ResponseMessage)
-				} else {
+				if h.CaptureCommandOutput {
 					response := handleHook(h, &headers, &query, &payload, &body)
 					fmt.Fprintf(w, response)
+				} else {
+					go handleHook(h, &headers, &query, &payload, &body)
+					fmt.Fprintf(w, h.ResponseMessage)
 				}
 
 				return
