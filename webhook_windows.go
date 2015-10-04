@@ -23,13 +23,14 @@ import (
 )
 
 const (
-	version = "2.3.4"
+	version = "2.3.5"
 )
 
 var (
 	ip             = flag.String("ip", "", "ip the webhook should serve hooks on")
 	port           = flag.Int("port", 9000, "port the webhook should serve hooks on")
 	verbose        = flag.Bool("verbose", false, "show verbose output")
+	noPanic        = flag.Bool("nopanic", false, "do not panic if hooks cannot be loaded when webhook is not running in verbose mode")
 	hotReload      = flag.Bool("hotreload", false, "watch hooks file for changes and reload them automatically")
 	hooksFilePath  = flag.String("hooks", "hooks.json", "path to the json file containing defined hooks the webhook should serve")
 	hooksURLPrefix = flag.String("urlprefix", "hooks", "url prefix to use for served hooks (protocol://yourserver:port/PREFIX/:hook-id)")
@@ -63,6 +64,11 @@ func init() {
 	err := hooks.LoadFromFile(*hooksFilePath)
 
 	if err != nil {
+		if !*verbose && !*noPanic {
+			log.SetOutput(os.Stdout)
+			log.Fatalf("couldn't load any hooks from file! %+v\naborting webhook execution since the -verbose flag is set to false.\nIf, for some reason, you want webhook to start without the hooks, either use -verbose flag, or -nopanic", err)
+		}
+
 		log.Printf("couldn't load hooks from file! %+v\n", err)
 	} else {
 		log.Printf("loaded %d hook(s) from file\n", len(hooks))
