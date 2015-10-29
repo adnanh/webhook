@@ -191,8 +191,31 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 
 		// handle hook
 		for _, h := range matchedHooks {
-			h.ParseJSONParameters(&headers, &query, &payload)
-			if h.TriggerRule == nil || h.TriggerRule != nil && h.TriggerRule.Evaluate(&headers, &query, &payload, &body) {
+			err := h.ParseJSONParameters(&headers, &query, &payload)
+			if err != nil {
+				msg := fmt.Sprintf("error parsing JSON: %s", err)
+				log.Printf(msg)
+				w.WriteHeader(http.StatusBadRequest)
+				fmt.Fprintf(w, msg)
+				return
+			}
+
+			var ok bool
+
+			if h.TriggerRule == nil {
+				ok = true
+			} else {
+				ok, err = h.TriggerRule.Evaluate(&headers, &query, &payload, &body)
+				if err != nil {
+					msg := fmt.Sprintf("error evaluating hook: %s", err)
+					log.Printf(msg)
+					w.WriteHeader(http.StatusInternalServerError)
+					fmt.Fprintf(w, msg)
+					return
+				}
+			}
+
+			if ok {
 				log.Printf("%s hook triggered successfully\n", h.ID)
 
 				if h.CaptureCommandOutput {
@@ -219,9 +242,15 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleHook(h *hook.Hook, headers, query, payload *map[string]interface{}, body *[]byte) string {
+	var err error
+
 	cmd := exec.Command(h.ExecuteCommand)
-	cmd.Args = h.ExtractCommandArguments(headers, query, payload)
 	cmd.Dir = h.CommandWorkingDirectory
+	cmd.Args, err = h.ExtractCommandArguments(headers, query, payload)
+	if err != nil {
+		log.Printf("error extracting command arguments: %s", err)
+		return ""
+	}
 
 	log.Printf("executing %s (%s) with arguments %s using %s as cwd\n", h.ExecuteCommand, cmd.Path, cmd.Args, cmd.Dir)
 
