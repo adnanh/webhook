@@ -23,7 +23,7 @@ before_script:
 - docker exec -i test_fedora bash -c "pip install git+https://github.com/shawnsi/docker-rpmbuild"
 script:
 - docker exec -i test_fedora bash -c "pip install git+https://github.com/shawnsi/docker-rpmbuild"
-- docker exec -u fedora i test_fedora bash -c "cd $HOME/build/$TRAVIS_REPO_SLUG ; make build_rpm"
+- docker exec -u fedora -i test_fedora bash -c "cd $HOME/build/$TRAVIS_REPO_SLUG ; make build_rpm"
 
 
 
