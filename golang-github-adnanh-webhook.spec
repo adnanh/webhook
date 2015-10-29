@@ -3,7 +3,7 @@
 %global with_bundled 0
 %global with_debug 1
 %global with_check 1
-%global with_unit_test 0
+%global with_unit_test 1
 %else
 %global with_devel 0
 %global with_bundled 0
@@ -111,6 +111,10 @@ export GOPATH=$(pwd):$(pwd)/Godeps/_workspace:%{gopath}
 %install
 install -d -p %{buildroot}%{_bindir}
 install -p -m 0755 bin/webhook %{buildroot}%{_bindir}
+install -d -p %{buildroot}%{_initrddir}
+install -p -m 0755 webhook.init %{buildroot}%{_initrddir}/webhook 
+install -d -p %{buildroot}%{_sysconfdir}/webhook/
+install -p -m 0640 hooks.json.example %{buildroot}%{_sysconfdir}/webhook/
 
 # source codes for building projects
 %if 0%{?with_devel}
@@ -129,7 +133,7 @@ done
 %if 0%{?with_unit_test} && 0%{?with_devel}
 install -d -p %{buildroot}/%{gopath}/src/%{import_path}/
 # find all *_test.go files and generate unit-test-devel.file-list
-for file in $(find . -iname "*_test.go" -iname "hooks.json.example"); do
+for file in $(find . -iname "*_test.go" -or -iname "hooks.json.example"); do
     echo "%%dir %%{gopath}/src/%%{import_path}/$(dirname $file)" >> devel.file-list
     install -d -p %{buildroot}/%{gopath}/src/%{import_path}/$(dirname $file)
     cp -pav $file %{buildroot}/%{gopath}/src/%{import_path}/$file
@@ -158,7 +162,9 @@ export GOPATH=%{buildroot}/%{gopath}:$(pwd)/Godeps/_workspace:%{gopath}
 %files
 %license LICENSE
 %doc README.md hooks.json.example
+%config(noreplace)%{_sysconfdir}/webhook/*
 %{_bindir}/webhook
+%{_initrddir}/webhook
 
 %if 0%{?with_devel}
 %files devel -f devel.file-list
