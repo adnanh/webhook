@@ -1,0 +1,30 @@
+branches:
+  only:
+  - master
+notifications:
+  email:
+    on_success: never
+    on_failure: always
+sudo: required
+services:
+- docker
+before_install:
+- echo "deb http://us.archive.ubuntu.com/ubuntu trusty main universe" | sudo tee -a /etc/apt/sources.list
+- sudo apt-get update
+- docker pull fedora:22
+before_script:
+- docker run -i --privileged -d -v $HOME/build/$TRAVIS_REPO_SLUG:$HOME/build/$TRAVIS_REPO_SLUG --name test_fedora fedora:22 bash
+- docker exec -i test_fedora bash -c "dnf install -y rpmdevtools make mock git python-pip"
+- docker exec -i test_fedora bash -c "dnf install -y go-compilers-golang-compiler"
+- docker exec -i test_fedora bash -c "dnf install -y https://kojipkgs.fedoraproject.org//packages/golang-github-go-fsnotify-fsnotify/1.2.0/0.1.git96c060f.fc22/noarch/golang-github-go-fsnotify-fsnotify-devel-1.2.0-0.1.git96c060f.fc22.noarch.rpm"
+- docker exec -i test_fedora bash -c "dnf install -y https://kojipkgs.fedoraproject.org//packages/golang-github-codegangsta-negroni/0.1/1.gitc7477ad.fc22/noarch/golang-github-codegangsta-negroni-devel-0.1-1.gitc7477ad.fc22.noarch.rpm"
+- docker exec -i test_fedora bash -c "dnf install -y https://kojipkgs.fedoraproject.org//packages/golang-github-gorilla-mux/0/0.18.git8096f47.fc22/noarch/golang-github-gorilla-mux-devel-0-0.18.git8096f47.fc22.noarch.rpm"
+- docker exec -i test_fedora bash -c "useradd -g root fedora; usermod -a -G mock fedora"
+- docker exec -i test_fedora bash -c "pip install git+https://github.com/shawnsi/docker-rpmbuild"
+script:
+- docker exec -i test_fedora bash -c "pip install git+https://github.com/shawnsi/docker-rpmbuild"
+- docker exec -u fedora -i test_fedora bash -c "cd $HOME/build/$TRAVIS_REPO_SLUG ; make build_rpm"
+
+
+
+
