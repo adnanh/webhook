@@ -42,7 +42,7 @@ var (
 	hooks hook.Hooks
 )
 
-func init() {
+func main() {
 	hooks = hook.Hooks{}
 
 	flag.Parse()
@@ -78,9 +78,7 @@ func init() {
 			log.Printf("\t> %s\n", hook.ID)
 		}
 	}
-}
 
-func main() {
 	if *hotReload {
 		// set up file watcher
 		log.Printf("setting up file watcher for %s\n", *hooksFilePath)
@@ -103,7 +101,7 @@ func main() {
 	}
 
 	l := negroni.NewLogger()
-	l.Logger = log.New(os.Stdout, "[webhook] ", log.Ldate|log.Ltime)
+	l.Logger = log.New(os.Stderr, "[webhook] ", log.Ldate|log.Ltime)
 
 	negroniRecovery := &negroni.Recovery{
 		Logger:     l.Logger,
@@ -224,7 +222,6 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 		// if none of the hooks got triggered
 		log.Printf("%s got matched (%d time(s)), but didn't get triggered because the trigger rules were not satisfied\n", matchedHooks[0].ID, len(matchedHooks))
 
-		w.WriteHeader(http.StatusBadRequest)
 		fmt.Fprintf(w, "Hook rules were not satisfied.")
 	} else {
 		w.WriteHeader(http.StatusNotFound)

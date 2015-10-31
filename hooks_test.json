@@ -1,0 +1,135 @@
+[
+  {
+    "id": "github",
+    "execute-command": "/bin/echo",
+    "command-working-directory": "/",
+    "include-command-output-in-response": true,
+    "pass-arguments-to-command":
+    [
+      {
+        "source": "payload",
+        "name": "head_commit.id"
+      },
+      {
+        "source": "payload",
+        "name": "pusher.name"
+      },
+      {
+        "source": "payload",
+        "name": "pusher.email"
+      }
+    ],
+    "trigger-rule":
+    {
+      "and":
+      [
+        {
+          "match":
+          {
+            "type": "payload-hash-sha1",
+            "secret": "mysecret",
+            "parameter":
+            {
+              "source": "header",
+              "name": "X-Hub-Signature"
+            }
+          }
+        },
+        {
+          "match":
+          {
+            "type": "value",
+            "value": "refs/heads/master",
+            "parameter":
+            {
+              "source": "payload",
+              "name": "ref"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "bitbucket",
+    "execute-command": "/bin/echo",
+    "command-working-directory": "/",
+    "include-command-output-in-response": true,
+    "response-message": "success",
+    "parse-parameters-as-json": [
+      {
+        "source": "payload",
+        "name": "payload"
+      }
+    ],
+    "trigger-rule": {
+      "and": [
+        {
+          "match": {
+            "type": "value",
+            "parameter": {
+              "source": "payload",
+              "name": "payload.canon_url"
+            },
+            "value": "https://bitbucket.org"
+          }
+        },
+        {
+          "match": {
+            "type": "value",
+            "parameter": {
+              "source": "payload",
+              "name": "payload.repository.absolute_url"
+            },
+            "value": "/webhook/testing/"
+          }
+        },
+        {
+          "match": {
+            "type": "value",
+            "parameter": {
+              "source": "payload",
+              "name": "payload.commits.0.branch"
+            },
+            "value": "master"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "gitlab",
+    "execute-command": "/bin/echo",
+    "command-working-directory": "/",
+    "response-message": "success",
+    "include-command-output-in-response": true,
+    "pass-arguments-to-command":
+    [
+      {
+        "source": "payload",
+        "name": "commits.0.id"
+      },
+      {
+        "source": "payload",
+        "name": "user_name"
+      },
+      {
+        "source": "payload",
+        "name": "user_email"
+      }
+    ],
+    "trigger-rule":
+    {
+      "match":
+      {
+        "type": "value",
+        "value": "refs/heads/master",
+        "parameter":
+        {
+          "source": "payload",
+          "name": "ref"
+        }
+      }
+    }
+  }
+]
