@@ -11,7 +11,8 @@ If you use Slack, you can set up an "Outgoing webhook integration" to run variou
  1. receive the request,
  2. parse the headers, payload and query variables,
  3. check if the specified rules for the hook are satisfied,
- 3. and finally, pass the specified arguments to the specified command.
+ 3. and finally, pass the specified arguments to the specified command via
+    command line arguments or via environment variables.
 
 Everything else is the responsibility of the command's author.
 

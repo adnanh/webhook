@@ -234,13 +234,20 @@ func handleHook(h *hook.Hook, headers, query, payload *map[string]interface{}, b
 
 	cmd := exec.Command(h.ExecuteCommand)
 	cmd.Dir = h.CommandWorkingDirectory
+
 	cmd.Args, err = h.ExtractCommandArguments(headers, query, payload)
 	if err != nil {
 		log.Printf("error extracting command arguments: %s", err)
 		return ""
 	}
 
-	log.Printf("executing %s (%s) with arguments %s using %s as cwd\n", h.ExecuteCommand, cmd.Path, cmd.Args, cmd.Dir)
+	cmd.Env, err = h.ExtractCommandArgumentsForEnv(headers, query, payload)
+	if err != nil {
+		log.Printf("error extracting command arguments: %s", err)
+		return ""
+	}
+
+	log.Printf("executing %s (%s) with arguments %s and environment %s using %s as cwd\n", h.ExecuteCommand, cmd.Path, cmd.Args, cmd.Env, cmd.Dir)
 
 	out, err := cmd.CombinedOutput()
 

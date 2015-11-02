@@ -1,5 +1,3 @@
-// +build !windows
-
 package main
 
 import (
@@ -13,18 +11,28 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"text/template"
 	"time"
+
+	"github.com/adnanh/webhook/hook"
 )
 
 func TestWebhook(t *testing.T) {
-	bin, cleanup := buildWebhook(t)
-	defer cleanup()
+	hookecho, cleanupHookecho := buildHookecho(t)
+	defer cleanupHookecho()
+
+	config, cleanupConfig := genConfig(t, hookecho)
+	defer cleanupConfig()
+
+	webhook, cleanupWebhook := buildWebhook(t)
+	defer cleanupWebhook()
 
 	ip, port := serverAddress(t)
-	args := []string{"-hooks=hooks_test.json", fmt.Sprintf("-ip=%s", ip), fmt.Sprintf("-port=%s", port), "-verbose"}
+	args := []string{fmt.Sprintf("-hooks=%s", config), fmt.Sprintf("-ip=%s", ip), fmt.Sprintf("-port=%s", port), "-verbose"}
 
-	cmd := exec.Command(bin, args...)
+	cmd := exec.Command(webhook, args...)
 	//cmd.Stderr = os.Stderr // uncomment to see verbose output
+	cmd.Env = webhookEnv()
 	cmd.Args[0] = "webhook"
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("failed to start webhook: %s", err)
@@ -41,10 +49,8 @@ func TestWebhook(t *testing.T) {
 			t.Errorf("New request failed: %s", err)
 		}
 
-		if tt.headers != nil {
-			for k, v := range tt.headers {
-				req.Header.Add(k, v)
-			}
+		for k, v := range tt.headers {
+			req.Header.Add(k, v)
 		}
 
 		var res *http.Response
@@ -71,6 +77,58 @@ func TestWebhook(t *testing.T) {
 			t.Errorf("failed %q (id: %s):\nexpected status: %#v, response: %s\ngot status: %#v, response: %s", tt.desc, tt.id, tt.respStatus, tt.respBody, res.StatusCode, body)
 		}
 	}
+}
+
+func buildHookecho(t *testing.T) (bin string, cleanup func()) {
+	tmp, err := ioutil.TempDir("", "hookecho-test-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if cleanup == nil {
+			os.RemoveAll(tmp)
+		}
+	}()
+
+	bin = filepath.Join(tmp, "hookecho")
+	if runtime.GOOS == "windows" {
+		bin += ".exe"
+	}
+
+	cmd := exec.Command("go", "build", "-o", bin, "test/hookecho.go")
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("Building hookecho: %v", err)
+	}
+
+	return bin, func() { os.RemoveAll(tmp) }
+}
+
+func genConfig(t *testing.T, bin string) (config string, cleanup func()) {
+	tmpl := template.Must(template.ParseFiles("test/hooks.json.tmpl"))
+
+	tmp, err := ioutil.TempDir("", "webhook-config-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if cleanup == nil {
+			os.RemoveAll(tmp)
+		}
+	}()
+
+	path := filepath.Join(tmp, "hooks.json")
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatalf("Creating config template: %v", err)
+	}
+	defer file.Close()
+
+	data := struct{ Hookecho string }{filepath.ToSlash(bin)}
+	if err := tmpl.Execute(file, data); err != nil {
+		t.Fatalf("Executing template: %v", err)
+	}
+
+	return path, func() { os.RemoveAll(tmp) }
 }
 
 func buildWebhook(t *testing.T) (bin string, cleanup func()) {
@@ -140,6 +198,18 @@ func waitForServer(t *testing.T, url string, status int, timeout time.Duration) 
 func killAndWait(cmd *exec.Cmd) {
 	cmd.Process.Kill()
 	cmd.Wait()
+}
+
+// webhookEnv returns the process environment without any existing hook
+// namespace variables.
+func webhookEnv() (env []string) {
+	for _, v := range os.Environ() {
+		if strings.HasPrefix(v, hook.EnvNamespace) {
+			continue
+		}
+		env = append(env, v)
+	}
+	return
 }
 
 var hookHandlerTests = []struct {
@@ -302,7 +372,7 @@ var hookHandlerTests = []struct {
 		}`,
 		false,
 		http.StatusOK,
-		`{"message":"","output":"1481a2de7b2a7d02428ad93446ab166be7793fbb Garen Torikian lolwut@noway.biz\n","error":""}`,
+		`{"output":"arg: 1481a2de7b2a7d02428ad93446ab166be7793fbb Garen Torikian lolwut@noway.biz\nenv: HOOK_pusher.email=lolwut@noway.biz\n"}`,
 	},
 	{
 		"bitbucket", // bitbucket sends their payload using uriencoded params.
@@ -311,7 +381,7 @@ var hookHandlerTests = []struct {
 		`payload={"canon_url": "https://bitbucket.org","commits": [{"author": "marcus","branch": "master","files": [{"file": "somefile.py","type": "modified"}],"message": "Added some more things to somefile.py\n","node": "620ade18607a","parents": ["702c70160afc"],"raw_author": "Marcus Bertrand <marcus@somedomain.com>","raw_node": "620ade18607ac42d872b568bb92acaa9a28620e9","revision": null,"size": -1,"timestamp": "2012-05-30 05:58:56","utctimestamp": "2014-11-07 15:19:02+00:00"}],"repository": {"absolute_url": "/webhook/testing/","fork": false,"is_private": true,"name": "Project X","owner": "marcus","scm": "git","slug": "project-x","website": "https://atlassian.com/"},"user": "marcus"}`,
 		true,
 		http.StatusOK,
-		`{"message":"success","output":"\n","error":""}`,
+		`{"message":"success"}`,
 	},
 	{
 		"gitlab",
@@ -361,7 +431,7 @@ var hookHandlerTests = []struct {
 		}`,
 		false,
 		http.StatusOK,
-		`{"message":"success","output":"b6568db1bc1dcd7f8b4d5a946b0b91f9dacd7327 John Smith john@example.com\n","error":""}`,
+		`{"message":"success","output":"arg: b6568db1bc1dcd7f8b4d5a946b0b91f9dacd7327 John Smith john@example.com\n"}`,
 	},
 
 	{"empty payload", "github", nil, `{}`, false, http.StatusOK, `Hook rules were not satisfied.`},

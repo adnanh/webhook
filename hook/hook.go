@@ -25,6 +25,12 @@ const (
 	SourceEntireHeaders string = "entire-headers"
 )
 
+const (
+	// EnvNamespace is the prefix used for passing arguments into the command
+	// environment.
+	EnvNamespace string = "HOOK_"
+)
+
 // ErrInvalidPayloadSignature describes an invalid payload signature.
 var ErrInvalidPayloadSignature = errors.New("invalid payload signature")
 
@@ -234,14 +240,15 @@ func (ha *Argument) Get(headers, query, payload *map[string]interface{}) (string
 
 // Hook type is a structure containing details for a single hook
 type Hook struct {
-	ID                      string     `json:"id"`
-	ExecuteCommand          string     `json:"execute-command"`
-	CommandWorkingDirectory string     `json:"command-working-directory"`
-	ResponseMessage         string     `json:"response-message"`
-	CaptureCommandOutput    bool       `json:"include-command-output-in-response"`
-	PassArgumentsToCommand  []Argument `json:"pass-arguments-to-command"`
-	JSONStringParameters    []Argument `json:"parse-parameters-as-json"`
-	TriggerRule             *Rules     `json:"trigger-rule"`
+	ID                       string     `json:"id"`
+	ExecuteCommand           string     `json:"execute-command"`
+	CommandWorkingDirectory  string     `json:"command-working-directory"`
+	ResponseMessage          string     `json:"response-message"`
+	CaptureCommandOutput     bool       `json:"include-command-output-in-response"`
+	PassEnvironmentToCommand []Argument `json:"pass-environment-to-command"`
+	PassArgumentsToCommand   []Argument `json:"pass-arguments-to-command"`
+	JSONStringParameters     []Argument `json:"parse-parameters-as-json"`
+	TriggerRule              *Rules     `json:"trigger-rule"`
 }
 
 // ParseJSONParameters decodes specified arguments to JSON objects and replaces the
@@ -295,8 +302,24 @@ func (h *Hook) ExtractCommandArguments(headers, query, payload *map[string]inter
 		if arg, ok := h.PassArgumentsToCommand[i].Get(headers, query, payload); ok {
 			args = append(args, arg)
 		} else {
-			args = append(args, "")
 			return args, &ArgumentError{h.PassArgumentsToCommand[i]}
+		}
+	}
+
+	return args, nil
+}
+
+// ExtractCommandArgumentsForEnv creates a list of arguments in key=value
+// format, based on the PassEnvironmentToCommand property that is ready to be used
+// with exec.Command().
+func (h *Hook) ExtractCommandArgumentsForEnv(headers, query, payload *map[string]interface{}) ([]string, error) {
+	var args = make([]string, 0)
+
+	for i := range h.PassEnvironmentToCommand {
+		if arg, ok := h.PassEnvironmentToCommand[i].Get(headers, query, payload); ok {
+			args = append(args, EnvNamespace+h.PassEnvironmentToCommand[i].Name+"="+arg)
+		} else {
+			return args, &ArgumentError{h.PassEnvironmentToCommand[i]}
 		}
 	}
 
@@ -459,7 +482,7 @@ func (r MatchRule) Evaluate(headers, query, payload *map[string]interface{}, bod
 			return err == nil, err
 		}
 	}
-	return false, &ArgumentError{r.Parameter}
+	return false, nil
 }
 
 // CommandStatusResponse type encapsulates the executed command exit code, message, stdout and stderr
