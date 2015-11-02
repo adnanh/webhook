@@ -123,7 +123,7 @@ var hookExtractCommandArgumentsTests = []struct {
 }{
 	{"test", []Argument{Argument{"header", "a"}}, &map[string]interface{}{"a": "z"}, nil, nil, []string{"test", "z"}, true},
 	// failures
-	{"fail", []Argument{Argument{"payload", "a"}}, &map[string]interface{}{"a": "z"}, nil, nil, []string{"fail", ""}, false},
+	{"fail", []Argument{Argument{"payload", "a"}}, &map[string]interface{}{"a": "z"}, nil, nil, []string{"fail"}, false},
 }
 
 func TestHookExtractCommandArguments(t *testing.T) {
@@ -188,8 +188,8 @@ var matchRuleTests = []struct {
 	// failures
 	{"value", "", "", "X", Argument{"header", "a"}, &map[string]interface{}{"a": "z"}, nil, nil, []byte{}, false, false},
 	{"regex", "^X", "", "", Argument{"header", "a"}, &map[string]interface{}{"a": "z"}, nil, nil, []byte{}, false, false},
+	{"value", "", "2", "X", Argument{"header", "a"}, &map[string]interface{}{"y": "z"}, nil, nil, []byte{}, false, false}, // reference invalid header
 	// errors
-	{"value", "", "2", "X", Argument{"header", "a"}, &map[string]interface{}{"y": "z"}, nil, nil, []byte{}, false, true},                // reference invalid header
 	{"regex", "*", "", "", Argument{"header", "a"}, &map[string]interface{}{"a": "z"}, nil, nil, []byte{}, false, true},                 // invalid regex
 	{"payload-hash-sha1", "", "secret", "", Argument{"header", "a"}, &map[string]interface{}{"a": ""}, nil, nil, []byte{}, false, true}, // invalid hmac
 }
@@ -262,7 +262,7 @@ var andRuleTests = []struct {
 		"invalid rule",
 		AndRule{{Match: &MatchRule{"value", "", "", "X", Argument{"header", "a"}}}},
 		&map[string]interface{}{"y": "z"}, nil, nil, nil,
-		false, true,
+		false, false,
 	},
 }
 
@@ -317,7 +317,7 @@ var orRuleTests = []struct {
 			{Match: &MatchRule{"value", "", "", "z", Argument{"header", "a"}}},
 		},
 		&map[string]interface{}{"y": "Z"}, nil, nil, []byte{},
-		false, true,
+		false, false,
 	},
 }
 
