@@ -265,23 +265,23 @@ func (h *Hook) ParseJSONParameters(headers, query, payload *map[string]interface
 
 			if err != nil {
 				return &ParseError{err}
+			}
+
+			var source *map[string]interface{}
+
+			switch h.JSONStringParameters[i].Source {
+			case SourceHeader:
+				source = headers
+			case SourcePayload:
+				source = payload
+			case SourceQuery:
+				source = query
+			}
+
+			if source != nil {
+				ReplaceParameter(h.JSONStringParameters[i].Name, source, newArg)
 			} else {
-				var source *map[string]interface{}
-
-				switch h.JSONStringParameters[i].Source {
-				case SourceHeader:
-					source = headers
-				case SourcePayload:
-					source = payload
-				case SourceQuery:
-					source = query
-				}
-
-				if source != nil {
-					ReplaceParameter(h.JSONStringParameters[i].Name, source, newArg)
-				} else {
-					return &SourceError{h.JSONStringParameters[i]}
-				}
+				return &SourceError{h.JSONStringParameters[i]}
 			}
 		} else {
 			return &ArgumentError{h.JSONStringParameters[i]}
