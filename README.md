@@ -75,7 +75,7 @@ FROM adnanh/webhook
 COPY hooks.json.example /etc/webhook/hooks.json
 ```
 
-This `Dockerfile` and `hooks.json` files should be placed inside the same directory. After that run `docker build -t my-webhook-image .` and then start your container:
+This `Dockerfile` and `hooks.json.example` files should be placed inside the same directory. After that run `docker build -t my-webhook-image .` and then start your container:
 ```shell
 docker run -d -p 9000:9000 --name=webhook my-webhook-image -verbose -hooks=/etc/webhook/hooks.json -hotreload
 ```
