@@ -62,40 +62,13 @@ However, hook defined like that could pose a security threat to your system, bec
 # Examples
 Check out [Hook examples page](https://github.com/adnanh/webhook/wiki/Hook-Examples) for more complex examples of hooks.
 
-# Running webhook in Docker
-The simplest usage of [adnanh/webhook](https://hub.docker.com/r/adnanh/webhook/) image is for one to host the hooks JSON file on their machine and mount the directory in which those are kept as a volume to the Docker container:
-```shell
-docker run -d -p 9000:9000 -v /dir/to/hooks/on/host:/etc/webhook --name=webhook \
-  adnanh/webhook -verbose -hooks=/etc/webhook/hooks.json -hotreload
-```
-
-Another method of using this Docker image is to create a simple `Dockerfile`:
-```docker
-FROM adnanh/webhook
-COPY hooks.json.example /etc/webhook/hooks.json
-```
-
-This `Dockerfile` and `hooks.json.example` files should be placed inside the same directory. After that run `docker build -t my-webhook-image .` and then start your container:
-```shell
-docker run -d -p 9000:9000 --name=webhook my-webhook-image -verbose -hooks=/etc/webhook/hooks.json -hotreload
-```
-
-Additionally, one can specify the parameters to be passed to [webhook](https://github.com/adnanh/webhook/) in `Dockerfile` simply by adding one more line to the previous example:
-```docker
-FROM adnanh/webhook
-COPY hooks.json.example /etc/webhook/hooks.json
-CMD ["-verbose", "-hooks=/etc/webhook/hooks.json", "-hotreload"]
-```
-
-Now, after building your Docker image with `docker build -t my-webhook-image .`, you can start your container by running just:
-```shell
-docker run -d -p 9000:9000 --name=webhook my-webhook-image
-```
-
 # Contributing
 Any form of contribution is welcome and highly appreciated.
 
 Big thanks to [all the current contributors](https://github.com/adnanh/webhook/graphs/contributors) for their contributions!
+
+# Community Contributions
+See the [webhook-contrib][wc] repository for a collections of tools and helpers related to [webhook][w] that have been contributed by the [webhook][w] community.
 
 # License
 
@@ -120,3 +93,7 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
+
+
+[w]: https://github.com/adnanh/webhook
+[wc]: https://github.com/adnanh/webhook-contrib
