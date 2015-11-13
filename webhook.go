@@ -1,5 +1,3 @@
-//+build !windows
-
 package main
 
 import (
@@ -12,9 +10,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
-	"os/signal"
 	"strings"
-	"syscall"
 
 	"github.com/adnanh/webhook/hook"
 
@@ -25,7 +21,7 @@ import (
 )
 
 const (
-	version = "2.3.5"
+	version = "2.3.6"
 )
 
 var (
@@ -46,7 +42,7 @@ var (
 	hooks hook.Hooks
 )
 
-func init() {
+func main() {
 	hooks = hook.Hooks{}
 
 	flag.Parse()
@@ -61,12 +57,7 @@ func init() {
 	log.Println("version " + version + " starting")
 
 	// set os signal watcher
-	log.Printf("setting up os signal watcher\n")
-
-	signals = make(chan os.Signal, 1)
-	signal.Notify(signals, syscall.SIGUSR1)
-
-	go watchForSignals()
+	setupSignals()
 
 	// load and parse hooks
 	log.Printf("attempting to load hooks from %s\n", *hooksFilePath)
@@ -87,9 +78,7 @@ func init() {
 			log.Printf("\t> %s\n", hook.ID)
 		}
 	}
-}
 
-func main() {
 	if *hotReload {
 		// set up file watcher
 		log.Printf("setting up file watcher for %s\n", *hooksFilePath)
@@ -112,7 +101,7 @@ func main() {
 	}
 
 	l := negroni.NewLogger()
-	l.Logger = log.New(os.Stdout, "[webhook] ", log.Ldate|log.Ltime)
+	l.Logger = log.New(os.Stderr, "[webhook] ", log.Ldate|log.Ltime)
 
 	negroniRecovery := &negroni.Recovery{
 		Logger:     l.Logger,
@@ -191,8 +180,31 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 
 		// handle hook
 		for _, h := range matchedHooks {
-			h.ParseJSONParameters(&headers, &query, &payload)
-			if h.TriggerRule == nil || h.TriggerRule != nil && h.TriggerRule.Evaluate(&headers, &query, &payload, &body) {
+			err := h.ParseJSONParameters(&headers, &query, &payload)
+			if err != nil {
+				msg := fmt.Sprintf("error parsing JSON: %s", err)
+				log.Printf(msg)
+				w.WriteHeader(http.StatusBadRequest)
+				fmt.Fprintf(w, msg)
+				return
+			}
+
+			var ok bool
+
+			if h.TriggerRule == nil {
+				ok = true
+			} else {
+				ok, err = h.TriggerRule.Evaluate(&headers, &query, &payload, &body)
+				if err != nil {
+					msg := fmt.Sprintf("error evaluating hook: %s", err)
+					log.Printf(msg)
+					w.WriteHeader(http.StatusInternalServerError)
+					fmt.Fprintf(w, msg)
+					return
+				}
+			}
+
+			if ok {
 				log.Printf("%s hook triggered successfully\n", h.ID)
 
 				if h.CaptureCommandOutput {
@@ -210,7 +222,6 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 		// if none of the hooks got triggered
 		log.Printf("%s got matched (%d time(s)), but didn't get triggered because the trigger rules were not satisfied\n", matchedHooks[0].ID, len(matchedHooks))
 
-		w.WriteHeader(http.StatusBadRequest)
 		fmt.Fprintf(w, "Hook rules were not satisfied.")
 	} else {
 		w.WriteHeader(http.StatusNotFound)
@@ -219,11 +230,24 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleHook(h *hook.Hook, headers, query, payload *map[string]interface{}, body *[]byte) string {
+	var err error
+
 	cmd := exec.Command(h.ExecuteCommand)
-	cmd.Args = h.ExtractCommandArguments(headers, query, payload)
 	cmd.Dir = h.CommandWorkingDirectory
 
-	log.Printf("executing %s (%s) with arguments %s using %s as cwd\n", h.ExecuteCommand, cmd.Path, cmd.Args, cmd.Dir)
+	cmd.Args, err = h.ExtractCommandArguments(headers, query, payload)
+	if err != nil {
+		log.Printf("error extracting command arguments: %s", err)
+		return ""
+	}
+
+	cmd.Env, err = h.ExtractCommandArgumentsForEnv(headers, query, payload)
+	if err != nil {
+		log.Printf("error extracting command arguments: %s", err)
+		return ""
+	}
+
+	log.Printf("executing %s (%s) with arguments %s and environment %s using %s as cwd\n", h.ExecuteCommand, cmd.Path, cmd.Args, cmd.Env, cmd.Dir)
 
 	out, err := cmd.CombinedOutput()
 
@@ -281,21 +305,6 @@ func watchForFileChange() {
 			}
 		case err := <-(*watcher).Errors:
 			log.Println("watcher error:", err)
-		}
-	}
-}
-
-func watchForSignals() {
-	log.Println("os signal watcher ready")
-
-	for {
-		sig := <-signals
-		if sig == syscall.SIGUSR1 {
-			log.Println("caught USR1 signal")
-
-			reloadHooks()
-		} else {
-			log.Printf("caught unhandled signal %+v\n", sig)
 		}
 	}
 }

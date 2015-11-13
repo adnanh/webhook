@@ -11,7 +11,8 @@ If you use Slack, you can set up an "Outgoing webhook integration" to run variou
  1. receive the request,
  2. parse the headers, payload and query variables,
  3. check if the specified rules for the hook are satisfied,
- 3. and finally, pass the specified arguments to the specified command.
+ 3. and finally, pass the specified arguments to the specified command via
+    command line arguments or via environment variables.
 
 Everything else is the responsibility of the command's author.
 
@@ -66,6 +67,9 @@ Any form of contribution is welcome and highly appreciated.
 
 Big thanks to [all the current contributors](https://github.com/adnanh/webhook/graphs/contributors) for their contributions!
 
+# Community Contributions
+See the [webhook-contrib][wc] repository for a collections of tools and helpers related to [webhook][w] that have been contributed by the [webhook][w] community.
+
 # License
 
 The MIT License (MIT)
@@ -89,3 +93,7 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
+
+
+[w]: https://github.com/adnanh/webhook
+[wc]: https://github.com/adnanh/webhook-contrib
