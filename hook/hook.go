@@ -5,7 +5,6 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"reflect"
@@ -31,8 +30,17 @@ const (
 	EnvNamespace string = "HOOK_"
 )
 
-// ErrInvalidPayloadSignature describes an invalid payload signature.
-var ErrInvalidPayloadSignature = errors.New("invalid payload signature")
+// SignatureError describes an invalid payload signature passed to Hook.
+type SignatureError struct {
+	Signature string
+}
+
+func (e *SignatureError) Error() string {
+	if e == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("invalid payload signature %s", e.Signature)
+}
 
 // ArgumentError describes an invalid argument passed to Hook.
 type ArgumentError struct {
@@ -84,7 +92,7 @@ func CheckPayloadSignature(payload []byte, secret string, signature string) (str
 	expectedMAC := hex.EncodeToString(mac.Sum(nil))
 
 	if !hmac.Equal([]byte(signature), []byte(expectedMAC)) {
-		err = ErrInvalidPayloadSignature
+		return expectedMAC, &SignatureError{expectedMAC}
 	}
 	return expectedMAC, err
 }
@@ -302,6 +310,7 @@ func (h *Hook) ExtractCommandArguments(headers, query, payload *map[string]inter
 		if arg, ok := h.PassArgumentsToCommand[i].Get(headers, query, payload); ok {
 			args = append(args, arg)
 		} else {
+			args = append(args, "")
 			return args, &ArgumentError{h.PassArgumentsToCommand[i]}
 		}
 	}

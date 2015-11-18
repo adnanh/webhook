@@ -123,7 +123,7 @@ var hookExtractCommandArgumentsTests = []struct {
 }{
 	{"test", []Argument{Argument{"header", "a"}}, &map[string]interface{}{"a": "z"}, nil, nil, []string{"test", "z"}, true},
 	// failures
-	{"fail", []Argument{Argument{"payload", "a"}}, &map[string]interface{}{"a": "z"}, nil, nil, []string{"fail"}, false},
+	{"fail", []Argument{Argument{"payload", "a"}}, &map[string]interface{}{"a": "z"}, nil, nil, []string{"fail", ""}, false},
 }
 
 func TestHookExtractCommandArguments(t *testing.T) {
