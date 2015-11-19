@@ -372,7 +372,7 @@ var hookHandlerTests = []struct {
 		}`,
 		false,
 		http.StatusOK,
-		`{"output":"arg: 1481a2de7b2a7d02428ad93446ab166be7793fbb Garen Torikian lolwut@noway.biz\nenv: HOOK_pusher.email=lolwut@noway.biz\n"}`,
+		`{"output":"arg: 1481a2de7b2a7d02428ad93446ab166be7793fbb lolwut@noway.biz\nenv: HOOK_head_commit.timestamp=2013-03-12T08:14:29-07:00\n"}`,
 	},
 	{
 		"bitbucket", // bitbucket sends their payload using uriencoded params.
@@ -432,6 +432,81 @@ var hookHandlerTests = []struct {
 		false,
 		http.StatusOK,
 		`{"message":"success","output":"arg: b6568db1bc1dcd7f8b4d5a946b0b91f9dacd7327 John Smith john@example.com\n"}`,
+	},
+
+	{
+		"missing-cmd-arg", // missing head_commit.author.email
+		"github",
+		map[string]string{"X-Hub-Signature": "ab03955b9377f530aa298b1b6d273ae9a47e1e40"},
+		`{
+			"head_commit":{
+				"added":[
+					"words/madame-bovary.txt"
+				],
+				"author":{
+					"email":"lolwut@noway.biz",
+					"name":"Garen Torikian",
+					"username":"octokitty"
+				},
+				"committer":{
+					"email":"lolwut@noway.biz",
+					"name":"Garen Torikian",
+					"username":"octokitty"
+				},
+				"distinct":true,
+				"id":"1481a2de7b2a7d02428ad93446ab166be7793fbb",
+				"message":"Rename madame-bovary.txt to words/madame-bovary.txt",
+				"modified":[
+
+				],
+				"removed":[
+					"madame-bovary.txt"
+				],
+				"timestamp":"2013-03-12T08:14:29-07:00",
+				"url":"https://github.com/octokitty/testing/commit/1481a2de7b2a7d02428ad93446ab166be7793fbb"
+			},
+			"ref":"refs/heads/master"
+		}`,
+		false,
+		http.StatusOK,
+		`{"output":"arg: 1481a2de7b2a7d02428ad93446ab166be7793fbb lolwut@noway.biz\nenv: HOOK_head_commit.timestamp=2013-03-12T08:14:29-07:00\n"}`,
+	},
+
+	{
+		"missing-env-arg", // missing head_commit.timestamp
+		"github",
+		map[string]string{"X-Hub-Signature": "2cf8b878cb6b74a25090a140fa4a474be04b97fa"},
+		`{
+			"head_commit":{
+				"added":[
+					"words/madame-bovary.txt"
+				],
+				"author":{
+					"email":"lolwut@noway.biz",
+					"name":"Garen Torikian",
+					"username":"octokitty"
+				},
+				"committer":{
+					"email":"lolwut@noway.biz",
+					"name":"Garen Torikian",
+					"username":"octokitty"
+				},
+				"distinct":true,
+				"id":"1481a2de7b2a7d02428ad93446ab166be7793fbb",
+				"message":"Rename madame-bovary.txt to words/madame-bovary.txt",
+				"modified":[
+
+				],
+				"removed":[
+					"madame-bovary.txt"
+				],
+				"url":"https://github.com/octokitty/testing/commit/1481a2de7b2a7d02428ad93446ab166be7793fbb"
+			},
+			"ref":"refs/heads/master"
+		}`,
+		false,
+		http.StatusOK,
+		`{"output":"arg: 1481a2de7b2a7d02428ad93446ab166be7793fbb lolwut@noway.biz\n"}`,
 	},
 
 	{"empty payload", "github", nil, `{}`, false, http.StatusOK, `Hook rules were not satisfied.`},
