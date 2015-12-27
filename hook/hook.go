@@ -195,8 +195,8 @@ func ExtractParameterAsString(s string, params interface{}) (string, bool) {
 // Argument type specifies the parameter key name and the source it should
 // be extracted from
 type Argument struct {
-	Source string `json:"source"`
-	Name   string `json:"name"`
+	Source string `json:"source,omitempty"`
+	Name   string `json:"name,omitempty"`
 }
 
 // Get Argument method returns the value for the Argument's key name
@@ -248,15 +248,15 @@ func (ha *Argument) Get(headers, query, payload *map[string]interface{}) (string
 
 // Hook type is a structure containing details for a single hook
 type Hook struct {
-	ID                       string     `json:"id"`
-	ExecuteCommand           string     `json:"execute-command"`
-	CommandWorkingDirectory  string     `json:"command-working-directory"`
-	ResponseMessage          string     `json:"response-message"`
-	CaptureCommandOutput     bool       `json:"include-command-output-in-response"`
-	PassEnvironmentToCommand []Argument `json:"pass-environment-to-command"`
-	PassArgumentsToCommand   []Argument `json:"pass-arguments-to-command"`
-	JSONStringParameters     []Argument `json:"parse-parameters-as-json"`
-	TriggerRule              *Rules     `json:"trigger-rule"`
+	ID                       string     `json:"id,omitempty"`
+	ExecuteCommand           string     `json:"execute-command,omitempty"`
+	CommandWorkingDirectory  string     `json:"command-working-directory,omitempty"`
+	ResponseMessage          string     `json:"response-message,omitempty"`
+	CaptureCommandOutput     bool       `json:"include-command-output-in-response,omitempty"`
+	PassEnvironmentToCommand []Argument `json:"pass-environment-to-command,omitempty"`
+	PassArgumentsToCommand   []Argument `json:"pass-arguments-to-command,omitempty"`
+	JSONStringParameters     []Argument `json:"parse-parameters-as-json,omitempty"`
+	TriggerRule              *Rules     `json:"trigger-rule,omitempty"`
 }
 
 // ParseJSONParameters decodes specified arguments to JSON objects and replaces the
@@ -386,10 +386,10 @@ func (h *Hooks) MatchAll(id string) []*Hook {
 
 // Rules is a structure that contains one of the valid rule types
 type Rules struct {
-	And   *AndRule   `json:"and"`
-	Or    *OrRule    `json:"or"`
-	Not   *NotRule   `json:"not"`
-	Match *MatchRule `json:"match"`
+	And   *AndRule   `json:"and,omitempty"`
+	Or    *OrRule    `json:"or,omitempty"`
+	Not   *NotRule   `json:"not,omitempty"`
+	Match *MatchRule `json:"match,omitempty"`
 }
 
 // Evaluate finds the first rule property that is not nil and returns the value
@@ -464,11 +464,11 @@ func (r NotRule) Evaluate(headers, query, payload *map[string]interface{}, body 
 
 // MatchRule will evaluate to true based on the type
 type MatchRule struct {
-	Type      string   `json:"type"`
-	Regex     string   `json:"regex"`
-	Secret    string   `json:"secret"`
-	Value     string   `json:"value"`
-	Parameter Argument `json:"parameter"`
+	Type      string   `json:"type,omitempty"`
+	Regex     string   `json:"regex,omitempty"`
+	Secret    string   `json:"secret,omitempty"`
+	Value     string   `json:"value,omitempty"`
+	Parameter Argument `json:"parameter,omitempty"`
 }
 
 // Constants for the MatchRule type
