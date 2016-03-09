@@ -63,7 +63,7 @@ However, hook defined like that could pose a security threat to your system, bec
 If you want to set CORS headers, you can use the `-header name=value` flag while starting [webhook](https://github.com/adnanh/webhook/) to set the appropriate CORS headers that will be returned with each response.
 
 # Interested in running webhook inside of a Docker container?
-Please read [this discussion](https://github.com/adnanh/webhook/issues/63).
+You can use [almir/webhook](https://hub.docker.com/r/almir/webhook/) docker image, or create your own (please read [this discussion](https://github.com/adnanh/webhook/issues/63)).
 
 # Examples
 Check out [Hook examples page](https://github.com/adnanh/webhook/wiki/Hook-Examples) for more complex examples of hooks.
