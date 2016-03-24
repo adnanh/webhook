@@ -5,6 +5,7 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"reflect"
@@ -246,17 +247,54 @@ func (ha *Argument) Get(headers, query, payload *map[string]interface{}) (string
 	return "", false
 }
 
+// Header is a structure containing header name and it's value
+type Header struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+// ResponseHeaders is a slice of Header objects
+type ResponseHeaders []Header
+
+func (h *ResponseHeaders) String() string {
+	// a 'hack' to display name=value in flag usage listing
+	if len(*h) == 0 {
+		return "name=value"
+	}
+
+	result := make([]string, len(*h))
+
+	for idx, responseHeader := range *h {
+		result[idx] = fmt.Sprintf("%s=%s", responseHeader.Name, responseHeader.Value)
+	}
+
+	return fmt.Sprint(strings.Join(result, ", "))
+}
+
+// Set method appends new Header object from header=value notation
+func (h *ResponseHeaders) Set(value string) error {
+	splitResult := strings.SplitN(value, "=", 2)
+
+	if len(splitResult) != 2 {
+		return errors.New("header flag must be in name=value format")
+	}
+
+	*h = append(*h, Header{Name: splitResult[0], Value: splitResult[1]})
+	return nil
+}
+
 // Hook type is a structure containing details for a single hook
 type Hook struct {
-	ID                       string     `json:"id,omitempty"`
-	ExecuteCommand           string     `json:"execute-command,omitempty"`
-	CommandWorkingDirectory  string     `json:"command-working-directory,omitempty"`
-	ResponseMessage          string     `json:"response-message,omitempty"`
-	CaptureCommandOutput     bool       `json:"include-command-output-in-response,omitempty"`
-	PassEnvironmentToCommand []Argument `json:"pass-environment-to-command,omitempty"`
-	PassArgumentsToCommand   []Argument `json:"pass-arguments-to-command,omitempty"`
-	JSONStringParameters     []Argument `json:"parse-parameters-as-json,omitempty"`
-	TriggerRule              *Rules     `json:"trigger-rule,omitempty"`
+	ID                       string          `json:"id,omitempty"`
+	ExecuteCommand           string          `json:"execute-command,omitempty"`
+	CommandWorkingDirectory  string          `json:"command-working-directory,omitempty"`
+	ResponseMessage          string          `json:"response-message,omitempty"`
+	ResponseHeaders          ResponseHeaders `json:"response-headers,omitempty"`
+	CaptureCommandOutput     bool            `json:"include-command-output-in-response,omitempty"`
+	PassEnvironmentToCommand []Argument      `json:"pass-environment-to-command,omitempty"`
+	PassArgumentsToCommand   []Argument      `json:"pass-arguments-to-command,omitempty"`
+	JSONStringParameters     []Argument      `json:"parse-parameters-as-json,omitempty"`
+	TriggerRule              *Rules          `json:"trigger-rule,omitempty"`
 }
 
 // ParseJSONParameters decodes specified arguments to JSON objects and replaces the

@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	version = "2.3.7"
+	version = "2.3.8"
 )
 
 var (
@@ -36,6 +36,8 @@ var (
 	cert           = flag.String("cert", "cert.pem", "path to the HTTPS certificate pem file")
 	key            = flag.String("key", "key.pem", "path to the HTTPS certificate private key pem file")
 
+	responseHeaders hook.ResponseHeaders
+
 	watcher *fsnotify.Watcher
 	signals chan os.Signal
 
@@ -44,6 +46,8 @@ var (
 
 func main() {
 	hooks = hook.Hooks{}
+
+	flag.Var(&responseHeaders, "header", "response header to return, specified in format name=value, use multiple times to set multiple headers")
 
 	flag.Parse()
 
@@ -137,6 +141,10 @@ func main() {
 }
 
 func hookHandler(w http.ResponseWriter, r *http.Request) {
+	for _, responseHeader := range responseHeaders {
+		w.Header().Set(responseHeader.Name, responseHeader.Value)
+	}
+
 	id := mux.Vars(r)["id"]
 
 	matchedHooks := hooks.MatchAll(id)
@@ -180,6 +188,7 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 
 		// handle hook
 		for _, h := range matchedHooks {
+
 			err := h.ParseJSONParameters(&headers, &query, &payload)
 			if err != nil {
 				msg := fmt.Sprintf("error parsing JSON: %s", err)
@@ -206,6 +215,10 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 
 			if ok {
 				log.Printf("%s hook triggered successfully\n", h.ID)
+
+				for _, responseHeader := range h.ResponseHeaders {
+					w.Header().Set(responseHeader.Name, responseHeader.Value)
+				}
 
 				if h.CaptureCommandOutput {
 					response := handleHook(h, &headers, &query, &payload, &body)

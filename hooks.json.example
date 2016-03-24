@@ -4,6 +4,13 @@
     "execute-command": "/home/adnan/redeploy-go-webhook.sh",
     "command-working-directory": "/home/adnan/go",
     "response-message": "I got the payload!",
+    "response-headers":
+    [
+      {
+        "name": "Access-Control-Allow-Origin",
+        "value": "*"
+      }
+    ],
     "pass-arguments-to-command":
     [
       {
