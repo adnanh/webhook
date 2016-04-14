@@ -183,14 +183,14 @@ var matchRuleTests = []struct {
 	err                       bool
 }{
 	{"value", "", "", "z", Argument{"header", "a"}, &map[string]interface{}{"a": "z"}, nil, nil, []byte{}, true, false},
-	{"regex", "^z", "", "z", Argument{"header", "a"}, &map[string]interface{}{"a": "z"}, nil, nil, []byte{}, true, false},
+	{"regex", "", "", "^z", Argument{"header", "a"}, &map[string]interface{}{"a": "z"}, nil, nil, []byte{}, true, false},
 	{"payload-hash-sha1", "", "secret", "", Argument{"header", "a"}, &map[string]interface{}{"a": "b17e04cbb22afa8ffbff8796fc1894ed27badd9e"}, nil, nil, []byte(`{"a": "z"}`), true, false},
 	// failures
 	{"value", "", "", "X", Argument{"header", "a"}, &map[string]interface{}{"a": "z"}, nil, nil, []byte{}, false, false},
-	{"regex", "^X", "", "", Argument{"header", "a"}, &map[string]interface{}{"a": "z"}, nil, nil, []byte{}, false, false},
+	{"regex", "", "", "^X", Argument{"header", "a"}, &map[string]interface{}{"a": "z"}, nil, nil, []byte{}, false, false},
 	{"value", "", "2", "X", Argument{"header", "a"}, &map[string]interface{}{"y": "z"}, nil, nil, []byte{}, false, false}, // reference invalid header
 	// errors
-	{"regex", "*", "", "", Argument{"header", "a"}, &map[string]interface{}{"a": "z"}, nil, nil, []byte{}, false, true},                 // invalid regex
+	{"regex", "", "", "*", Argument{"header", "a"}, &map[string]interface{}{"a": "z"}, nil, nil, []byte{}, false, true},                 // invalid regex
 	{"payload-hash-sha1", "", "secret", "", Argument{"header", "a"}, &map[string]interface{}{"a": ""}, nil, nil, []byte{}, false, true}, // invalid hmac
 }
 

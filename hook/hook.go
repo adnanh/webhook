@@ -384,13 +384,26 @@ func (h *Hooks) LoadFromFile(path string) error {
 
 	// parse hook file for hooks
 	file, e := ioutil.ReadFile(path)
-
 	if e != nil {
 		return e
 	}
 
-	e = json.Unmarshal(file, h)
-	return e
+	if e = json.Unmarshal(file, h); e != nil {
+		return e
+	}
+
+	h.checkDeprecations()
+	return nil
+}
+
+// checkDeprecations crawls through a Hooks definition checking for and handling
+// deprecated values.
+func (h Hooks) checkDeprecations() {
+	for i := range h {
+		if h[i].TriggerRule != nil && h[i].TriggerRule.Match != nil && h[i].TriggerRule.Match.Type == MatchRegex && h[i].TriggerRule.Match.Regex != "" && h[i].TriggerRule.Match.Value == "" {
+			h[i].TriggerRule.Match.Value = h[i].TriggerRule.Match.Regex
+		}
+	}
 }
 
 // Match iterates through Hooks and returns first one that matches the given ID,
@@ -503,7 +516,7 @@ func (r NotRule) Evaluate(headers, query, payload *map[string]interface{}, body 
 // MatchRule will evaluate to true based on the type
 type MatchRule struct {
 	Type      string   `json:"type,omitempty"`
-	Regex     string   `json:"regex,omitempty"`
+	Regex     string   `json:"regex,omitempty"` // Regex is deprecated.  Use Value instead.
 	Secret    string   `json:"secret,omitempty"`
 	Value     string   `json:"value,omitempty"`
 	Parameter Argument `json:"parameter,omitempty"`
@@ -523,7 +536,7 @@ func (r MatchRule) Evaluate(headers, query, payload *map[string]interface{}, bod
 		case MatchValue:
 			return arg == r.Value, nil
 		case MatchRegex:
-			return regexp.MatchString(r.Regex, arg)
+			return regexp.MatchString(r.Value, arg)
 		case MatchHashSHA1:
 			_, err := CheckPayloadSignature(*body, r.Secret, arg)
 			return err == nil, err
