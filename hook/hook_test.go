@@ -136,6 +136,67 @@ func TestHookExtractCommandArguments(t *testing.T) {
 	}
 }
 
+// Here we test the extraction of env variables when the user defined a hook
+// with the "pass-environment-to-command" directive
+// we test both cases where the name of the data is used as the name of the
+// env key & the case where the hook definition sets the env var name to a
+// fixed value using the envname construct like so::
+//    [
+//      {
+//        "id": "push",
+//        "execute-command": "bb2mm",
+//        "command-working-directory": "/tmp",
+//        "pass-environment-to-command":
+//        [
+//          {
+//            "source": "entire-payload",
+//            "envname": "PAYLOAD"
+//          },
+//        ]
+//      }
+//    ]
+var hookExtractCommandArgumentsForEnvTests = []struct {
+	exec                    string
+	args                    []Argument
+	headers, query, payload *map[string]interface{}
+	value                   []string
+	ok                      bool
+}{
+	// successes
+	{
+		"test",
+		[]Argument{Argument{"header", "a", ""}},
+		&map[string]interface{}{"a": "z"}, nil, nil,
+		[]string{"HOOK_a=z"},
+		true,
+	},
+	{
+		"test",
+		[]Argument{Argument{"header", "a", "MYKEY"}},
+		&map[string]interface{}{"a": "z"}, nil, nil,
+		[]string{"HOOK_MYKEY=z"},
+		true,
+	},
+	// failures
+	{
+		"fail",
+		[]Argument{Argument{"payload", "a", ""}},
+		&map[string]interface{}{"a": "z"}, nil, nil,
+		[]string{},
+		false,
+	},
+}
+
+func TestHookExtractCommandArgumentsForEnv(t *testing.T) {
+	for _, tt := range hookExtractCommandArgumentsForEnvTests {
+		h := &Hook{ExecuteCommand: tt.exec, PassEnvironmentToCommand: tt.args}
+		value, err := h.ExtractCommandArgumentsForEnv(tt.headers, tt.query, tt.payload)
+		if (err == nil) != tt.ok || !reflect.DeepEqual(value, tt.value) {
+			t.Errorf("failed to extract args for env {cmd=%q, args=%v}:\nexpected %#v, ok: %v\ngot %#v, ok: %v", tt.exec, tt.args, tt.value, tt.ok, value, (err == nil))
+		}
+	}
+}
+
 var hooksLoadFromFileTests = []struct {
 	path string
 	ok   bool
