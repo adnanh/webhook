@@ -1,0 +1,40 @@
+#!/bin/sh
+#
+# this file is from:
+# https://raw.githubusercontent.com/mlafeldt/chef-runner/v0.7.0/script/coverage
+# it is covered by the Apache License v2.0
+# modified for our purpose
+#
+# Generate test coverage statistics for Go packages.
+#
+# Works around the fact that `go test -coverprofile` currently does not work
+# with multiple packages, see https://code.google.com/p/go/issues/detail?id=6909
+#
+# Usage: script/coverage
+#
+
+#set -e
+
+workdir=.cover
+profile="$workdir/cover.out"
+mode=count
+
+generate_cover_data() {
+    echo "Cleaning"
+    rm -rf "$workdir"
+    mkdir "$workdir"
+
+    for pkg in "$@"; do
+        echo $pkg
+        f="$workdir/$(echo $pkg | tr / -).cover"
+        go test -covermode="$mode" -coverprofile="$f" "$pkg"
+    done
+
+    echo "Building coverfile"
+    echo "mode: $mode" >"$profile"
+    grep -h -v "^mode:" "$workdir"/*.cover >>"$profile"
+}
+
+generate_cover_data $(go list ./...)
+echo "Showing report"
+go tool cover -html="$profile"
