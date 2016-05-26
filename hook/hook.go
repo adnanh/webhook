@@ -196,8 +196,9 @@ func ExtractParameterAsString(s string, params interface{}) (string, bool) {
 // Argument type specifies the parameter key name and the source it should
 // be extracted from
 type Argument struct {
-	Source string `json:"source,omitempty"`
-	Name   string `json:"name,omitempty"`
+	Source  string `json:"source,omitempty"`
+	Name    string `json:"name,omitempty"`
+	EnvName string `json:"envname,omitempty"`
 }
 
 // Get Argument method returns the value for the Argument's key name
@@ -364,7 +365,13 @@ func (h *Hook) ExtractCommandArgumentsForEnv(headers, query, payload *map[string
 
 	for i := range h.PassEnvironmentToCommand {
 		if arg, ok := h.PassEnvironmentToCommand[i].Get(headers, query, payload); ok {
-			args = append(args, EnvNamespace+h.PassEnvironmentToCommand[i].Name+"="+arg)
+			if h.PassEnvironmentToCommand[i].EnvName != "" {
+				// first try to use the EnvName if specified
+				args = append(args, EnvNamespace+h.PassEnvironmentToCommand[i].EnvName+"="+arg)
+			} else {
+				// then fallback on the name
+				args = append(args, EnvNamespace+h.PassEnvironmentToCommand[i].Name+"="+arg)
+			}
 		} else {
 			return args, &ArgumentError{h.PassEnvironmentToCommand[i]}
 		}
