@@ -187,6 +187,8 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// handle hook
+		executed := 0
+
 		for _, h := range matchedHooks {
 
 			err := h.ParseJSONParameters(&headers, &query, &payload)
@@ -195,7 +197,7 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 				log.Printf(msg)
 				w.WriteHeader(http.StatusBadRequest)
 				fmt.Fprintf(w, msg)
-				return
+				continue
 			}
 
 			var ok bool
@@ -209,7 +211,7 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 					log.Printf(msg)
 					w.WriteHeader(http.StatusInternalServerError)
 					fmt.Fprintf(w, msg)
-					return
+					continue
 				}
 			}
 
@@ -227,15 +229,18 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 					go handleHook(h, &headers, &query, &payload, &body)
 					fmt.Fprintf(w, h.ResponseMessage)
 				}
-
-				return
+				executed++
+				continue
 			}
 		}
 
 		// if none of the hooks got triggered
-		log.Printf("%s got matched (%d time(s)), but didn't get triggered because the trigger rules were not satisfied\n", matchedHooks[0].ID, len(matchedHooks))
-
-		fmt.Fprintf(w, "Hook rules were not satisfied.")
+		if executed == 0 {
+			log.Printf("%s got matched (%d time(s)), but didn't get triggered because the trigger rules were not satisfied\n", matchedHooks[0].ID, len(matchedHooks))
+			fmt.Fprintf(w, "Hook rules were not satisfied.")
+		} else if executed != len(matchedHooks) {
+			log.Printf("%s got matched (%d time(s)), but executed only %d times. Please review previous log messages\n", matchedHooks[0].ID, len(matchedHooks), executed)
+		}
 	} else {
 		w.WriteHeader(http.StatusNotFound)
 		fmt.Fprintf(w, "Hook not found.")
