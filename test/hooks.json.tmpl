@@ -54,6 +54,60 @@
     }
   },
   {
+    "id": "github-called-twice",
+    "execute-command": "{{ .Hookecho }}",
+    "command-working-directory": "/",
+    "include-command-output-in-response": true,
+    "pass-environment-to-command":
+    [
+      {
+        "source": "payload",
+        "name": "created"
+      }
+    ],
+    "pass-arguments-to-command":
+    [
+      {
+        "source": "payload",
+        "name": "head_commit.id"
+      },
+      {
+        "source": "payload",
+        "name": "repository.fork"
+      }
+    ],
+    "trigger-rule":
+    {
+      "and":
+      [
+        {
+          "match":
+          {
+            "type": "payload-hash-sha1",
+            "secret": "mysecret",
+            "parameter":
+            {
+              "source": "header",
+              "name": "X-Hub-Signature"
+            }
+          }
+        },
+        {
+          "match":
+          {
+            "type": "value",
+            "value": "refs/heads/master",
+            "parameter":
+            {
+              "source": "payload",
+              "name": "ref"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
     "id": "bitbucket",
     "execute-command": "{{ .Hookecho }}",
     "command-working-directory": "/",
@@ -134,6 +188,39 @@
         }
       }
     }
+  },
+  {
+    "id": "uncalled-hook",
+    "execute-command": "{{ .Hookecho }}",
+    "command-working-directory": "/",
+    "include-command-output-in-response": true,
+    "response-message": "success",
+    "parse-parameters-as-json": [
+      {
+        "source": "payload",
+        "name": "payload"
+      }
+    ]
+  },
+  {
+    "id": "github-called-twice",
+    "execute-command": "{{ .Hookecho }}",
+    "command-working-directory": "/",
+    "include-command-output-in-response": true,
+    "pass-environment-to-command":
+    [
+      {
+        "source": "payload",
+        "name": "pusher.email"
+      }
+    ],
+    "pass-arguments-to-command":
+    [
+      {
+        "source": "payload",
+        "name": "repository.created_at"
+      }
+    ]
   }
 ]
 
