@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"os"
 )
 
 // Constants used to specify the parameter source
@@ -398,6 +399,48 @@ func (h *Hooks) LoadFromFile(path string) error {
 
 	e = json.Unmarshal(file, h)
 	return e
+}
+
+// LoadFromDir attempts to load hooks from specified Dir
+func (h *Hooks) LoadFromDir(path string) ([]string, error) {
+	warnings := []string{}
+	loaded := fmt.Errorf("no single hooks loaded from directory %s", path)
+
+	if _, e := os.Stat(path); os.IsNotExist(e) {
+		if path == "" {return []string{"path '" + path + "' is unspecified"}, nil}
+		return []string{"path '" + path + "' is invalid"}, loaded
+	}
+
+	files, e := ioutil.ReadDir(path)
+	if e != nil {
+		return []string{path + " issue while readdir"}, e
+	} else if len(files) == 0 {
+		return []string{path + " is empty"}, loaded
+	}
+
+	// add '/' to path if missing
+	if path[len(path)-1] != '/' {path += "/"}
+	for _, file := range files {
+		tmp_hooks := Hooks{}
+		if file.IsDir() == true {
+			msg, e := tmp_hooks.LoadFromDir(path + file.Name())
+			if len(msg) != 0 {
+				warnings = append(warnings, msg...)
+			}
+			if e == nil {
+				*h = append(*h, tmp_hooks...)
+			}
+		} else {
+			e := tmp_hooks.LoadFromFile(path + file.Name())
+			if e != nil {
+				warnings = append(warnings, fmt.Sprintf("%s%s (%+v)", path, file.Name(), e))
+			} else {
+				*h = append(*h, tmp_hooks...)
+			}
+		}
+	}
+	if len(*h) == 0 {return warnings, loaded}
+	return warnings, nil
 }
 
 // Match iterates through Hooks and returns first one that matches the given ID,

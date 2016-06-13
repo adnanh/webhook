@@ -1,0 +1,74 @@
+[
+  {
+    "id": "webhook",
+    "execute-command": "/home/adnan/redeploy-go-webhook.sh",
+    "command-working-directory": "/home/adnan/go",
+    "response-message": "I got the payload!",
+    "response-headers":
+    [
+        "value": "*"
+      }
+    ],
+    "pass-arguments-to-command":
+    [
+      {
+        "source": "payload",
+        "name": "head_commit.id"
+      },
+      {
+        "source": "payload",
+        "name": "pusher.name"
+      },
+      {
+        "source": "payload",
+        "name": "pusher.email"
+      },
+    ],
+    "trigger-rule":
+    {
+      "and":
+      [
+        {
+          "match":
+          {
+            "type": "payload-hash-sha1",
+            "secret": "mysecret",
+            "parameter":
+            {
+#
+#
+#        
+      "source": "header",
+              "name": "X-Hub-Signature"
+            }
+          }
+        },
+        {
+          "match":
+          {
+            "type": "value",
+            "value": "refs/heads/master",
+            "parameter":
+            {
+              "source": "payload",
+              "name": "ref"
+  {
+    "id": "simple-webhook",
+    "execute-command": "/tmp/script1.sh",
+    "pass-arguments-to-command":
+    [
+      {
+        "source": "payload",
+        "name": "head_commit.id"
+      },
+      {
+        "source": "payload",
+        "name": "head_commit.author.name"
+      },
+      {
+        "source": "payload",
+        "name": "head_commit.author.email"
+      }
+    ]
+  }
+]]]];
