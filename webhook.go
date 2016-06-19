@@ -31,6 +31,7 @@ var (
 	noPanic        = flag.Bool("nopanic", false, "do not panic if hooks cannot be loaded when webhook is not running in verbose mode")
 	hotReload      = flag.Bool("hotreload", false, "watch hooks file for changes and reload them automatically")
 	hooksFilePath  = flag.String("hooks", "hooks.json", "path to the json file containing defined hooks the webhook should serve")
+	hooksDirPath   = flag.String("hooksdir", "", "path to the json directory containing defined hooks the webhook should serve")
 	hooksURLPrefix = flag.String("urlprefix", "hooks", "url prefix to use for served hooks (protocol://yourserver:port/PREFIX/:hook-id)")
 	secure         = flag.Bool("secure", false, "use HTTPS instead of HTTP")
 	cert           = flag.String("cert", "cert.pem", "path to the HTTPS certificate pem file")
@@ -64,24 +65,7 @@ func main() {
 	setupSignals()
 
 	// load and parse hooks
-	log.Printf("attempting to load hooks from %s\n", *hooksFilePath)
-
-	err := hooks.LoadFromFile(*hooksFilePath)
-
-	if err != nil {
-		if !*verbose && !*noPanic {
-			log.SetOutput(os.Stdout)
-			log.Fatalf("couldn't load any hooks from file! %+v\naborting webhook execution since the -verbose flag is set to false.\nIf, for some reason, you want webhook to start without the hooks, either use -verbose flag, or -nopanic", err)
-		}
-
-		log.Printf("couldn't load hooks from file! %+v\n", err)
-	} else {
-		log.Printf("loaded %d hook(s) from file\n", len(hooks))
-
-		for _, hook := range hooks {
-			log.Printf("\t> %s\n", hook.ID)
-		}
-	}
+	hooks = loadHooks()
 
 	if *hotReload {
 		// set up file watcher
@@ -137,7 +121,41 @@ func main() {
 		log.Printf("starting insecure (http) webhook on %s:%d", *ip, *port)
 		log.Fatal(http.ListenAndServe(fmt.Sprintf("%s:%d", *ip, *port), n))
 	}
+}
 
+func loadHooks() hook.Hooks {
+	log.Printf("attempting to load hooks from file %s\n", *hooksFilePath)
+	file_hooks := hook.Hooks{}
+	err_loadfile := file_hooks.LoadFromFile(*hooksFilePath)
+
+	log.Printf("attempting to load hooks from dir %s\n", *hooksDirPath)
+	dir_hooks := hook.Hooks{}
+	warnings, err_loaddir := dir_hooks.LoadFromDir(*hooksDirPath)
+
+	if *hooksDirPath != "" && len(warnings) != 0 {
+		log.Printf("faced issues while loading from %s:\n", *hooksDirPath)
+		for _, warning := range warnings {
+			log.Printf("\t> %s\n", warning)
+		}
+	}
+	if err_loadfile != nil && err_loaddir != nil {
+		if !*verbose && !*noPanic {
+			log.SetOutput(os.Stdout)
+			log.Printf("couldn't load any hooks from file and/or dir!\n")
+			log.Printf("if, for some reason, you want webhook to start without the hooks, either use -verbose flag, or -nopanic")
+			log.Fatal("aborting webhook execution since the -verbose flag is set to false.\n")
+		}
+	} else {
+		log.Printf("loaded %d hook(s) from file\n", len(file_hooks))
+		for _, hook := range file_hooks {
+			log.Printf("\t> %s\n", hook.ID)
+		}
+		log.Printf("loaded %d hook(s) from directory\n", len(dir_hooks))
+		for _, hook := range dir_hooks {
+			log.Printf("\t> %s\n", hook.ID)
+		}
+	}
+	return append(dir_hooks, file_hooks...)
 }
 
 func hookHandler(w http.ResponseWriter, r *http.Request) {

@@ -3,6 +3,7 @@ package hook
 import (
 	"reflect"
 	"testing"
+	"strings"
 )
 
 var checkPayloadSignatureTests = []struct {
@@ -213,6 +214,39 @@ func TestHooksLoadFromFile(t *testing.T) {
 		err := h.LoadFromFile(tt.path)
 		if (err == nil) != tt.ok {
 			t.Errorf(err.Error())
+		}
+	}
+}
+
+var hooksLoadFromDirTests = []struct {
+	path string
+	warn string
+	ok   bool
+}{
+	// ok - because at least one hook is loaded - exception for "" path
+	{"", "path '' is unspecified", true},
+	{"../test/hooks_dir.test", "../test/hooks_dir.test/depth1/depth2/depth3/depth4/empty_file.example (unexpected end of JSON input),../test/hooks_dir.test/depth1/depth2/depth3b is empty,../test/hooks_dir.test/depth1b/hooks-invalid.json.example (invalid character ':' after array element)", true},
+	{"../test/hooks_dir.test/depth1", "../test/hooks_dir.test/depth1/depth2/depth3/depth4/empty_file.example (unexpected end of JSON input),../test/hooks_dir.test/depth1/depth2/depth3b is empty", true},
+	{"../test/hooks_dir.test//depth1/depth2/", "../test/hooks_dir.test//depth1/depth2/depth3/depth4/empty_file.example (unexpected end of JSON input),../test/hooks_dir.test//depth1/depth2/depth3b is empty", true},
+	// failures - because no hook has been loaded
+	{"../test/hooks_dir.test///depth1b//", "../test/hooks_dir.test///depth1b//hooks-invalid.json.example (invalid character ':' after array element)", false},
+	{"../test/hooks_dir.test//depth1/depth2///depth3", "../test/hooks_dir.test//depth1/depth2///depth3/depth4/empty_file.example (unexpected end of JSON input)", false},
+	{"../test/hooks_dir.test/depth1/depth2/depth3b////", "../test/hooks_dir.test/depth1/depth2/depth3b//// is empty", false},
+	{"../test/hooks_dir.test/depth1/depth2/depth3/depth4/", "../test/hooks_dir.test/depth1/depth2/depth3/depth4/empty_file.example (unexpected end of JSON input)", false},
+	{"../test/hooks_dir.test/non-existing-dir", "path '../test/hooks_dir.test/non-existing-dir' is invalid", false},
+}
+
+func TestHooksLoadFromDir(t *testing.T) {
+	for _, tt := range hooksLoadFromDirTests {
+		h := &Hooks{}
+		warnings, err := h.LoadFromDir(tt.path)
+		// to simplify the comparison from the slice we received
+		warnings_string := strings.Join(warnings, ",")
+		if (err == nil) != tt.ok {
+			t.Errorf(err.Error())
+		}
+		if warnings_string != tt.warn {
+			t.Errorf("recevied: [%s]\nexpected [%s]", warnings_string, tt.warn)
 		}
 	}
 }
