@@ -21,11 +21,11 @@ import (
 )
 
 const (
-	version = "2.3.9"
+	version = "2.4.0"
 )
 
 var (
-	ip             = flag.String("ip", "", "ip the webhook should serve hooks on")
+	ip             = flag.String("ip", "0.0.0.0", "ip the webhook should serve hooks on")
 	port           = flag.Int("port", 9000, "port the webhook should serve hooks on")
 	verbose        = flag.Bool("verbose", false, "show verbose output")
 	noPanic        = flag.Bool("nopanic", false, "do not panic if hooks cannot be loaded when webhook is not running in verbose mode")
@@ -76,10 +76,16 @@ func main() {
 
 		log.Printf("couldn't load hooks from file! %+v\n", err)
 	} else {
-		log.Printf("loaded %d hook(s) from file\n", len(hooks))
+		seenHooksIds := make(map[string]bool)
+
+		log.Printf("found %d hook(s) in file\n", len(hooks))
 
 		for _, hook := range hooks {
-			log.Printf("\t> %s\n", hook.ID)
+			if seenHooksIds[hook.ID] == true {
+				log.Fatalf("error: hook with the id %s has already been loaded!\nplease check your hooks file for duplicate hooks ids!\n", hook.ID)
+			}
+			seenHooksIds[hook.ID] = true
+			log.Printf("\tloaded: %s\n", hook.ID)
 		}
 	}
 
@@ -131,10 +137,10 @@ func main() {
 	n.UseHandler(router)
 
 	if *secure {
-		log.Printf("starting secure (https) webhook on %s:%d", *ip, *port)
+		log.Printf("serving hooks on https://%s:%d%s", *ip, *port, hooksURL)
 		log.Fatal(http.ListenAndServeTLS(fmt.Sprintf("%s:%d", *ip, *port), *cert, *key, n))
 	} else {
-		log.Printf("starting insecure (http) webhook on %s:%d", *ip, *port)
+		log.Printf("serving hooks on http://%s:%d%s", *ip, *port, hooksURL)
 		log.Fatal(http.ListenAndServe(fmt.Sprintf("%s:%d", *ip, *port), n))
 	}
 
@@ -147,10 +153,8 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 
 	id := mux.Vars(r)["id"]
 
-	matchedHooks := hooks.MatchAll(id)
-
-	if matchedHooks != nil {
-		log.Printf("%s got matched (%d time(s))\n", id, len(matchedHooks))
+	if matchedHook := hooks.Match(id); matchedHook != nil {
+		log.Printf("%s got matched\n", id)
 
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
@@ -187,53 +191,48 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// handle hook
-		for _, h := range matchedHooks {
+		if err = matchedHook.ParseJSONParameters(&headers, &query, &payload); err != nil {
+			msg := fmt.Sprintf("error parsing JSON parameters: %s", err)
+			log.Printf(msg)
+			w.WriteHeader(http.StatusBadRequest)
+			fmt.Fprintf(w, "Unable to parse JSON parameters.")
+			return
+		}
 
-			err := h.ParseJSONParameters(&headers, &query, &payload)
+		var ok bool
+
+		if matchedHook.TriggerRule == nil {
+			ok = true
+		} else {
+			ok, err = matchedHook.TriggerRule.Evaluate(&headers, &query, &payload, &body)
 			if err != nil {
-				msg := fmt.Sprintf("error parsing JSON: %s", err)
+				msg := fmt.Sprintf("error evaluating hook: %s", err)
 				log.Printf(msg)
-				w.WriteHeader(http.StatusBadRequest)
-				fmt.Fprintf(w, msg)
-				return
-			}
-
-			var ok bool
-
-			if h.TriggerRule == nil {
-				ok = true
-			} else {
-				ok, err = h.TriggerRule.Evaluate(&headers, &query, &payload, &body)
-				if err != nil {
-					msg := fmt.Sprintf("error evaluating hook: %s", err)
-					log.Printf(msg)
-					w.WriteHeader(http.StatusInternalServerError)
-					fmt.Fprintf(w, msg)
-					return
-				}
-			}
-
-			if ok {
-				log.Printf("%s hook triggered successfully\n", h.ID)
-
-				for _, responseHeader := range h.ResponseHeaders {
-					w.Header().Set(responseHeader.Name, responseHeader.Value)
-				}
-
-				if h.CaptureCommandOutput {
-					response := handleHook(h, &headers, &query, &payload, &body)
-					fmt.Fprintf(w, response)
-				} else {
-					go handleHook(h, &headers, &query, &payload, &body)
-					fmt.Fprintf(w, h.ResponseMessage)
-				}
-
+				w.WriteHeader(http.StatusInternalServerError)
+				fmt.Fprintf(w, "Error occurred while evaluating hook rules.")
 				return
 			}
 		}
 
+		if ok {
+			log.Printf("%s hook triggered successfully\n", matchedHook.ID)
+
+			for _, responseHeader := range matchedHook.ResponseHeaders {
+				w.Header().Set(responseHeader.Name, responseHeader.Value)
+			}
+
+			if matchedHook.CaptureCommandOutput {
+				response := handleHook(matchedHook, &headers, &query, &payload, &body)
+				fmt.Fprintf(w, response)
+			} else {
+				go handleHook(matchedHook, &headers, &query, &payload, &body)
+				fmt.Fprintf(w, matchedHook.ResponseMessage)
+			}
+			return
+		}
+
 		// if none of the hooks got triggered
-		log.Printf("%s got matched (%d time(s)), but didn't get triggered because the trigger rules were not satisfied\n", matchedHooks[0].ID, len(matchedHooks))
+		log.Printf("%s got matched, but didn't get triggered because the trigger rules were not satisfied\n", matchedHook.ID)
 
 		fmt.Fprintf(w, "Hook rules were not satisfied.")
 	} else {
@@ -297,10 +296,18 @@ func reloadHooks() {
 	if err != nil {
 		log.Printf("couldn't load hooks from file! %+v\n", err)
 	} else {
-		log.Printf("loaded %d hook(s) from file\n", len(hooks))
+		seenHooksIds := make(map[string]bool)
 
-		for _, hook := range hooks {
-			log.Printf("\t> %s\n", hook.ID)
+		log.Printf("found %d hook(s) in file\n", len(newHooks))
+
+		for _, hook := range newHooks {
+			if seenHooksIds[hook.ID] == true {
+				log.Printf("error: hook with the id %s has already been loaded!\nplease check your hooks file for duplicate hooks ids!", hook.ID)
+				log.Println("reverting hooks back to the previous configuration")
+				return
+			}
+			seenHooksIds[hook.ID] = true
+			log.Printf("\tloaded: %s\n", hook.ID)
 		}
 
 		hooks = newHooks
