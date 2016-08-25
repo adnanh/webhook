@@ -93,7 +93,7 @@ func CheckPayloadSignature(payload []byte, secret string, signature string) (str
 	expectedMAC := hex.EncodeToString(mac.Sum(nil))
 
 	if !hmac.Equal([]byte(signature), []byte(expectedMAC)) {
-		return expectedMAC, &SignatureError{expectedMAC}
+		return expectedMAC, &SignatureError{signature}
 	}
 	return expectedMAC, err
 }

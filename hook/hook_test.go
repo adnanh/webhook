@@ -2,6 +2,7 @@ package hook
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -24,6 +25,10 @@ func TestCheckPayloadSignature(t *testing.T) {
 		mac, err := CheckPayloadSignature(tt.payload, tt.secret, tt.signature)
 		if (err == nil) != tt.ok || mac != tt.mac {
 			t.Errorf("failed to check payload signature {%q, %q, %q}:\nexpected {mac:%#v, ok:%#v},\ngot {mac:%#v, ok:%#v}", tt.payload, tt.secret, tt.signature, tt.mac, tt.ok, mac, (err == nil))
+		}
+
+		if err != nil && strings.Contains(err.Error(), tt.mac) {
+			t.Errorf("error message should not disclose expected mac: %s", err)
 		}
 	}
 }
