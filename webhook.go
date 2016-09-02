@@ -111,10 +111,10 @@ func main() {
 	}
 
 	l := negroni.NewLogger()
-	l.Logger = log.New(os.Stderr, "[webhook] ", log.Ldate|log.Ltime)
+	l.ALogger = log.New(os.Stderr, "[webhook] ", log.Ldate|log.Ltime)
 
 	negroniRecovery := &negroni.Recovery{
-		Logger:     l.Logger,
+		Logger:     l.ALogger,
 		PrintStack: true,
 		StackAll:   false,
 		StackSize:  1024 * 8,
