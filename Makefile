@@ -1,5 +1,5 @@
-OS = darwin freebsd linux windows
-ARCHS = 386 amd64
+OS = darwin freebsd linux openbsd windows
+ARCHS = 386 arm amd64 arm64
 
 all: build release
 
