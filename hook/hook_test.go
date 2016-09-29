@@ -179,7 +179,7 @@ var hookExtractCommandArgumentsForEnvTests = []struct {
 		"test",
 		[]Argument{Argument{"header", "a", "MYKEY"}},
 		&map[string]interface{}{"a": "z"}, nil, nil,
-		[]string{"HOOK_MYKEY=z"},
+		[]string{"MYKEY=z"},
 		true,
 	},
 	// failures

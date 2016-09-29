@@ -367,7 +367,7 @@ func (h *Hook) ExtractCommandArgumentsForEnv(headers, query, payload *map[string
 		if arg, ok := h.PassEnvironmentToCommand[i].Get(headers, query, payload); ok {
 			if h.PassEnvironmentToCommand[i].EnvName != "" {
 				// first try to use the EnvName if specified
-				args = append(args, EnvNamespace+h.PassEnvironmentToCommand[i].EnvName+"="+arg)
+				args = append(args, h.PassEnvironmentToCommand[i].EnvName+"="+arg)
 			} else {
 				// then fallback on the name
 				args = append(args, EnvNamespace+h.PassEnvironmentToCommand[i].Name+"="+arg)
