@@ -372,7 +372,9 @@ var hookHandlerTests = []struct {
 		}`,
 		false,
 		http.StatusOK,
-		`{"output":"arg: 1481a2de7b2a7d02428ad93446ab166be7793fbb lolwut@noway.biz\nenv: HOOK_head_commit.timestamp=2013-03-12T08:14:29-07:00\n"}`,
+		`arg: 1481a2de7b2a7d02428ad93446ab166be7793fbb lolwut@noway.biz
+env: HOOK_head_commit.timestamp=2013-03-12T08:14:29-07:00
+`,
 	},
 	{
 		"bitbucket", // bitbucket sends their payload using uriencoded params.
@@ -381,7 +383,7 @@ var hookHandlerTests = []struct {
 		`payload={"canon_url": "https://bitbucket.org","commits": [{"author": "marcus","branch": "master","files": [{"file": "somefile.py","type": "modified"}],"message": "Added some more things to somefile.py\n","node": "620ade18607a","parents": ["702c70160afc"],"raw_author": "Marcus Bertrand <marcus@somedomain.com>","raw_node": "620ade18607ac42d872b568bb92acaa9a28620e9","revision": null,"size": -1,"timestamp": "2012-05-30 05:58:56","utctimestamp": "2014-11-07 15:19:02+00:00"}],"repository": {"absolute_url": "/webhook/testing/","fork": false,"is_private": true,"name": "Project X","owner": "marcus","scm": "git","slug": "project-x","website": "https://atlassian.com/"},"user": "marcus"}`,
 		true,
 		http.StatusOK,
-		`{"message":"success"}`,
+		`success`,
 	},
 	{
 		"gitlab",
@@ -431,7 +433,8 @@ var hookHandlerTests = []struct {
 		}`,
 		false,
 		http.StatusOK,
-		`{"message":"success","output":"arg: b6568db1bc1dcd7f8b4d5a946b0b91f9dacd7327 John Smith john@example.com\n"}`,
+		`arg: b6568db1bc1dcd7f8b4d5a946b0b91f9dacd7327 John Smith john@example.com
+`,
 	},
 
 	{
@@ -469,7 +472,9 @@ var hookHandlerTests = []struct {
 		}`,
 		false,
 		http.StatusOK,
-		`{"output":"arg: 1481a2de7b2a7d02428ad93446ab166be7793fbb lolwut@noway.biz\nenv: HOOK_head_commit.timestamp=2013-03-12T08:14:29-07:00\n"}`,
+		`arg: 1481a2de7b2a7d02428ad93446ab166be7793fbb lolwut@noway.biz
+env: HOOK_head_commit.timestamp=2013-03-12T08:14:29-07:00
+`,
 	},
 
 	{
@@ -506,7 +511,8 @@ var hookHandlerTests = []struct {
 		}`,
 		false,
 		http.StatusOK,
-		`{"output":"arg: 1481a2de7b2a7d02428ad93446ab166be7793fbb lolwut@noway.biz\n"}`,
+		`arg: 1481a2de7b2a7d02428ad93446ab166be7793fbb lolwut@noway.biz
+`,
 	},
 
 	{"empty payload", "github", nil, `{}`, false, http.StatusOK, `Hook rules were not satisfied.`},

@@ -367,7 +367,7 @@ func (h *Hook) ExtractCommandArgumentsForEnv(headers, query, payload *map[string
 		if arg, ok := h.PassEnvironmentToCommand[i].Get(headers, query, payload); ok {
 			if h.PassEnvironmentToCommand[i].EnvName != "" {
 				// first try to use the EnvName if specified
-				args = append(args, EnvNamespace+h.PassEnvironmentToCommand[i].EnvName+"="+arg)
+				args = append(args, h.PassEnvironmentToCommand[i].EnvName+"="+arg)
 			} else {
 				// then fallback on the name
 				args = append(args, EnvNamespace+h.PassEnvironmentToCommand[i].Name+"="+arg)
@@ -520,11 +520,4 @@ func (r MatchRule) Evaluate(headers, query, payload *map[string]interface{}, bod
 		}
 	}
 	return false, nil
-}
-
-// CommandStatusResponse type encapsulates the executed command exit code, message, stdout and stderr
-type CommandStatusResponse struct {
-	ResponseMessage string `json:"message,omitempty"`
-	Output          string `json:"output,omitempty"`
-	Error           string `json:"error,omitempty"`
 }
