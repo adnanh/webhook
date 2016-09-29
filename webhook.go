@@ -225,6 +225,7 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 				response, err := handleHook(matchedHook, &headers, &query, &payload, &body)
 
 				if err != nil {
+					w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 					w.WriteHeader(http.StatusInternalServerError)
 					fmt.Fprintf(w, "Error occurred while executing the hook's command. Please check your logs for more details.\n")
 				} else {
