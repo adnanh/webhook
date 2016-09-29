@@ -222,8 +222,14 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			if matchedHook.CaptureCommandOutput {
-				response := handleHook(matchedHook, &headers, &query, &payload, &body)
-				fmt.Fprintf(w, response)
+				response, err := handleHook(matchedHook, &headers, &query, &payload, &body)
+
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					fmt.Fprintf(w, "Error occurred while executing the hook's command. Please check your logs for more details.\n")
+				} else {
+					fmt.Fprintf(w, response)
+				}
 			} else {
 				go handleHook(matchedHook, &headers, &query, &payload, &body)
 				fmt.Fprintf(w, matchedHook.ResponseMessage)
@@ -241,7 +247,7 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func handleHook(h *hook.Hook, headers, query, payload *map[string]interface{}, body *[]byte) string {
+func handleHook(h *hook.Hook, headers, query, payload *map[string]interface{}, body *[]byte) (string, error) {
 	var err error
 
 	cmd := exec.Command(h.ExecuteCommand)
@@ -261,28 +267,17 @@ func handleHook(h *hook.Hook, headers, query, payload *map[string]interface{}, b
 
 	log.Printf("executing %s (%s) with arguments %q and environment %s using %s as cwd\n", h.ExecuteCommand, cmd.Path, cmd.Args, envs, cmd.Dir)
 
-	out, err := cmd.CombinedOutput()
+	out, err := cmd.Output()
 
 	log.Printf("command output: %s\n", out)
 
-	var errorResponse string
-
 	if err != nil {
 		log.Printf("error occurred: %+v\n", err)
-		errorResponse = fmt.Sprintf("%+v", err)
 	}
 
 	log.Printf("finished handling %s\n", h.ID)
 
-	var response []byte
-	response, err = json.Marshal(&hook.CommandStatusResponse{ResponseMessage: h.ResponseMessage, Output: string(out), Error: errorResponse})
-
-	if err != nil {
-		log.Printf("error marshalling response: %+v", err)
-		return h.ResponseMessage
-	}
-
-	return string(response)
+	return string(out), err
 }
 
 func reloadHooks() {

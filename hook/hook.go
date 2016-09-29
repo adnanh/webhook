@@ -521,10 +521,3 @@ func (r MatchRule) Evaluate(headers, query, payload *map[string]interface{}, bod
 	}
 	return false, nil
 }
-
-// CommandStatusResponse type encapsulates the executed command exit code, message, stdout and stderr
-type CommandStatusResponse struct {
-	ResponseMessage string `json:"message,omitempty"`
-	Output          string `json:"output,omitempty"`
-	Error           string `json:"error,omitempty"`
-}
