@@ -19,12 +19,19 @@ Everything else is the responsibility of the command's author.
 ---
 
 # Getting started
+## Installation
+### Building from source
 To get started, first make sure you've properly set up your [Golang](http://golang.org/doc/install) environment and then run the
 ```bash
 $ go get github.com/adnanh/webhook
 ```
 to get the latest version of the [webhook](https://github.com/adnanh/webhook/).
 
+### Using package manager
+#### Debian "sid"
+If you are using unstable version of Debian linux ("sid"), you can install webhook using `apt-get install webhook` which will install community packaged version (thanks [@freeekanayaka](https://github.com/freeekanayaka)) from https://packages.debian.org/sid/webhook
+
+## Configuration
 Next step is to define some hooks you want [webhook](https://github.com/adnanh/webhook/) to serve. Begin by creating an empty file named `hooks.json`. This file will contain an array of hooks the [webhook](https://github.com/adnanh/webhook/) will serve. Check [Hook definition page](https://github.com/adnanh/webhook/wiki/Hook-Definition) to see the detailed description of what properties a hook can contain, and how to use them.
 
 Let's define a simple hook named `redeploy-webhook` that will run a redeploy script located in `/var/scripts/redeploy.sh`.
