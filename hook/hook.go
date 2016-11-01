@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net/textproto"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -18,6 +19,7 @@ import (
 const (
 	SourceHeader        string = "header"
 	SourceQuery         string = "url"
+	SourceQueryAlias    string = "query"
 	SourcePayload       string = "payload"
 	SourceString        string = "string"
 	SourceEntirePayload string = "entire-payload"
@@ -205,11 +207,13 @@ type Argument struct {
 // based on the Argument's source
 func (ha *Argument) Get(headers, query, payload *map[string]interface{}) (string, bool) {
 	var source *map[string]interface{}
+	key := ha.Name
 
 	switch ha.Source {
 	case SourceHeader:
 		source = headers
-	case SourceQuery:
+		key = textproto.CanonicalMIMEHeaderKey(ha.Name)
+	case SourceQuery, SourceQueryAlias:
 		source = query
 	case SourcePayload:
 		source = payload
@@ -242,7 +246,7 @@ func (ha *Argument) Get(headers, query, payload *map[string]interface{}) (string
 	}
 
 	if source != nil {
-		return ExtractParameterAsString(ha.Name, *source)
+		return ExtractParameterAsString(key, *source)
 	}
 
 	return "", false
@@ -300,7 +304,9 @@ type Hook struct {
 
 // ParseJSONParameters decodes specified arguments to JSON objects and replaces the
 // string with the newly created object
-func (h *Hook) ParseJSONParameters(headers, query, payload *map[string]interface{}) error {
+func (h *Hook) ParseJSONParameters(headers, query, payload *map[string]interface{}) []error {
+	var errors = make([]error, 0)
+
 	for i := range h.JSONStringParameters {
 		if arg, ok := h.JSONStringParameters[i].Get(headers, query, payload); ok {
 			var newArg map[string]interface{}
@@ -311,7 +317,8 @@ func (h *Hook) ParseJSONParameters(headers, query, payload *map[string]interface
 			err := decoder.Decode(&newArg)
 
 			if err != nil {
-				return &ParseError{err}
+				errors = append(errors, &ParseError{err})
+				continue
 			}
 
 			var source *map[string]interface{}
@@ -321,18 +328,28 @@ func (h *Hook) ParseJSONParameters(headers, query, payload *map[string]interface
 				source = headers
 			case SourcePayload:
 				source = payload
-			case SourceQuery:
+			case SourceQuery, SourceQueryAlias:
 				source = query
 			}
 
 			if source != nil {
-				ReplaceParameter(h.JSONStringParameters[i].Name, source, newArg)
+				key := h.JSONStringParameters[i].Name
+
+				if h.JSONStringParameters[i].Source == SourceHeader {
+					key = textproto.CanonicalMIMEHeaderKey(h.JSONStringParameters[i].Name)
+				}
+
+				ReplaceParameter(key, source, newArg)
 			} else {
-				return &SourceError{h.JSONStringParameters[i]}
+				errors = append(errors, &SourceError{h.JSONStringParameters[i]})
 			}
 		} else {
-			return &ArgumentError{h.JSONStringParameters[i]}
+			errors = append(errors, &ArgumentError{h.JSONStringParameters[i]})
 		}
+	}
+
+	if len(errors) > 0 {
+		return errors
 	}
 
 	return nil
@@ -340,8 +357,9 @@ func (h *Hook) ParseJSONParameters(headers, query, payload *map[string]interface
 
 // ExtractCommandArguments creates a list of arguments, based on the
 // PassArgumentsToCommand property that is ready to be used with exec.Command()
-func (h *Hook) ExtractCommandArguments(headers, query, payload *map[string]interface{}) ([]string, error) {
+func (h *Hook) ExtractCommandArguments(headers, query, payload *map[string]interface{}) ([]string, []error) {
 	var args = make([]string, 0)
+	var errors = make([]error, 0)
 
 	args = append(args, h.ExecuteCommand)
 
@@ -350,8 +368,12 @@ func (h *Hook) ExtractCommandArguments(headers, query, payload *map[string]inter
 			args = append(args, arg)
 		} else {
 			args = append(args, "")
-			return args, &ArgumentError{h.PassArgumentsToCommand[i]}
+			errors = append(errors, &ArgumentError{h.PassArgumentsToCommand[i]})
 		}
+	}
+
+	if len(errors) > 0 {
+		return args, errors
 	}
 
 	return args, nil
@@ -360,9 +382,9 @@ func (h *Hook) ExtractCommandArguments(headers, query, payload *map[string]inter
 // ExtractCommandArgumentsForEnv creates a list of arguments in key=value
 // format, based on the PassEnvironmentToCommand property that is ready to be used
 // with exec.Command().
-func (h *Hook) ExtractCommandArgumentsForEnv(headers, query, payload *map[string]interface{}) ([]string, error) {
+func (h *Hook) ExtractCommandArgumentsForEnv(headers, query, payload *map[string]interface{}) ([]string, []error) {
 	var args = make([]string, 0)
-
+	var errors = make([]error, 0)
 	for i := range h.PassEnvironmentToCommand {
 		if arg, ok := h.PassEnvironmentToCommand[i].Get(headers, query, payload); ok {
 			if h.PassEnvironmentToCommand[i].EnvName != "" {
@@ -373,8 +395,12 @@ func (h *Hook) ExtractCommandArgumentsForEnv(headers, query, payload *map[string
 				args = append(args, EnvNamespace+h.PassEnvironmentToCommand[i].Name+"="+arg)
 			}
 		} else {
-			return args, &ArgumentError{h.PassEnvironmentToCommand[i]}
+			errors = append(errors, &ArgumentError{h.PassEnvironmentToCommand[i]})
 		}
+	}
+
+	if len(errors) > 0 {
+		return args, errors
 	}
 
 	return args, nil
