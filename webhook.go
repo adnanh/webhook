@@ -21,20 +21,21 @@ import (
 )
 
 const (
-	version = "2.5.0"
+	version = "2.6.0"
 )
 
 var (
-	ip             = flag.String("ip", "0.0.0.0", "ip the webhook should serve hooks on")
-	port           = flag.Int("port", 9000, "port the webhook should serve hooks on")
-	verbose        = flag.Bool("verbose", false, "show verbose output")
-	noPanic        = flag.Bool("nopanic", false, "do not panic if hooks cannot be loaded when webhook is not running in verbose mode")
-	hotReload      = flag.Bool("hotreload", false, "watch hooks file for changes and reload them automatically")
-	hooksFilePath  = flag.String("hooks", "hooks.json", "path to the json file containing defined hooks the webhook should serve")
-	hooksURLPrefix = flag.String("urlprefix", "hooks", "url prefix to use for served hooks (protocol://yourserver:port/PREFIX/:hook-id)")
-	secure         = flag.Bool("secure", false, "use HTTPS instead of HTTP")
-	cert           = flag.String("cert", "cert.pem", "path to the HTTPS certificate pem file")
-	key            = flag.String("key", "key.pem", "path to the HTTPS certificate private key pem file")
+	ip                 = flag.String("ip", "0.0.0.0", "ip the webhook should serve hooks on")
+	port               = flag.Int("port", 9000, "port the webhook should serve hooks on")
+	verbose            = flag.Bool("verbose", false, "show verbose output")
+	noPanic            = flag.Bool("nopanic", false, "do not panic if hooks cannot be loaded when webhook is not running in verbose mode")
+	hotReload          = flag.Bool("hotreload", false, "watch hooks file for changes and reload them automatically")
+	hooksFilePath      = flag.String("hooks", "hooks.json", "path to the json file containing defined hooks the webhook should serve")
+	hooksURLPrefix     = flag.String("urlprefix", "hooks", "url prefix to use for served hooks (protocol://yourserver:port/PREFIX/:hook-id)")
+	secure             = flag.Bool("secure", false, "use HTTPS instead of HTTP")
+	cert               = flag.String("cert", "cert.pem", "path to the HTTPS certificate pem file")
+	key                = flag.String("key", "key.pem", "path to the HTTPS certificate private key pem file")
+	justDisplayVersion = flag.Bool("version", false, "display webhook version and quit")
 
 	responseHeaders hook.ResponseHeaders
 
@@ -50,6 +51,11 @@ func main() {
 	flag.Var(&responseHeaders, "header", "response header to return, specified in format name=value, use multiple times to set multiple headers")
 
 	flag.Parse()
+
+	if *justDisplayVersion {
+		fmt.Println("webhook version " + version)
+		os.Exit(0)
+	}
 
 	log.SetPrefix("[webhook] ")
 	log.SetFlags(log.Ldate | log.Ltime)
@@ -191,12 +197,10 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// handle hook
-		if err = matchedHook.ParseJSONParameters(&headers, &query, &payload); err != nil {
-			msg := fmt.Sprintf("error parsing JSON parameters: %s", err)
-			log.Printf(msg)
-			w.WriteHeader(http.StatusBadRequest)
-			fmt.Fprintf(w, "Unable to parse JSON parameters.")
-			return
+		if errors := matchedHook.ParseJSONParameters(&headers, &query, &payload); errors != nil {
+			for _, err := range errors {
+				log.Printf("error parsing JSON parameters: %s\n", err)
+			}
 		}
 
 		var ok bool
@@ -249,21 +253,27 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleHook(h *hook.Hook, headers, query, payload *map[string]interface{}, body *[]byte) (string, error) {
-	var err error
+	var errors []error
 
 	cmd := exec.Command(h.ExecuteCommand)
 	cmd.Dir = h.CommandWorkingDirectory
 
-	cmd.Args, err = h.ExtractCommandArguments(headers, query, payload)
-	if err != nil {
-		log.Printf("error extracting command arguments: %s", err)
+	cmd.Args, errors = h.ExtractCommandArguments(headers, query, payload)
+	if errors != nil {
+		for _, err := range errors {
+			log.Printf("error extracting command arguments: %s\n", err)
+		}
 	}
 
 	var envs []string
-	envs, err = h.ExtractCommandArgumentsForEnv(headers, query, payload)
-	if err != nil {
-		log.Printf("error extracting command arguments for environment: %s", err)
+	envs, errors = h.ExtractCommandArgumentsForEnv(headers, query, payload)
+
+	if errors != nil {
+		for _, err := range errors {
+			log.Printf("error extracting command arguments for environment: %s\n", err)
+		}
 	}
+
 	cmd.Env = append(os.Environ(), envs...)
 
 	log.Printf("executing %s (%s) with arguments %q and environment %s using %s as cwd\n", h.ExecuteCommand, cmd.Path, cmd.Args, envs, cmd.Dir)
