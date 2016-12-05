@@ -70,13 +70,13 @@ func main() {
 
 	flag.Parse()
 
-	if len(hooksFiles) == 0 {
-		log.Fatalln("you must specify at least one file to load hooks from")
-	}
-
 	if *justDisplayVersion {
 		fmt.Println("webhook version " + version)
 		os.Exit(0)
+	}
+
+	if len(hooksFiles) == 0 {
+		hooksFiles = append(hooksFiles, "hooks.json")
 	}
 
 	log.SetPrefix("[webhook] ")
