@@ -290,16 +290,17 @@ func (h *ResponseHeaders) Set(value string) error {
 
 // Hook type is a structure containing details for a single hook
 type Hook struct {
-	ID                       string          `json:"id,omitempty"`
-	ExecuteCommand           string          `json:"execute-command,omitempty"`
-	CommandWorkingDirectory  string          `json:"command-working-directory,omitempty"`
-	ResponseMessage          string          `json:"response-message,omitempty"`
-	ResponseHeaders          ResponseHeaders `json:"response-headers,omitempty"`
-	CaptureCommandOutput     bool            `json:"include-command-output-in-response,omitempty"`
-	PassEnvironmentToCommand []Argument      `json:"pass-environment-to-command,omitempty"`
-	PassArgumentsToCommand   []Argument      `json:"pass-arguments-to-command,omitempty"`
-	JSONStringParameters     []Argument      `json:"parse-parameters-as-json,omitempty"`
-	TriggerRule              *Rules          `json:"trigger-rule,omitempty"`
+	ID                                  string          `json:"id,omitempty"`
+	ExecuteCommand                      string          `json:"execute-command,omitempty"`
+	CommandWorkingDirectory             string          `json:"command-working-directory,omitempty"`
+	ResponseMessage                     string          `json:"response-message,omitempty"`
+	ResponseHeaders                     ResponseHeaders `json:"response-headers,omitempty"`
+	CaptureCommandOutput                bool            `json:"include-command-output-in-response,omitempty"`
+	PassEnvironmentToCommand            []Argument      `json:"pass-environment-to-command,omitempty"`
+	PassArgumentsToCommand              []Argument      `json:"pass-arguments-to-command,omitempty"`
+	JSONStringParameters                []Argument      `json:"parse-parameters-as-json,omitempty"`
+	TriggerRule                         *Rules          `json:"trigger-rule,omitempty"`
+	TriggerRuleMismatchHttpResponseCode int             `json:"trigger-rule-mismatch-http-response-code,omitempty"`
 }
 
 // ParseJSONParameters decodes specified arguments to JSON objects and replaces the

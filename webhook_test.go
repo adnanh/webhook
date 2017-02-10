@@ -515,5 +515,10 @@ env: HOOK_head_commit.timestamp=2013-03-12T08:14:29-07:00
 `,
 	},
 
-	{"empty payload", "github", nil, `{}`, false, http.StatusOK, `Hook rules were not satisfied.`},
+	// test with custom return code
+	{"empty payload", "github", nil, `{}`, false, http.StatusBadRequest, `Hook rules were not satisfied.`},
+	// test with custom invalid http code, should default to 200 OK
+	{"empty payload", "bitbucket", nil, `{}`, false, http.StatusOK, `Hook rules were not satisfied.`},
+	// test with no configured http return code, should default to 200 OK
+	{"empty payload", "gitlab", nil, `{}`, false, http.StatusOK, `Hook rules were not satisfied.`},
 }
