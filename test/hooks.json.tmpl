@@ -4,7 +4,7 @@
     "execute-command": "{{ .Hookecho }}",
     "command-working-directory": "/",
     "include-command-output-in-response": true,
-    "trigger-rule-mismatch-code": 400,
+    "trigger-rule-mismatch-http-response-code": 400,
     "pass-environment-to-command":
     [
       {
@@ -60,7 +60,7 @@
     "command-working-directory": "/",
     "include-command-output-in-response": false,
     "response-message": "success",
-    "trigger-rule-mismatch-code": 999,
+    "trigger-rule-mismatch-http-response-code": 999,
     "parse-parameters-as-json": [
       {
         "source": "payload",

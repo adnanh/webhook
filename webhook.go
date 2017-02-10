@@ -243,13 +243,13 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Check if a return code is configured for the hook
-		if matchedHook.TriggerRuleMismatchCode != 0 {
+		if matchedHook.TriggerRuleMismatchHttpResponseCode != 0 {
 			// Check if the configured return code is supported by the http package
 			// by testing if there is a StatusText for this code.
-			if len(http.StatusText(matchedHook.TriggerRuleMismatchCode)) > 0 {
-				w.WriteHeader(matchedHook.TriggerRuleMismatchCode)
+			if len(http.StatusText(matchedHook.TriggerRuleMismatchHttpResponseCode)) > 0 {
+				w.WriteHeader(matchedHook.TriggerRuleMismatchHttpResponseCode)
 			} else {
-				log.Printf("%s got matched, but the configured return code %d is unknown - defaulting to 200\n", matchedHook.ID, matchedHook.TriggerRuleMismatchCode)
+				log.Printf("%s got matched, but the configured return code %d is unknown - defaulting to 200\n", matchedHook.ID, matchedHook.TriggerRuleMismatchHttpResponseCode)
 			}
 		}
 
