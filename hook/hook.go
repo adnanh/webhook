@@ -300,6 +300,7 @@ type Hook struct {
 	PassArgumentsToCommand   []Argument      `json:"pass-arguments-to-command,omitempty"`
 	JSONStringParameters     []Argument      `json:"parse-parameters-as-json,omitempty"`
 	TriggerRule              *Rules          `json:"trigger-rule,omitempty"`
+	TriggerRuleMismatchCode  int             `json:"trigger-rule-mismatch-code,omitempty"`
 }
 
 // ParseJSONParameters decodes specified arguments to JSON objects and replaces the
