@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	version = "2.6.1"
+	version = "2.6.2"
 )
 
 var (
@@ -115,6 +115,15 @@ func main() {
 		}
 	}
 
+	newHooksFiles := hooksFiles[:0]
+	for _, filePath := range hooksFiles {
+		if _, ok := loadedHooksFromFiles[filePath]; ok == true {
+			newHooksFiles = append(newHooksFiles, filePath)
+		}
+	}
+
+	hooksFiles = newHooksFiles
+
 	if !*verbose && !*noPanic && lenLoadedHooks() == 0 {
 		log.SetOutput(os.Stdout)
 		log.Fatalln("couldn't load any hooks from file!\naborting webhook execution since the -verbose flag is set to false.\nIf, for some reason, you want webhook to start without the hooks, either use -verbose flag, or -nopanic")
@@ -125,7 +134,7 @@ func main() {
 
 		watcher, err = fsnotify.NewWatcher()
 		if err != nil {
-			log.Fatal("error creating file watcher instance", err)
+			log.Fatal("error creating file watcher instance\n", err)
 		}
 		defer watcher.Close()
 
@@ -135,7 +144,7 @@ func main() {
 
 			err = watcher.Add(hooksFilePath)
 			if err != nil {
-				log.Fatal("error adding hooks file to the watcher", err)
+				log.Fatal("error adding hooks file to the watcher\n", err)
 			}
 		}
 
@@ -373,6 +382,32 @@ func reloadAllHooks() {
 	}
 }
 
+func removeHooks(hooksFilePath string) {
+	for _, hook := range loadedHooksFromFiles[hooksFilePath] {
+		log.Printf("\tremoving: %s\n", hook.ID)
+	}
+
+	newHooksFiles := hooksFiles[:0]
+	for _, filePath := range hooksFiles {
+		if filePath != hooksFilePath {
+			newHooksFiles = append(newHooksFiles, filePath)
+		}
+	}
+
+	hooksFiles = newHooksFiles
+
+	removedHooksCount := len(loadedHooksFromFiles[hooksFilePath])
+
+	delete(loadedHooksFromFiles, hooksFilePath)
+
+	log.Printf("removed %d hook(s) that were loaded from file %s\n", removedHooksCount, hooksFilePath)
+
+	if !*verbose && !*noPanic && lenLoadedHooks() == 0 {
+		log.SetOutput(os.Stdout)
+		log.Fatalln("couldn't load any hooks from file!\naborting webhook execution since the -verbose flag is set to false.\nIf, for some reason, you want webhook to run without the hooks, either use -verbose flag, or -nopanic")
+	}
+}
+
 func watchForFileChange() {
 	for {
 		select {
@@ -380,6 +415,21 @@ func watchForFileChange() {
 			if event.Op&fsnotify.Write == fsnotify.Write {
 				log.Printf("hooks file %s modified\n", event.Name)
 				reloadHooks(event.Name)
+			} else if event.Op&fsnotify.Remove == fsnotify.Remove {
+				log.Printf("hooks file %s removed, no longer watching this file for changes, removing hooks that were loaded from it\n", event.Name)
+				(*watcher).Remove(event.Name)
+				removeHooks(event.Name)
+			} else if event.Op&fsnotify.Rename == fsnotify.Rename {
+				if _, err := os.Stat(event.Name); os.IsNotExist(err) {
+					// file was removed
+					log.Printf("hooks file %s removed, no longer watching this file for changes, and removing hooks that were loaded from it\n", event.Name)
+					(*watcher).Remove(event.Name)
+					removeHooks(event.Name)
+				} else {
+					// file was overwritten
+					log.Printf("hooks file %s overwritten\n", event.Name)
+					reloadHooks(event.Name)
+				}
 			}
 		case err := <-(*watcher).Errors:
 			log.Println("watcher error:", err)
