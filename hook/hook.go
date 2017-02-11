@@ -273,7 +273,7 @@ func (h *ResponseHeaders) String() string {
 		result[idx] = fmt.Sprintf("%s=%s", responseHeader.Name, responseHeader.Value)
 	}
 
-	return fmt.Sprint(strings.Join(result, ", "))
+	return strings.Join(result, ", ")
 }
 
 // Set method appends new Header object from header=value notation
@@ -285,6 +285,23 @@ func (h *ResponseHeaders) Set(value string) error {
 	}
 
 	*h = append(*h, Header{Name: splitResult[0], Value: splitResult[1]})
+	return nil
+}
+
+// HooksFiles is a slice of String
+type HooksFiles []string
+
+func (h *HooksFiles) String() string {
+	if len(*h) == 0 {
+		return "hooks.json"
+	}
+
+	return strings.Join(*h, ", ")
+}
+
+// Set method appends new string
+func (h *HooksFiles) Set(value string) error {
+	*h = append(*h, value)
 	return nil
 }
 
@@ -425,6 +442,19 @@ func (h *Hooks) LoadFromFile(path string) error {
 
 	e = json.Unmarshal(file, h)
 	return e
+}
+
+// Append appends hooks unless the new hooks contain a hook with an ID that already exists
+func (h *Hooks) Append(other *Hooks) error {
+	for _, hook := range *other {
+		if h.Match(hook.ID) != nil {
+			return fmt.Errorf("hook with ID %s is already defined", hook.ID)
+		}
+
+		*h = append(*h, hook)
+	}
+
+	return nil
 }
 
 // Match iterates through Hooks and returns first one that matches the given ID,

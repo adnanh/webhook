@@ -26,7 +26,7 @@ func watchForSignals() {
 		if sig == syscall.SIGUSR1 {
 			log.Println("caught USR1 signal")
 
-			reloadHooks()
+			reloadAllHooks()
 		} else {
 			log.Printf("caught unhandled signal %+v\n", sig)
 		}
