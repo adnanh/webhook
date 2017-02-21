@@ -241,29 +241,43 @@ func TestHooksMatch(t *testing.T) {
 }
 
 var matchRuleTests = []struct {
-	typ, regex, secret, value string
-	param                     Argument
-	headers, query, payload   *map[string]interface{}
-	body                      []byte
-	ok                        bool
-	err                       bool
+	typ, regex, secret, value, ipRange string
+	param                              Argument
+	headers, query, payload            *map[string]interface{}
+	body                               []byte
+	remoteAddr                         string
+	ok                                 bool
+	err                                bool
 }{
-	{"value", "", "", "z", Argument{"header", "a", ""}, &map[string]interface{}{"A": "z"}, nil, nil, []byte{}, true, false},
-	{"regex", "^z", "", "z", Argument{"header", "a", ""}, &map[string]interface{}{"A": "z"}, nil, nil, []byte{}, true, false},
-	{"payload-hash-sha1", "", "secret", "", Argument{"header", "a", ""}, &map[string]interface{}{"A": "b17e04cbb22afa8ffbff8796fc1894ed27badd9e"}, nil, nil, []byte(`{"a": "z"}`), true, false},
+	{"value", "", "", "z", "", Argument{"header", "a", ""}, &map[string]interface{}{"A": "z"}, nil, nil, []byte{}, "", true, false},
+	{"regex", "^z", "", "z", "", Argument{"header", "a", ""}, &map[string]interface{}{"A": "z"}, nil, nil, []byte{}, "", true, false},
+	{"payload-hash-sha1", "", "secret", "", "", Argument{"header", "a", ""}, &map[string]interface{}{"A": "b17e04cbb22afa8ffbff8796fc1894ed27badd9e"}, nil, nil, []byte(`{"a": "z"}`), "", true, false},
 	// failures
-	{"value", "", "", "X", Argument{"header", "a", ""}, &map[string]interface{}{"A": "z"}, nil, nil, []byte{}, false, false},
-	{"regex", "^X", "", "", Argument{"header", "a", ""}, &map[string]interface{}{"A": "z"}, nil, nil, []byte{}, false, false},
-	{"value", "", "2", "X", Argument{"header", "a", ""}, &map[string]interface{}{"Y": "z"}, nil, nil, []byte{}, false, false}, // reference invalid header
+	{"value", "", "", "X", "", Argument{"header", "a", ""}, &map[string]interface{}{"A": "z"}, nil, nil, []byte{}, "", false, false},
+	{"regex", "^X", "", "", "", Argument{"header", "a", ""}, &map[string]interface{}{"A": "z"}, nil, nil, []byte{}, "", false, false},
+	{"value", "", "2", "X", "", Argument{"header", "a", ""}, &map[string]interface{}{"Y": "z"}, nil, nil, []byte{}, "", false, false}, // reference invalid header
 	// errors
-	{"regex", "*", "", "", Argument{"header", "a", ""}, &map[string]interface{}{"A": "z"}, nil, nil, []byte{}, false, true},                 // invalid regex
-	{"payload-hash-sha1", "", "secret", "", Argument{"header", "a", ""}, &map[string]interface{}{"A": ""}, nil, nil, []byte{}, false, true}, // invalid hmac
+	{"regex", "*", "", "", "", Argument{"header", "a", ""}, &map[string]interface{}{"A": "z"}, nil, nil, []byte{}, "", false, true},                 // invalid regex
+	{"payload-hash-sha1", "", "secret", "", "", Argument{"header", "a", ""}, &map[string]interface{}{"A": ""}, nil, nil, []byte{}, "", false, true}, // invalid hmac
+	// IP whitelisting, valid cases
+	{"ip-whitelist", "", "", "", "192.168.0.1/24", Argument{}, nil, nil, nil, []byte{}, "192.168.0.2:9000", true, false}, // valid IPv4, with range
+	{"ip-whitelist", "", "", "", "192.168.0.1/24", Argument{}, nil, nil, nil, []byte{}, "192.168.0.2:9000", true, false}, // valid IPv4, with range
+	{"ip-whitelist", "", "", "", "192.168.0.1", Argument{}, nil, nil, nil, []byte{}, "192.168.0.1:9000", true, false},    // valid IPv4, no range
+	{"ip-whitelist", "", "", "", "::1/24", Argument{}, nil, nil, nil, []byte{}, "[::1]:9000", true, false},               // valid IPv6, with range
+	{"ip-whitelist", "", "", "", "::1", Argument{}, nil, nil, nil, []byte{}, "[::1]:9000", true, false},                  // valid IPv6, no range
+	// IP whitelisting, invalid cases
+	{"ip-whitelist", "", "", "", "192.168.0.1/a", Argument{}, nil, nil, nil, []byte{}, "192.168.0.2:9000", false, true},  // invalid IPv4, with range
+	{"ip-whitelist", "", "", "", "192.168.0.a", Argument{}, nil, nil, nil, []byte{}, "192.168.0.2:9000", false, true},    // invalid IPv4, no range
+	{"ip-whitelist", "", "", "", "192.168.0.1/24", Argument{}, nil, nil, nil, []byte{}, "192.168.0.a:9000", false, true}, // invalid IPv4 address
+	{"ip-whitelist", "", "", "", "::1/a", Argument{}, nil, nil, nil, []byte{}, "[::1]:9000", false, true},                // invalid IPv6, with range
+	{"ip-whitelist", "", "", "", "::z", Argument{}, nil, nil, nil, []byte{}, "[::1]:9000", false, true},                  // invalid IPv6, no range
+	{"ip-whitelist", "", "", "", "::1/24", Argument{}, nil, nil, nil, []byte{}, "[::z]:9000", false, true},               // invalid IPv6 address
 }
 
 func TestMatchRule(t *testing.T) {
 	for i, tt := range matchRuleTests {
-		r := MatchRule{tt.typ, tt.regex, tt.secret, tt.value, tt.param}
-		ok, err := r.Evaluate(tt.headers, tt.query, tt.payload, &tt.body)
+		r := MatchRule{tt.typ, tt.regex, tt.secret, tt.value, tt.param, tt.ipRange}
+		ok, err := r.Evaluate(tt.headers, tt.query, tt.payload, &tt.body, tt.remoteAddr)
 		if ok != tt.ok || (err != nil) != tt.err {
 			t.Errorf("%d failed to match %#v:\nexpected ok: %#v, err: %v\ngot ok: %#v, err: %v", i, r, tt.ok, tt.err, ok, (err != nil))
 		}
@@ -281,8 +295,8 @@ var andRuleTests = []struct {
 	{
 		"(a=z, b=y): a=z && b=y",
 		AndRule{
-			{Match: &MatchRule{"value", "", "", "z", Argument{"header", "a", ""}}},
-			{Match: &MatchRule{"value", "", "", "y", Argument{"header", "b", ""}}},
+			{Match: &MatchRule{"value", "", "", "z", Argument{"header", "a", ""}, ""}},
+			{Match: &MatchRule{"value", "", "", "y", Argument{"header", "b", ""}, ""}},
 		},
 		&map[string]interface{}{"A": "z", "B": "y"}, nil, nil, []byte{},
 		true, false,
@@ -290,8 +304,8 @@ var andRuleTests = []struct {
 	{
 		"(a=z, b=Y): a=z && b=y",
 		AndRule{
-			{Match: &MatchRule{"value", "", "", "z", Argument{"header", "a", ""}}},
-			{Match: &MatchRule{"value", "", "", "y", Argument{"header", "b", ""}}},
+			{Match: &MatchRule{"value", "", "", "z", Argument{"header", "a", ""}, ""}},
+			{Match: &MatchRule{"value", "", "", "y", Argument{"header", "b", ""}, ""}},
 		},
 		&map[string]interface{}{"A": "z", "B": "Y"}, nil, nil, []byte{},
 		false, false,
@@ -300,22 +314,22 @@ var andRuleTests = []struct {
 	{
 		"(a=z, b=y, c=x, d=w=, e=X, f=X): a=z && (b=y && c=x) && (d=w || e=v) && !f=u",
 		AndRule{
-			{Match: &MatchRule{"value", "", "", "z", Argument{"header", "a", ""}}},
+			{Match: &MatchRule{"value", "", "", "z", Argument{"header", "a", ""}, ""}},
 			{
 				And: &AndRule{
-					{Match: &MatchRule{"value", "", "", "y", Argument{"header", "b", ""}}},
-					{Match: &MatchRule{"value", "", "", "x", Argument{"header", "c", ""}}},
+					{Match: &MatchRule{"value", "", "", "y", Argument{"header", "b", ""}, ""}},
+					{Match: &MatchRule{"value", "", "", "x", Argument{"header", "c", ""}, ""}},
 				},
 			},
 			{
 				Or: &OrRule{
-					{Match: &MatchRule{"value", "", "", "w", Argument{"header", "d", ""}}},
-					{Match: &MatchRule{"value", "", "", "v", Argument{"header", "e", ""}}},
+					{Match: &MatchRule{"value", "", "", "w", Argument{"header", "d", ""}, ""}},
+					{Match: &MatchRule{"value", "", "", "v", Argument{"header", "e", ""}, ""}},
 				},
 			},
 			{
 				Not: &NotRule{
-					Match: &MatchRule{"value", "", "", "u", Argument{"header", "f", ""}},
+					Match: &MatchRule{"value", "", "", "u", Argument{"header", "f", ""}, ""},
 				},
 			},
 		},
@@ -326,7 +340,7 @@ var andRuleTests = []struct {
 	// failures
 	{
 		"invalid rule",
-		AndRule{{Match: &MatchRule{"value", "", "", "X", Argument{"header", "a", ""}}}},
+		AndRule{{Match: &MatchRule{"value", "", "", "X", Argument{"header", "a", ""}, ""}}},
 		&map[string]interface{}{"Y": "z"}, nil, nil, nil,
 		false, false,
 	},
@@ -334,7 +348,7 @@ var andRuleTests = []struct {
 
 func TestAndRule(t *testing.T) {
 	for _, tt := range andRuleTests {
-		ok, err := tt.rule.Evaluate(tt.headers, tt.query, tt.payload, &tt.body)
+		ok, err := tt.rule.Evaluate(tt.headers, tt.query, tt.payload, &tt.body, "")
 		if ok != tt.ok || (err != nil) != tt.err {
 			t.Errorf("failed to match %#v:\nexpected ok: %#v, err: %v\ngot ok: %#v, err: %v", tt.desc, tt.ok, tt.err, ok, err)
 		}
@@ -352,8 +366,8 @@ var orRuleTests = []struct {
 	{
 		"(a=z, b=X): a=z || b=y",
 		OrRule{
-			{Match: &MatchRule{"value", "", "", "z", Argument{"header", "a", ""}}},
-			{Match: &MatchRule{"value", "", "", "y", Argument{"header", "b", ""}}},
+			{Match: &MatchRule{"value", "", "", "z", Argument{"header", "a", ""}, ""}},
+			{Match: &MatchRule{"value", "", "", "y", Argument{"header", "b", ""}, ""}},
 		},
 		&map[string]interface{}{"A": "z", "B": "X"}, nil, nil, []byte{},
 		true, false,
@@ -361,8 +375,8 @@ var orRuleTests = []struct {
 	{
 		"(a=X, b=y): a=z || b=y",
 		OrRule{
-			{Match: &MatchRule{"value", "", "", "z", Argument{"header", "a", ""}}},
-			{Match: &MatchRule{"value", "", "", "y", Argument{"header", "b", ""}}},
+			{Match: &MatchRule{"value", "", "", "z", Argument{"header", "a", ""}, ""}},
+			{Match: &MatchRule{"value", "", "", "y", Argument{"header", "b", ""}, ""}},
 		},
 		&map[string]interface{}{"A": "X", "B": "y"}, nil, nil, []byte{},
 		true, false,
@@ -370,8 +384,8 @@ var orRuleTests = []struct {
 	{
 		"(a=Z, b=Y): a=z || b=y",
 		OrRule{
-			{Match: &MatchRule{"value", "", "", "z", Argument{"header", "a", ""}}},
-			{Match: &MatchRule{"value", "", "", "y", Argument{"header", "b", ""}}},
+			{Match: &MatchRule{"value", "", "", "z", Argument{"header", "a", ""}, ""}},
+			{Match: &MatchRule{"value", "", "", "y", Argument{"header", "b", ""}, ""}},
 		},
 		&map[string]interface{}{"A": "Z", "B": "Y"}, nil, nil, []byte{},
 		false, false,
@@ -380,7 +394,7 @@ var orRuleTests = []struct {
 	{
 		"invalid rule",
 		OrRule{
-			{Match: &MatchRule{"value", "", "", "z", Argument{"header", "a", ""}}},
+			{Match: &MatchRule{"value", "", "", "z", Argument{"header", "a", ""}, ""}},
 		},
 		&map[string]interface{}{"Y": "Z"}, nil, nil, []byte{},
 		false, false,
@@ -389,7 +403,7 @@ var orRuleTests = []struct {
 
 func TestOrRule(t *testing.T) {
 	for _, tt := range orRuleTests {
-		ok, err := tt.rule.Evaluate(tt.headers, tt.query, tt.payload, &tt.body)
+		ok, err := tt.rule.Evaluate(tt.headers, tt.query, tt.payload, &tt.body, "")
 		if ok != tt.ok || (err != nil) != tt.err {
 			t.Errorf("%#v:\nexpected ok: %#v, err: %v\ngot ok: %#v err: %v", tt.desc, tt.ok, tt.err, ok, err)
 		}
@@ -404,13 +418,13 @@ var notRuleTests = []struct {
 	ok                      bool
 	err                     bool
 }{
-	{"(a=z): !a=X", NotRule{Match: &MatchRule{"value", "", "", "X", Argument{"header", "a", ""}}}, &map[string]interface{}{"A": "z"}, nil, nil, []byte{}, true, false},
-	{"(a=z): !a=z", NotRule{Match: &MatchRule{"value", "", "", "z", Argument{"header", "a", ""}}}, &map[string]interface{}{"A": "z"}, nil, nil, []byte{}, false, false},
+	{"(a=z): !a=X", NotRule{Match: &MatchRule{"value", "", "", "X", Argument{"header", "a", ""}, ""}}, &map[string]interface{}{"A": "z"}, nil, nil, []byte{}, true, false},
+	{"(a=z): !a=z", NotRule{Match: &MatchRule{"value", "", "", "z", Argument{"header", "a", ""}, ""}}, &map[string]interface{}{"A": "z"}, nil, nil, []byte{}, false, false},
 }
 
 func TestNotRule(t *testing.T) {
 	for _, tt := range notRuleTests {
-		ok, err := tt.rule.Evaluate(tt.headers, tt.query, tt.payload, &tt.body)
+		ok, err := tt.rule.Evaluate(tt.headers, tt.query, tt.payload, &tt.body, "")
 		if ok != tt.ok || (err != nil) != tt.err {
 			t.Errorf("failed to match %#v:\nexpected ok: %#v, err: %v\ngot ok: %#v, err: %v", tt.rule, tt.ok, tt.err, ok, err)
 		}

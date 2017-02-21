@@ -243,7 +243,7 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 		if matchedHook.TriggerRule == nil {
 			ok = true
 		} else {
-			ok, err = matchedHook.TriggerRule.Evaluate(&headers, &query, &payload, &body)
+			ok, err = matchedHook.TriggerRule.Evaluate(&headers, &query, &payload, &body, r.RemoteAddr)
 			if err != nil {
 				msg := fmt.Sprintf("error evaluating hook: %s", err)
 				log.Printf(msg)
