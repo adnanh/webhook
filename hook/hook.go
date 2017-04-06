@@ -3,6 +3,7 @@ package hook
 import (
 	"crypto/hmac"
 	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -89,6 +90,25 @@ func CheckPayloadSignature(payload []byte, secret string, signature string) (str
 	}
 
 	mac := hmac.New(sha1.New, []byte(secret))
+	_, err := mac.Write(payload)
+	if err != nil {
+		return "", err
+	}
+	expectedMAC := hex.EncodeToString(mac.Sum(nil))
+
+	if !hmac.Equal([]byte(signature), []byte(expectedMAC)) {
+		return expectedMAC, &SignatureError{signature}
+	}
+	return expectedMAC, err
+}
+
+// CheckPayloadSignature256 calculates and verifies SHA256 signature of the given payload
+func CheckPayloadSignature256(payload []byte, secret string, signature string) (string, error) {
+	if strings.HasPrefix(signature, "sha256=") {
+		signature = signature[7:]
+	}
+
+	mac := hmac.New(sha256.New, []byte(secret))
 	_, err := mac.Write(payload)
 	if err != nil {
 		return "", err
@@ -602,10 +622,11 @@ type MatchRule struct {
 
 // Constants for the MatchRule type
 const (
-	MatchValue    string = "value"
-	MatchRegex    string = "regex"
-	MatchHashSHA1 string = "payload-hash-sha1"
-	IPWhitelist   string = "ip-whitelist"
+	MatchValue      string = "value"
+	MatchRegex      string = "regex"
+	MatchHashSHA1   string = "payload-hash-sha1"
+	MatchHashSHA256 string = "payload-hash-sha256"
+	IPWhitelist     string = "ip-whitelist"
 )
 
 // Evaluate MatchRule will return based on the type
@@ -622,6 +643,9 @@ func (r MatchRule) Evaluate(headers, query, payload *map[string]interface{}, bod
 			return regexp.MatchString(r.Regex, arg)
 		case MatchHashSHA1:
 			_, err := CheckPayloadSignature(*body, r.Secret, arg)
+			return err == nil, err
+		case MatchHashSHA256:
+			_, err := CheckPayloadSignature256(*body, r.Secret, arg)
 			return err == nil, err
 		}
 	}
