@@ -3,11 +3,13 @@ package hook
 import (
 	"crypto/hmac"
 	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/textproto"
 	"reflect"
 	"regexp"
@@ -98,6 +100,67 @@ func CheckPayloadSignature(payload []byte, secret string, signature string) (str
 		return expectedMAC, &SignatureError{signature}
 	}
 	return expectedMAC, err
+}
+
+// CheckPayloadSignature256 calculates and verifies SHA256 signature of the given payload
+func CheckPayloadSignature256(payload []byte, secret string, signature string) (string, error) {
+	if strings.HasPrefix(signature, "sha256=") {
+		signature = signature[7:]
+	}
+
+	mac := hmac.New(sha256.New, []byte(secret))
+	_, err := mac.Write(payload)
+	if err != nil {
+		return "", err
+	}
+	expectedMAC := hex.EncodeToString(mac.Sum(nil))
+
+	if !hmac.Equal([]byte(signature), []byte(expectedMAC)) {
+		return expectedMAC, &SignatureError{signature}
+	}
+	return expectedMAC, err
+}
+
+// CheckIPWhitelist makes sure the provided remote address (of the form IP:port) falls within the provided IP range
+// (in CIDR form or a single IP address).
+func CheckIPWhitelist(remoteAddr string, ipRange string) (bool, error) {
+	// Extract IP address from remote address.
+
+	ip := remoteAddr
+
+	if strings.LastIndex(remoteAddr, ":") != -1 {
+		ip = remoteAddr[0:strings.LastIndex(remoteAddr, ":")]
+	}
+
+	ip = strings.TrimSpace(ip)
+
+	// IPv6 addresses will likely be surrounded by [], so don't forget to remove those.
+
+	if strings.HasPrefix(ip, "[") && strings.HasSuffix(ip, "]") {
+		ip = ip[1 : len(ip)-1]
+	}
+
+	parsedIP := net.ParseIP(strings.TrimSpace(ip))
+
+	if parsedIP == nil {
+		return false, fmt.Errorf("invalid IP address found in remote address '%s'", remoteAddr)
+	}
+
+	// Extract IP range in CIDR form.  If a single IP address is provided, turn it into CIDR form.
+
+	ipRange = strings.TrimSpace(ipRange)
+
+	if strings.Index(ipRange, "/") == -1 {
+		ipRange = ipRange + "/32"
+	}
+
+	_, cidr, err := net.ParseCIDR(ipRange)
+
+	if err != nil {
+		return false, err
+	}
+
+	return cidr.Contains(parsedIP), nil
 }
 
 // ReplaceParameter replaces parameter value with the passed value in the passed map
@@ -479,16 +542,16 @@ type Rules struct {
 
 // Evaluate finds the first rule property that is not nil and returns the value
 // it evaluates to
-func (r Rules) Evaluate(headers, query, payload *map[string]interface{}, body *[]byte) (bool, error) {
+func (r Rules) Evaluate(headers, query, payload *map[string]interface{}, body *[]byte, remoteAddr string) (bool, error) {
 	switch {
 	case r.And != nil:
-		return r.And.Evaluate(headers, query, payload, body)
+		return r.And.Evaluate(headers, query, payload, body, remoteAddr)
 	case r.Or != nil:
-		return r.Or.Evaluate(headers, query, payload, body)
+		return r.Or.Evaluate(headers, query, payload, body, remoteAddr)
 	case r.Not != nil:
-		return r.Not.Evaluate(headers, query, payload, body)
+		return r.Not.Evaluate(headers, query, payload, body, remoteAddr)
 	case r.Match != nil:
-		return r.Match.Evaluate(headers, query, payload, body)
+		return r.Match.Evaluate(headers, query, payload, body, remoteAddr)
 	}
 
 	return false, nil
@@ -498,11 +561,11 @@ func (r Rules) Evaluate(headers, query, payload *map[string]interface{}, body *[
 type AndRule []Rules
 
 // Evaluate AndRule will return true if and only if all of ChildRules evaluate to true
-func (r AndRule) Evaluate(headers, query, payload *map[string]interface{}, body *[]byte) (bool, error) {
+func (r AndRule) Evaluate(headers, query, payload *map[string]interface{}, body *[]byte, remoteAddr string) (bool, error) {
 	res := true
 
 	for _, v := range r {
-		rv, err := v.Evaluate(headers, query, payload, body)
+		rv, err := v.Evaluate(headers, query, payload, body, remoteAddr)
 		if err != nil {
 			return false, err
 		}
@@ -520,11 +583,11 @@ func (r AndRule) Evaluate(headers, query, payload *map[string]interface{}, body 
 type OrRule []Rules
 
 // Evaluate OrRule will return true if any of ChildRules evaluate to true
-func (r OrRule) Evaluate(headers, query, payload *map[string]interface{}, body *[]byte) (bool, error) {
+func (r OrRule) Evaluate(headers, query, payload *map[string]interface{}, body *[]byte, remoteAddr string) (bool, error) {
 	res := false
 
 	for _, v := range r {
-		rv, err := v.Evaluate(headers, query, payload, body)
+		rv, err := v.Evaluate(headers, query, payload, body, remoteAddr)
 		if err != nil {
 			return false, err
 		}
@@ -542,8 +605,8 @@ func (r OrRule) Evaluate(headers, query, payload *map[string]interface{}, body *
 type NotRule Rules
 
 // Evaluate NotRule will return true if and only if ChildRule evaluates to false
-func (r NotRule) Evaluate(headers, query, payload *map[string]interface{}, body *[]byte) (bool, error) {
-	rv, err := Rules(r).Evaluate(headers, query, payload, body)
+func (r NotRule) Evaluate(headers, query, payload *map[string]interface{}, body *[]byte, remoteAddr string) (bool, error) {
+	rv, err := Rules(r).Evaluate(headers, query, payload, body, remoteAddr)
 	return !rv, err
 }
 
@@ -554,17 +617,24 @@ type MatchRule struct {
 	Secret    string   `json:"secret,omitempty"`
 	Value     string   `json:"value,omitempty"`
 	Parameter Argument `json:"parameter,omitempty"`
+	IPRange   string   `json:"ip-range,omitempty"`
 }
 
 // Constants for the MatchRule type
 const (
-	MatchValue    string = "value"
-	MatchRegex    string = "regex"
-	MatchHashSHA1 string = "payload-hash-sha1"
+	MatchValue      string = "value"
+	MatchRegex      string = "regex"
+	MatchHashSHA1   string = "payload-hash-sha1"
+	MatchHashSHA256 string = "payload-hash-sha256"
+	IPWhitelist     string = "ip-whitelist"
 )
 
 // Evaluate MatchRule will return based on the type
-func (r MatchRule) Evaluate(headers, query, payload *map[string]interface{}, body *[]byte) (bool, error) {
+func (r MatchRule) Evaluate(headers, query, payload *map[string]interface{}, body *[]byte, remoteAddr string) (bool, error) {
+	if r.Type == IPWhitelist {
+		return CheckIPWhitelist(remoteAddr, r.IPRange)
+	}
+
 	if arg, ok := r.Parameter.Get(headers, query, payload); ok {
 		switch r.Type {
 		case MatchValue:
@@ -573,6 +643,9 @@ func (r MatchRule) Evaluate(headers, query, payload *map[string]interface{}, bod
 			return regexp.MatchString(r.Regex, arg)
 		case MatchHashSHA1:
 			_, err := CheckPayloadSignature(*body, r.Secret, arg)
+			return err == nil, err
+		case MatchHashSHA256:
+			_, err := CheckPayloadSignature256(*body, r.Secret, arg)
 			return err == nil, err
 		}
 	}
