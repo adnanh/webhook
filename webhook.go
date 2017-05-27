@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	version = "2.6.3"
+	version = "2.6.4"
 )
 
 var (
@@ -188,6 +188,8 @@ func main() {
 }
 
 func hookHandler(w http.ResponseWriter, r *http.Request) {
+	log.Printf("incoming HTTP request from %s\n", r.RemoteAddr)
+
 	for _, responseHeader := range responseHeaders {
 		w.Header().Set(responseHeader.Name, responseHeader.Value)
 	}

@@ -275,18 +275,18 @@ var matchRuleTests = []struct {
 	ok                                 bool
 	err                                bool
 }{
-	{"value", "", "", "z", Argument{"header", "a", ""}, &map[string]interface{}{"A": "z"}, nil, nil, []byte{}, true, false},
-	{"regex", "^z", "", "z", Argument{"header", "a", ""}, &map[string]interface{}{"A": "z"}, nil, nil, []byte{}, true, false},
-	{"payload-hash-sha1", "", "secret", "", Argument{"header", "a", ""}, &map[string]interface{}{"A": "b17e04cbb22afa8ffbff8796fc1894ed27badd9e"}, nil, nil, []byte(`{"a": "z"}`), true, false},
-	{"payload-hash-sha256", "", "secret", "", Argument{"header", "a", ""}, &map[string]interface{}{"A": "f417af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89"}, nil, nil, []byte(`{"a": "z"}`), true, false},
+	{"value", "", "", "z", "", Argument{"header", "a", ""}, &map[string]interface{}{"A": "z"}, nil, nil, []byte{}, "", true, false},
+	{"regex", "^z", "", "z", "", Argument{"header", "a", ""}, &map[string]interface{}{"A": "z"}, nil, nil, []byte{}, "", true, false},
+	{"payload-hash-sha1", "", "secret", "", "", Argument{"header", "a", ""}, &map[string]interface{}{"A": "b17e04cbb22afa8ffbff8796fc1894ed27badd9e"}, nil, nil, []byte(`{"a": "z"}`), "", true, false},
+	{"payload-hash-sha256", "", "secret", "", "", Argument{"header", "a", ""}, &map[string]interface{}{"A": "f417af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89"}, nil, nil, []byte(`{"a": "z"}`), "", true, false},
 	// failures
 	{"value", "", "", "X", "", Argument{"header", "a", ""}, &map[string]interface{}{"A": "z"}, nil, nil, []byte{}, "", false, false},
 	{"regex", "^X", "", "", "", Argument{"header", "a", ""}, &map[string]interface{}{"A": "z"}, nil, nil, []byte{}, "", false, false},
 	{"value", "", "2", "X", "", Argument{"header", "a", ""}, &map[string]interface{}{"Y": "z"}, nil, nil, []byte{}, "", false, false}, // reference invalid header
 	// errors
-	{"regex", "*", "", "", "", Argument{"header", "a", ""}, &map[string]interface{}{"A": "z"}, nil, nil, []byte{}, "", false, true},                 // invalid regex
-	{"payload-hash-sha1", "", "secret", "", "", Argument{"header", "a", ""}, &map[string]interface{}{"A": ""}, nil, nil, []byte{}, "", false, true}, // invalid hmac
-	{"payload-hash-sha256", "", "secret", "", Argument{"header", "a", ""}, &map[string]interface{}{"A": ""}, nil, nil, []byte{}, false, true},       // invalid hmac
+	{"regex", "*", "", "", "", Argument{"header", "a", ""}, &map[string]interface{}{"A": "z"}, nil, nil, []byte{}, "", false, true},                   // invalid regex
+	{"payload-hash-sha1", "", "secret", "", "", Argument{"header", "a", ""}, &map[string]interface{}{"A": ""}, nil, nil, []byte{}, "", false, true},   // invalid hmac
+	{"payload-hash-sha256", "", "secret", "", "", Argument{"header", "a", ""}, &map[string]interface{}{"A": ""}, nil, nil, []byte{}, "", false, true}, // invalid hmac
 	// IP whitelisting, valid cases
 	{"ip-whitelist", "", "", "", "192.168.0.1/24", Argument{}, nil, nil, nil, []byte{}, "192.168.0.2:9000", true, false}, // valid IPv4, with range
 	{"ip-whitelist", "", "", "", "192.168.0.1/24", Argument{}, nil, nil, nil, []byte{}, "192.168.0.2:9000", true, false}, // valid IPv4, with range
