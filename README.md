@@ -12,7 +12,7 @@ If you don't have time to waste configuring, hosting, debugging and maintaining 
 
 For example, if you're using Github or Bitbucket, you can use [webhook](https://github.com/adnanh/webhook/) to set up a hook that runs a redeploy script for your project on your staging server, whenever you push changes to the master branch of your project.
 
-If you use Slack, you can set up an "Outgoing webhook integration" to run various commands on your server, which can then report back directly to your Slack channels using the "Incoming webhook integrations".
+If you use Mattermost or Slack, you can set up an "Outgoing webhook integration" or "Slash command" to run various commands on your server, which can then report back directly to you or your channels using the "Incoming webhook integrations", or the appropriate response body.
 
 [webhook](https://github.com/adnanh/webhook/) aims to do nothing more than it should do, and that is:
  1. receive the request,
