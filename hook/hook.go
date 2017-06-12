@@ -15,6 +15,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/ghodss/yaml"
 )
 
 // Constants used to specify the parameter source
@@ -503,7 +505,7 @@ func (h *Hooks) LoadFromFile(path string) error {
 		return e
 	}
 
-	e = json.Unmarshal(file, h)
+	e = yaml.Unmarshal(file, h)
 	return e
 }
 
