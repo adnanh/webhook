@@ -326,7 +326,7 @@ func handleHook(h *hook.Hook, headers, query, payload *map[string]interface{}, b
 
 	log.Printf("executing %s (%s) with arguments %q and environment %s using %s as cwd\n", h.ExecuteCommand, cmd.Path, cmd.Args, envs, cmd.Dir)
 
-	out, err := cmd.Output()
+	out, err := cmd.CombinedOutput()
 
 	log.Printf("command output: %s\n", out)
 
