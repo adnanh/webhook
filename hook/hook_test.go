@@ -233,6 +233,7 @@ var hooksLoadFromFileTests = []struct {
 	ok   bool
 }{
 	{"../hooks.json.example", true},
+    {"../hooks.yaml.example", true},
 	{"", true},
 	// failures
 	{"missing.json", false},

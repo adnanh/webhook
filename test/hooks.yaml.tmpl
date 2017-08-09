@@ -1,0 +1,75 @@
+- trigger-rule:
+    and:
+    - match:
+        parameter:
+          source: header
+          name: X-Hub-Signature
+        secret: mysecret
+        type: payload-hash-sha1
+    - match:
+        parameter:
+          source: payload
+          name: ref
+        type: value
+        value: refs/heads/master
+  include-command-output-in-response: true
+  trigger-rule-mismatch-http-response-code: 400
+  execute-command: '{{ .Hookecho }}'
+  pass-arguments-to-command:
+  - source: payload
+    name: head_commit.id
+  - source: payload
+    name: head_commit.author.email
+  pass-environment-to-command:
+  - source: payload
+    name: head_commit.timestamp
+  id: github
+  command-working-directory: /
+- trigger-rule:
+    and:
+    - match:
+        parameter:
+          source: payload
+          name: payload.canon_url
+        type: value
+        value: https://bitbucket.org
+    - match:
+        parameter:
+          source: payload
+          name: payload.repository.absolute_url
+        type: value
+        value: /webhook/testing/
+    - match:
+        parameter:
+          source: payload
+          name: payload.commits.0.branch
+        type: value
+        value: master
+  parse-parameters-as-json:
+  - source: payload
+    name: payload
+  trigger-rule-mismatch-http-response-code: 999
+  execute-command: '{{ .Hookecho }}'
+  response-message: success
+  include-command-output-in-response: false
+  id: bitbucket
+  command-working-directory: /
+- trigger-rule:
+    match:
+      parameter:
+        source: payload
+        name: ref
+      type: value
+      value: refs/heads/master
+  pass-arguments-to-command:
+  - source: payload
+    name: commits.0.id
+  - source: payload
+    name: user_name
+  - source: payload
+    name: user_email
+  execute-command: '{{ .Hookecho }}'
+  response-message: success
+  include-command-output-in-response: true
+  id: gitlab
+  command-working-directory: /
