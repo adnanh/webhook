@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	version = "2.6.4"
+	version = "2.6.5"
 )
 
 var (
@@ -152,7 +152,16 @@ func main() {
 	}
 
 	l := negroni.NewLogger()
-	l.ALogger = log.New(os.Stderr, "[webhook] ", log.Ldate|log.Ltime)
+
+	l.SetFormat("{{.Status}} | {{.Duration}} | {{.Hostname}} | {{.Method}} {{.Path}} \n")
+
+        standardLogger := log.New(os.Stdout, "[webhook] ", log.Ldate|log.Ltime)
+
+        if !*verbose {
+                standardLogger.SetOutput(ioutil.Discard)
+        }
+
+	l.ALogger = standardLogger
 
 	negroniRecovery := &negroni.Recovery{
 		Logger:     l.ALogger,
