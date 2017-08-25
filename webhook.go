@@ -12,7 +12,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/adnanh/webhook/hook"
+	"./hook"
 
 	"github.com/codegangsta/negroni"
 	"github.com/gorilla/mux"
@@ -332,6 +332,31 @@ func handleHook(h *hook.Hook, headers, query, payload *map[string]interface{}, b
 	}
 
 	cmd.Env = append(os.Environ(), envs...)
+
+	var files []hook.FileParameter
+	files, errors = h.ExtractCommandArgumentsForFile(headers, query, payload)
+
+	if errors != nil {
+		for _, err := range errors {
+			log.Printf("error extracting command arguments for file: %s\n", err)
+		}
+	}
+
+	for i := range files {
+		var filename string
+		if h.CommandWorkingDirectory != "" {
+			filename = h.CommandWorkingDirectory + "/" + files[i].Filename
+		} else {
+			filename = files[i].Filename
+		}
+
+		log.Printf("writing file %s", filename)
+
+		err := ioutil.WriteFile(filename, files[i].Data, 0644)
+		if err != nil {
+			log.Printf("error writing file %s [%s]", filename, err)
+		}
+	}
 
 	log.Printf("executing %s (%s) with arguments %q and environment %s using %s as cwd\n", h.ExecuteCommand, cmd.Path, cmd.Args, envs, cmd.Dir)
 
