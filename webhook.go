@@ -155,11 +155,11 @@ func main() {
 
 	l.SetFormat("{{.Status}} | {{.Duration}} | {{.Hostname}} | {{.Method}} {{.Path}} \n")
 
-        standardLogger := log.New(os.Stdout, "[webhook] ", log.Ldate|log.Ltime)
+	standardLogger := log.New(os.Stdout, "[webhook] ", log.Ldate|log.Ltime)
 
-        if !*verbose {
-                standardLogger.SetOutput(ioutil.Discard)
-        }
+	if !*verbose {
+		standardLogger.SetOutput(ioutil.Discard)
+	}
 
 	l.ALogger = standardLogger
 
