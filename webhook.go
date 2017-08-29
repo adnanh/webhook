@@ -343,18 +343,14 @@ func handleHook(h *hook.Hook, headers, query, payload *map[string]interface{}, b
 	}
 
 	for i := range files {
-		var filename string
 		if h.CommandWorkingDirectory != "" {
-			filename = h.CommandWorkingDirectory + "/" + files[i].Filename
-		} else {
-			filename = files[i].Filename
+			files[i].Filename = h.CommandWorkingDirectory + "/" + files[i].Filename
 		}
 
-		log.Printf("writing file %s", filename)
-
-		err := ioutil.WriteFile(filename, files[i].Data, 0644)
+		log.Printf("writing file %s", files[i].Filename)
+		err := ioutil.WriteFile(files[i].Filename, files[i].Data, 0644)
 		if err != nil {
-			log.Printf("error writing file %s [%s]", filename, err)
+			log.Printf("error writing file %s [%s]", files[i].Filename, err)
 		}
 	}
 
@@ -366,6 +362,16 @@ func handleHook(h *hook.Hook, headers, query, payload *map[string]interface{}, b
 
 	if err != nil {
 		log.Printf("error occurred: %+v\n", err)
+	}
+
+	for i := range files {
+		if files[i].DeleteOnExit {
+			log.Printf("removing file: %s\n", files[i].Filename)
+			err := os.Remove(files[i].Filename)
+			if err != nil {
+				log.Printf("error removing file %s [%s]", files[i].Filename, err)
+			}
+		}
 	}
 
 	log.Printf("finished handling %s\n", h.ID)
