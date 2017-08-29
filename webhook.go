@@ -12,7 +12,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/adnanh/webhook/hook"
+	"./hook"
 
 	"github.com/codegangsta/negroni"
 	"github.com/gorilla/mux"
