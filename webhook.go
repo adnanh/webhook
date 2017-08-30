@@ -12,7 +12,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"./hook"
+	"github.com/adnanh/webhook/hook"
 
 	"github.com/codegangsta/negroni"
 	"github.com/gorilla/mux"
@@ -333,8 +333,7 @@ func handleHook(h *hook.Hook, headers, query, payload *map[string]interface{}, b
 
 	cmd.Env = append(os.Environ(), envs...)
 
-	var files []hook.FileParameter
-	files, errors = h.ExtractCommandArgumentsForFile(headers, query, payload)
+	files, errors := h.ExtractCommandArgumentsForFile(headers, query, payload)
 
 	if errors != nil {
 		for _, err := range errors {
