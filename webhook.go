@@ -403,7 +403,27 @@ func reloadHooks(hooksFilePath string) {
 		}
 
 		seenHooksIds[hook.ID] = true
-		log.Printf("\tloaded: %s\n", hook.ID)
+		msg := fmt.Sprintf("\tloaded: %s", hook.ID)
+
+		// initialize or update concurrency map
+		switch {
+		case hook.MaxConcurrency == 0:
+			if _, ok := hookExecutions[hook.ID]; ok {
+				delete(hookExecutions, hook.ID)
+			}
+			msg = fmt.Sprintf("%s", msg)
+		case hook.MaxConcurrency > 0:
+			hookExecutions[hook.ID] = make(chan struct{}, hook.MaxConcurrency)
+			msg = fmt.Sprintf("%s (max: %d)", msg, hook.MaxConcurrency)
+		}
+		log.Println(msg)
+	}
+
+	// clean up hookExecutions channels for removed hooks
+	for _, loadedHook := range loadedHooksFromFiles[hooksFilePath] {
+		if _, ok := seenHooksIds[loadedHook.ID]; !ok {
+			delete(hookExecutions, loadedHook.ID)
+		}
 	}
 
 	loadedHooksFromFiles[hooksFilePath] = hooksInFile
@@ -418,6 +438,9 @@ func reloadAllHooks() {
 func removeHooks(hooksFilePath string) {
 	for _, hook := range loadedHooksFromFiles[hooksFilePath] {
 		log.Printf("\tremoving: %s\n", hook.ID)
+		if _, ok := hookExecutions[hook.ID]; ok {
+			delete(hookExecutions, hook.ID)
+		}
 	}
 
 	newHooksFiles := hooksFiles[:0]
