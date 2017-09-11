@@ -44,7 +44,7 @@ var (
 	watcher *fsnotify.Watcher
 	signals chan os.Signal
 
-	limits = make(map[string]chan struct{})
+	hookExecutions = make(map[string]chan struct{})
 )
 
 func matchLoadedHook(id string) *hook.Hook {
@@ -115,7 +115,7 @@ func main() {
 
 				// initialize concurrency map
 				if hook.MaxConcurrency > 0 {
-					limits[hook.ID] = make(chan struct{}, hook.MaxConcurrency)
+					hookExecutions[hook.ID] = make(chan struct{}, hook.MaxConcurrency)
 					msg = fmt.Sprintf("%s (max: %d)", msg, hook.MaxConcurrency)
 				}
 				log.Println(msg)
@@ -219,15 +219,15 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 		log.Printf("%s got matched\n", id)
 
 		// check if we have concurrency limits
-		if _, ok := limits[id]; ok {
-			if len(limits[id]) == cap(limits[id]) {
-				log.Printf("reached concurrency limit for: %s (max=%d)", id, len(limits[id]))
+		if _, ok := hookExecutions[id]; ok {
+			if len(hookExecutions[id]) == cap(hookExecutions[id]) {
+				log.Printf("reached concurrency limit for: %s (max=%d)", id, len(hookExecutions[id]))
 				w.WriteHeader(http.StatusTooManyRequests)
-				fmt.Fprintf(w, "Error occurred while evaluating hook rules.")
+				fmt.Fprintf(w, "Hook reached maximum concurrent execution limit. Try again later.")
 				return
 			}
-			defer func() { <-limits[id] }()
-			limits[id] <- struct{}{}
+			defer func() { <-hookExecutions[id] }()
+			hookExecutions[id] <- struct{}{}
 		}
 
 		body, err := ioutil.ReadAll(r.Body)
