@@ -377,36 +377,36 @@ func reloadHooks(hooksFilePath string) {
 	log.Printf("attempting to reload hooks from %s\n", hooksFilePath)
 
 	err := hooksInFile.LoadFromFile(hooksFilePath)
-
 	if err != nil {
 		log.Printf("couldn't load hooks from file! %+v\n", err)
-	} else {
-		seenHooksIds := make(map[string]bool)
+		return
+	}
 
-		log.Printf("found %d hook(s) in file\n", len(hooksInFile))
+	seenHooksIds := make(map[string]bool)
 
-		for _, hook := range hooksInFile {
-			wasHookIDAlreadyLoaded := false
+	log.Printf("found %d hook(s) in file\n", len(hooksInFile))
 
-			for _, loadedHook := range loadedHooksFromFiles[hooksFilePath] {
-				if loadedHook.ID == hook.ID {
-					wasHookIDAlreadyLoaded = true
-					break
-				}
+	for _, hook := range hooksInFile {
+		wasHookIDAlreadyLoaded := false
+
+		for _, loadedHook := range loadedHooksFromFiles[hooksFilePath] {
+			if loadedHook.ID == hook.ID {
+				wasHookIDAlreadyLoaded = true
+				break
 			}
-
-			if (matchLoadedHook(hook.ID) != nil && !wasHookIDAlreadyLoaded) || seenHooksIds[hook.ID] == true {
-				log.Printf("error: hook with the id %s has already been loaded!\nplease check your hooks file for duplicate hooks ids!", hook.ID)
-				log.Println("reverting hooks back to the previous configuration")
-				return
-			}
-
-			seenHooksIds[hook.ID] = true
-			log.Printf("\tloaded: %s\n", hook.ID)
 		}
 
-		loadedHooksFromFiles[hooksFilePath] = hooksInFile
+		if (matchLoadedHook(hook.ID) != nil && !wasHookIDAlreadyLoaded) || seenHooksIds[hook.ID] == true {
+			log.Printf("error: hook with the id %s has already been loaded!\nplease check your hooks file for duplicate hooks ids!", hook.ID)
+			log.Println("reverting hooks back to the previous configuration")
+			return
+		}
+
+		seenHooksIds[hook.ID] = true
+		log.Printf("\tloaded: %s\n", hook.ID)
 	}
+
+	loadedHooksFromFiles[hooksFilePath] = hooksInFile
 }
 
 func reloadAllHooks() {
