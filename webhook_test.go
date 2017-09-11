@@ -1,7 +1,7 @@
 package main
 
 import (
-	"errors"
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"testing"
@@ -20,17 +21,13 @@ import (
 )
 
 func TestStaticParams(t *testing.T) {
-	var tests = []struct {
-		s   string
-		err error
-	}{
-		{"passed\n", nil},
-		{"", nil},
-		{"", errors.New("exec: \"/bin/echo success\": stat /bin/echo success: no such file or directory")},
-	}
 
-	spHooks := make([]hook.Hook, 0, 3)
-	spHooks = append(spHooks, hook.Hook{
+	spHeaders := make(map[string]interface{})
+	spHeaders["User-Agent"] = "curl/7.54.0"
+	spHeaders["Accept"] = "*/*"
+
+	// case 1: correct entry
+	spHook := &hook.Hook{
 		ID:                      "static-params-ok",
 		ExecuteCommand:          "/bin/echo",
 		CommandWorkingDirectory: "/tmp",
@@ -39,14 +36,28 @@ func TestStaticParams(t *testing.T) {
 		PassArgumentsToCommand: []hook.Argument{
 			hook.Argument{Source: "string", Name: "passed"},
 		},
-	},
-	)
-	err := os.Symlink("/usr/bin/true", "/tmp/with space")
+	}
+
+	b := &bytes.Buffer{}
+	log.SetOutput(b)
+
+	s, err := handleHook(spHook, &spHeaders, &map[string]interface{}{}, &map[string]interface{}{}, &[]byte{})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v\n", err)
+	}
+	matched, _ := regexp.MatchString("(?s).*command output: passed.*static-params-ok", b.String())
+	if !matched {
+		t.Fatalf("Unexpected log output:\n%s", b)
+	}
+
+	// case 2: binary with spaces in its name
+	err = os.Symlink("/usr/bin/true", "/tmp/with space")
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
 	defer os.Remove("/tmp/with space")
-	spHooks = append(spHooks, hook.Hook{
+
+	spHook = &hook.Hook{
 		ID:                      "static-params-name-space",
 		ExecuteCommand:          "/tmp/with space",
 		CommandWorkingDirectory: "/tmp",
@@ -55,9 +66,22 @@ func TestStaticParams(t *testing.T) {
 		PassArgumentsToCommand: []hook.Argument{
 			hook.Argument{Source: "string", Name: "passed"},
 		},
-	},
-	)
-	spHooks = append(spHooks, hook.Hook{
+	}
+
+	b = &bytes.Buffer{}
+	log.SetOutput(b)
+
+	s, err = handleHook(spHook, &spHeaders, &map[string]interface{}{}, &map[string]interface{}{}, &[]byte{})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v\n", err)
+	}
+	matched, _ = regexp.MatchString("(?s)command output: .*static-params-name-space", b.String())
+	if !matched {
+		t.Fatalf("Unexpected log output:\n%sn", b)
+	}
+
+	// case 3: parameters specified in execute-command
+	spHook = &hook.Hook{
 		ID:                      "static-params-bad",
 		ExecuteCommand:          "/bin/echo success",
 		CommandWorkingDirectory: "/tmp",
@@ -66,27 +90,18 @@ func TestStaticParams(t *testing.T) {
 		PassArgumentsToCommand: []hook.Argument{
 			hook.Argument{Source: "string", Name: "failed"},
 		},
-	},
-	)
+	}
 
-	spHeaders := make(map[string]interface{})
-	spHeaders["User-Agent"] = "curl/7.54.0"
-	spHeaders["Accept"] = "*/*"
+	b = &bytes.Buffer{}
+	log.SetOutput(b)
 
-	log.SetOutput(ioutil.Discard)
-
-	for i, h := range spHooks {
-		s, err := handleHook(&h, &spHeaders, &map[string]interface{}{}, &map[string]interface{}{}, &[]byte{})
-		switch {
-		case err == nil && tests[i].err != nil:
-			t.Fatalf("Expected error, but got none")
-		case err == nil && tests[i].s != s:
-			t.Fatalf("Expected: %s\nGot: %s\n", tests[i].s, s)
-		case err != nil && tests[i].err == nil:
-			t.Fatalf("Unexpected error: %v\n", err)
-		case err != nil && tests[i].s != s:
-			t.Fatalf("Expected: %s\nGot: %s\n", tests[i].s, s)
-		}
+	s, err = handleHook(spHook, &spHeaders, &map[string]interface{}{}, &map[string]interface{}{}, &[]byte{})
+	if err == nil {
+		t.Fatalf("Error expected, but none returned: %s\n", s)
+	}
+	matched, _ = regexp.MatchString("(?s)unable to locate command: ..bin.echo success.*use 'pass-arguments-to-command'", b.String())
+	if !matched {
+		t.Fatalf("Unexpected log output:\n%s\n", b)
 	}
 }
 
