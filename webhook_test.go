@@ -1,8 +1,10 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net"
 	"net/http"
 	"os"
@@ -16,6 +18,77 @@ import (
 
 	"github.com/adnanh/webhook/hook"
 )
+
+func TestStaticParams(t *testing.T) {
+	var tests = []struct {
+		s   string
+		err error
+	}{
+		{"passed\n", nil},
+		{"", nil},
+		{"", errors.New("exec: \"/bin/echo success\": stat /bin/echo success: no such file or directory")},
+	}
+
+	spHooks := make([]hook.Hook, 0, 3)
+	spHooks = append(spHooks, hook.Hook{
+		ID:                      "static-params-ok",
+		ExecuteCommand:          "/bin/echo",
+		CommandWorkingDirectory: "/tmp",
+		ResponseMessage:         "success",
+		CaptureCommandOutput:    true,
+		PassArgumentsToCommand: []hook.Argument{
+			hook.Argument{Source: "string", Name: "passed"},
+		},
+	},
+	)
+	err := os.Symlink("/usr/bin/true", "/tmp/with space")
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+	defer os.Remove("/tmp/with space")
+	spHooks = append(spHooks, hook.Hook{
+		ID:                      "static-params-name-space",
+		ExecuteCommand:          "/tmp/with space",
+		CommandWorkingDirectory: "/tmp",
+		ResponseMessage:         "success",
+		CaptureCommandOutput:    true,
+		PassArgumentsToCommand: []hook.Argument{
+			hook.Argument{Source: "string", Name: "passed"},
+		},
+	},
+	)
+	spHooks = append(spHooks, hook.Hook{
+		ID:                      "static-params-bad",
+		ExecuteCommand:          "/bin/echo success",
+		CommandWorkingDirectory: "/tmp",
+		ResponseMessage:         "success",
+		CaptureCommandOutput:    true,
+		PassArgumentsToCommand: []hook.Argument{
+			hook.Argument{Source: "string", Name: "failed"},
+		},
+	},
+	)
+
+	spHeaders := make(map[string]interface{})
+	spHeaders["User-Agent"] = "curl/7.54.0"
+	spHeaders["Accept"] = "*/*"
+
+	log.SetOutput(ioutil.Discard)
+
+	for i, h := range spHooks {
+		s, err := handleHook(&h, &spHeaders, &map[string]interface{}{}, &map[string]interface{}{}, &[]byte{})
+		switch {
+		case err == nil && tests[i].err != nil:
+			t.Fatalf("Expected error, but got none")
+		case err == nil && tests[i].s != s:
+			t.Fatalf("Expected: %s\nGot: %s\n", tests[i].s, s)
+		case err != nil && tests[i].err == nil:
+			t.Fatalf("Unexpected error: %v\n", err)
+		case err != nil && tests[i].s != s:
+			t.Fatalf("Expected: %s\nGot: %s\n", tests[i].s, s)
+		}
+	}
+}
 
 func TestWebhook(t *testing.T) {
 	hookecho, cleanupHookecho := buildHookecho(t)
