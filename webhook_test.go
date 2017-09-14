@@ -51,7 +51,7 @@ func TestStaticParams(t *testing.T) {
 	}
 
 	// case 2: binary with spaces in its name
-	err = os.Symlink("/usr/bin/true", "/tmp/with space")
+	err = os.Symlink("/bin/true", "/tmp/with space")
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
