@@ -157,11 +157,11 @@ func main() {
 
 	l.SetFormat("{{.Status}} | {{.Duration}} | {{.Hostname}} | {{.Method}} {{.Path}} \n")
 
-        standardLogger := log.New(os.Stdout, "[webhook] ", log.Ldate|log.Ltime)
+	standardLogger := log.New(os.Stdout, "[webhook] ", log.Ldate|log.Ltime)
 
-        if !*verbose {
-                standardLogger.SetOutput(ioutil.Discard)
-        }
+	if !*verbose {
+		standardLogger.SetOutput(ioutil.Discard)
+	}
 
 	l.ALogger = standardLogger
 
@@ -318,7 +318,21 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 func handleHook(h *hook.Hook, rid string, headers, query, payload *map[string]interface{}, body *[]byte) (string, error) {
 	var errors []error
 
-	cmd := exec.Command(h.ExecuteCommand)
+	// check the command exists
+	cmdPath, err := exec.LookPath(h.ExecuteCommand)
+	if err != nil {
+		log.Printf("unable to locate command: '%s'", h.ExecuteCommand)
+
+		// check if parameters specified in execute-command by mistake
+		if strings.IndexByte(h.ExecuteCommand, ' ') != -1 {
+			s := strings.Fields(h.ExecuteCommand)[0]
+			log.Printf("use 'pass-arguments-to-command' to specify args for '%s'", s)
+		}
+
+		return "", err
+	}
+
+	cmd := exec.Command(cmdPath)
 	cmd.Dir = h.CommandWorkingDirectory
 
 	cmd.Args, errors = h.ExtractCommandArguments(headers, query, payload)
