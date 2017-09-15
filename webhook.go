@@ -331,8 +331,6 @@ func handleHook(h *hook.Hook, headers, query, payload *map[string]interface{}, b
 		}
 	}
 
-	cmd.Env = append(os.Environ(), envs...)
-
 	files, errors := h.ExtractCommandArgumentsForFile(headers, query, payload)
 
 	if errors != nil {
@@ -342,16 +340,23 @@ func handleHook(h *hook.Hook, headers, query, payload *map[string]interface{}, b
 	}
 
 	for i := range files {
-		if h.CommandWorkingDirectory != "" {
-			files[i].Filename = h.CommandWorkingDirectory + "/" + files[i].Filename
+		tmpfile, err := ioutil.TempFile(h.CommandWorkingDirectory, files[i].EnvName)
+		if err != nil {
+			log.Printf("error creating temp file [%s]", err)
+		}
+		log.Printf("writing env %s file %s", files[i].EnvName, tmpfile.Name())
+		if _, err := tmpfile.Write(files[i].Data); err != nil {
+			log.Printf("error writing file %s [%s]", tmpfile.Name(), err)
+		}
+		if err := tmpfile.Close(); err != nil {
+			log.Printf("error closing file %s [%s]", tmpfile.Name(), err)
 		}
 
-		log.Printf("writing file %s", files[i].Filename)
-		err := ioutil.WriteFile(files[i].Filename, files[i].Data, 0644)
-		if err != nil {
-			log.Printf("error writing file %s [%s]", files[i].Filename, err)
-		}
+		files[i].File = tmpfile
+		envs = append(envs, files[i].EnvName+"="+tmpfile.Name())
 	}
+
+	cmd.Env = append(os.Environ(), envs...)
 
 	log.Printf("executing %s (%s) with arguments %q and environment %s using %s as cwd\n", h.ExecuteCommand, cmd.Path, cmd.Args, envs, cmd.Dir)
 
@@ -365,10 +370,10 @@ func handleHook(h *hook.Hook, headers, query, payload *map[string]interface{}, b
 
 	for i := range files {
 		if files[i].DeleteOnExit {
-			log.Printf("removing file: %s\n", files[i].Filename)
-			err := os.Remove(files[i].Filename)
+			log.Printf("removing file %s\n", files[i].File.Name())
+			err := os.Remove(files[i].File.Name())
 			if err != nil {
-				log.Printf("error removing file %s [%s]", files[i].Filename, err)
+				log.Printf("error removing file %s [%s]", files[i].File.Name(), err)
 			}
 		}
 	}

@@ -13,6 +13,7 @@ import (
 	"log"
 	"net"
 	"net/textproto"
+	"os"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -268,7 +269,6 @@ type Argument struct {
 	Source       string `json:"source,omitempty"`
 	Name         string `json:"name,omitempty"`
 	EnvName      string `json:"envname,omitempty"`
-	FileName     string `json:"filename,omitempty"`
 	Base64Decode bool   `json:"base64decode,omitempty"`
 	DeleteOnExit bool   `json:"deleteOnExit,omitempty"`
 }
@@ -497,7 +497,8 @@ func (h *Hook) ExtractCommandArgumentsForEnv(headers, query, payload *map[string
 
 // FileParameter describes a pass-file-to-command instance to be stored as file
 type FileParameter struct {
-	Filename     string
+	File         *os.File
+	EnvName      string
 	Data         []byte
 	DeleteOnExit bool
 }
@@ -511,10 +512,10 @@ func (h *Hook) ExtractCommandArgumentsForFile(headers, query, payload *map[strin
 	for i := range h.PassFileToCommand {
 		if arg, ok := h.PassFileToCommand[i].Get(headers, query, payload); ok {
 
-			if h.PassFileToCommand[i].FileName == "" {
-				// if no filename is set, fall-back on the name
-				log.Printf("no filename specified, falling back to  [%s]", EnvNamespace+h.PassFileToCommand[i].Name)
-				h.PassFileToCommand[i].FileName = EnvNamespace + h.PassFileToCommand[i].Name
+			if h.PassFileToCommand[i].EnvName == "" {
+				// if no environment-variable name is set, fall-back on the name
+				log.Printf("no ENVVAR name specified, falling back to [%s]", EnvNamespace+strings.ToUpper(h.PassFileToCommand[i].Name))
+				h.PassFileToCommand[i].EnvName = EnvNamespace + strings.ToUpper(h.PassFileToCommand[i].Name)
 			}
 
 			var fileContent []byte
@@ -528,7 +529,7 @@ func (h *Hook) ExtractCommandArgumentsForFile(headers, query, payload *map[strin
 				fileContent = []byte(arg)
 			}
 
-			args = append(args, FileParameter{Filename: h.PassFileToCommand[i].FileName, Data: fileContent, DeleteOnExit: h.PassFileToCommand[i].DeleteOnExit})
+			args = append(args, FileParameter{EnvName: h.PassFileToCommand[i].EnvName, Data: fileContent, DeleteOnExit: h.PassFileToCommand[i].DeleteOnExit})
 
 		} else {
 			errors = append(errors, &ArgumentError{h.PassFileToCommand[i]})
