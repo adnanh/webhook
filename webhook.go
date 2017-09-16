@@ -277,18 +277,17 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set(responseHeader.Name, responseHeader.Value)
 			}
 
-			if matchedHook.CaptureCommandOutput {
-				response, err := handleHook(matchedHook, rid, &headers, &query, &payload, &body)
+			response, err := handleHook(matchedHook, rid, &headers, &query, &payload, &body)
+			if err != nil {
+				w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+				w.WriteHeader(http.StatusInternalServerError)
+				fmt.Fprintf(w, "Error occurred while executing the hook's command. Please check your logs for more details.")
+				return
+			}
 
-				if err != nil {
-					w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-					w.WriteHeader(http.StatusInternalServerError)
-					fmt.Fprintf(w, "Error occurred while executing the hook's command. Please check your logs for more details.")
-				} else {
-					fmt.Fprintf(w, response)
-				}
+			if matchedHook.CaptureCommandOutput {
+				fmt.Fprintf(w, response)
 			} else {
-				go handleHook(matchedHook, rid, &headers, &query, &payload, &body)
 				fmt.Fprintf(w, matchedHook.ResponseMessage)
 			}
 			return
