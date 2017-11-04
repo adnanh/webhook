@@ -19,6 +19,11 @@
 			"Rev": "bdd5a5a1b0b489d297b73eb62b5f6328df198bfc"
 		},
 		{
+			"ImportPath": "github.com/satori/go.uuid",
+			"Comment": "v1.1.0-8-g5bf94b6",
+			"Rev": "5bf94b69c6b68ee1b541973bb8e1144db23a194b"
+		},
+		{
 			"ImportPath": "golang.org/x/sys/unix",
 			"Rev": "ebfc5b4631820b793c9010c87fd8fef0f39eb082"
 		},
