@@ -106,6 +106,9 @@ See the [webhook-contrib][wc] repository for a collections of tools and helpers 
 ## <a href="https://www.browserstack.com/?ref=webhook"><img src="http://www.hajdarevic.net/browserstack.svg" alt="BrowserStack" width="250"/></a>
 [BrowserStack](https://www.browserstack.com/?ref=webhook) is a cloud-based cross-browser testing tool that enables developers to test their websites across various browsers on different operating systems and mobile devices, without requiring users to install virtual machines, devices or emulators.
 
+<a target='_blank' rel='nofollow' href='https://app.codesponsor.io/link/2AxDfLX6qJBgxEXxcCPGjJyD/adnanh/webhook'>
+  <img alt='Sponsor' width='888' height='68' src='https://app.codesponsor.io/embed/2AxDfLX6qJBgxEXxcCPGjJyD/adnanh/webhook.svg' />
+</a>
 
 ## Contributors
 
