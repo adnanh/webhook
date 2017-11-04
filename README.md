@@ -1,11 +1,20 @@
-[![Backers on Open Collective](https://opencollective.com/webhook/backers/badge.svg)](#backers) [![Sponsors on Open Collective](https://opencollective.com/webhook/sponsors/badge.svg)](#sponsors) [![ghit.me](https://ghit.me/badge.svg?repo=adnanh/webhook)](https://ghit.me/repo/adnanh/webhook) [![Join the chat at https://gitter.im/adnanh/webhook](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/adnanh/webhook?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) [![Flattr this](https://button.flattr.com/flattr-badge-large.png)](https://flattr.com/submit/auto?user_id=adnanh&url=https%3A%2F%2Fwww.github.com%2Fadnanh%2Fwebhook) [Donate via PayPal](https://paypal.me/hookdoo) | [Patreon page](https://www.patreon.com/webhook)
-
+[![ghit.me](https://ghit.me/badge.svg?repo=adnanh/webhook)](https://ghit.me/repo/adnanh/webhook) [![Join the chat at https://gitter.im/adnanh/webhook](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/adnanh/webhook?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 # Hookdoo
 <a href="https://www.hookdoo.com/?github"><img src="https://my.hookdoo.com/logo/logo-dark-96.png" alt="hookdoo" align="left" /></a>
  
 If you don't have time to waste configuring, hosting, debugging and maintaining your webhook instance, we offer a __SaaS__ solution that has all of the capabilities webhook provides, plus a lot more, and all that packaged in a nice friendly web interface. If you are interested, find out more at [hookdoo website](https://www.hookdoo.com/?ref=github-webhook-readme). If you have any questions, you can contact us at info@hookdoo.com
 
+# Ensure active development
+[![Backers on Open Collective](https://opencollective.com/webhook/backers/badge.svg)](#backers) [![Sponsors on Open Collective](https://opencollective.com/webhook/sponsors/badge.svg)](#sponsors) 
+
+[![Flattr this](https://button.flattr.com/flattr-badge-large.png)](https://flattr.com/submit/auto?user_id=adnanh&url=https%3A%2F%2Fwww.github.com%2Fadnanh%2Fwebhook) 
+
+[Donate via PayPal](https://paypal.me/hookdoo)
+
+[Patreon page](https://www.patreon.com/webhook)
+
+[![Faircode](https://faircode.io/product/webhook/badge)](https://faircode.io/product/webhook?utm_source=badge&utm_medium=badgelarge&utm_campaign=webhook)
 
 # What is webhook?
 [webhook](https://github.com/adnanh/webhook/) is a lightweight configurable tool written in Go, that allows you to easily create HTTP endpoints (hooks) on your server, which you can use to execute configured commands. You can also pass data from the HTTP request (such as headers, payload or query variables) to your commands. [webhook](https://github.com/adnanh/webhook/) also allows you to specify rules which have to be satisfied in order for the hook to be triggered.
@@ -97,6 +106,9 @@ See the [webhook-contrib][wc] repository for a collections of tools and helpers 
 ## <a href="https://www.browserstack.com/?ref=webhook"><img src="http://www.hajdarevic.net/browserstack.svg" alt="BrowserStack" width="250"/></a>
 [BrowserStack](https://www.browserstack.com/?ref=webhook) is a cloud-based cross-browser testing tool that enables developers to test their websites across various browsers on different operating systems and mobile devices, without requiring users to install virtual machines, devices or emulators.
 
+<a target='_blank' rel='nofollow' href='https://app.codesponsor.io/link/2AxDfLX6qJBgxEXxcCPGjJyD/adnanh/webhook'>
+  <img alt='Sponsor' width='888' height='68' src='https://app.codesponsor.io/embed/2AxDfLX6qJBgxEXxcCPGjJyD/adnanh/webhook.svg' />
+</a>
 
 ## Contributors
 
