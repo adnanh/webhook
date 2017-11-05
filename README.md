@@ -80,7 +80,7 @@ You can use [almir/webhook](https://hub.docker.com/r/almir/webhook/) docker imag
 Check out [Hook examples page](https://github.com/adnanh/webhook/wiki/Hook-Examples) for more complex examples of hooks.
 
 ### Guides featuring webhook
- - [Webhook & JIRA](https://sites.google.com/site/mrxpalmeiras/notes/jira-webhooks) by @perfecto25
+ - [Webhook & JIRA](https://sites.google.com/site/mrxpalmeiras/notes/jira-webhooks) by [@perfecto25](https://github.com/perfecto25)
  - [Trigger Ansible AWX job runs on SCM (e.g. git) commit](http://jpmens.net/2017/10/23/trigger-awx-job-runs-on-scm-commit/) by [@jpmens](http://mens.de/)
 
 ## Community Contributions
