@@ -5,17 +5,6 @@
  
 If you don't have time to waste configuring, hosting, debugging and maintaining your webhook instance, we offer a __SaaS__ solution that has all of the capabilities webhook provides, plus a lot more, and all that packaged in a nice friendly web interface. If you are interested, find out more at [hookdoo website](https://www.hookdoo.com/?ref=github-webhook-readme). If you have any questions, you can contact us at info@hookdoo.com
 
-## Support
-[![Backers on Open Collective](https://opencollective.com/webhook/backers/badge.svg)](#backers) [![Sponsors on Open Collective](https://opencollective.com/webhook/sponsors/badge.svg)](#sponsors) 
-
-[![Flattr this](https://button.flattr.com/flattr-badge-large.png)](https://flattr.com/submit/auto?user_id=adnanh&url=https%3A%2F%2Fwww.github.com%2Fadnanh%2Fwebhook) 
-
-[Donate via PayPal](https://paypal.me/hookdoo)
-
-[Patreon page](https://www.patreon.com/webhook)
-
-[![Faircode](https://faircode.io/product/webhook/badge)](https://faircode.io/product/webhook?utm_source=badge&utm_medium=badgelarge&utm_campaign=webhook)
-
 # What is webhook?
 [webhook](https://github.com/adnanh/webhook/) is a lightweight configurable tool written in Go, that allows you to easily create HTTP endpoints (hooks) on your server, which you can use to execute configured commands. You can also pass data from the HTTP request (such as headers, payload or query variables) to your commands. [webhook](https://github.com/adnanh/webhook/) also allows you to specify rules which have to be satisfied in order for the hook to be triggered.
 
@@ -106,26 +95,15 @@ Big thanks to [all the current contributors](https://github.com/adnanh/webhook/g
 # Community Contributions
 See the [webhook-contrib][wc] repository for a collections of tools and helpers related to [webhook][w] that have been contributed by the [webhook][w] community.
 
-# Sponsors
+# Support active development
+
+## Sponsors
 ## <a href="https://www.browserstack.com/?ref=webhook"><img src="http://www.hajdarevic.net/browserstack.svg" alt="BrowserStack" width="250"/></a>
 [BrowserStack](https://www.browserstack.com/?ref=webhook) is a cloud-based cross-browser testing tool that enables developers to test their websites across various browsers on different operating systems and mobile devices, without requiring users to install virtual machines, devices or emulators.
 
-## Contributors
+---
 
-This project exists thanks to all the people who contribute. [[Contribute]](CONTRIBUTING.md).
-<a href="graphs/contributors"><img src="https://opencollective.com/webhook/contributors.svg?width=890" /></a>
-
-
-## Backers
-
-Thank you to all our backers! 🙏 [[Become a backer](https://opencollective.com/webhook#backer)]
-
-<a href="https://opencollective.com/webhook#backers" target="_blank"><img src="https://opencollective.com/webhook/backers.svg?width=890"></a>
-
-
-## Sponsors
-
-Support this project by becoming a sponsor. Your logo will show up here with a link to your website. [[Become a sponsor](https://opencollective.com/webhook#sponsor)]
+Support this project by becoming a sponsor. Your logo will show up here with a link to your website.
 
 <a href="https://opencollective.com/webhook/sponsor/0/website" target="_blank"><img src="https://opencollective.com/webhook/sponsor/0/avatar.svg"></a>
 <a href="https://opencollective.com/webhook/sponsor/1/website" target="_blank"><img src="https://opencollective.com/webhook/sponsor/1/avatar.svg"></a>
@@ -138,7 +116,25 @@ Support this project by becoming a sponsor. Your logo will show up here with a l
 <a href="https://opencollective.com/webhook/sponsor/8/website" target="_blank"><img src="https://opencollective.com/webhook/sponsor/8/avatar.svg"></a>
 <a href="https://opencollective.com/webhook/sponsor/9/website" target="_blank"><img src="https://opencollective.com/webhook/sponsor/9/avatar.svg"></a>
 
+## By contributing
 
+This project exists thanks to all the people who contribute. [Contribute](CONTRIBUTING.md).
+<a href="graphs/contributors"><img src="https://opencollective.com/webhook/contributors.svg?width=890" /></a>
+
+## By giving money
+
+Thank you to all our backers!
+
+<a href="https://opencollective.com/webhook#backers" target="_blank"><img src="https://opencollective.com/webhook/backers.svg?width=890"></a>
+
+---
+
+ - [OpenCollective Backer](https://opencollective.com/webhook#backer)
+ - [OpenCollective Sponsor](https://opencollective.com/webhook#sponsor)
+ - [Flattr](https://flattr.com/submit/auto?user_id=adnanh&url=https%3A%2F%2Fwww.github.com%2Fadnanh%2Fwebhook) 
+ - [PayPal](https://paypal.me/hookdoo)
+ - [Patreon](https://www.patreon.com/webhook)
+ - [Faircode](https://faircode.io/product/webhook?utm_source=badge&utm_medium=badgelarge&utm_campaign=webhook)
 
 # License
 
