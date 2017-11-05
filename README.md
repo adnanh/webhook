@@ -5,13 +5,6 @@
  
 If you don't have time to waste configuring, hosting, debugging and maintaining your webhook instance, we offer a __SaaS__ solution that has all of the capabilities webhook provides, plus a lot more, and all that packaged in a nice friendly web interface. If you are interested, find out more at [hookdoo website](https://www.hookdoo.com/?ref=github-webhook-readme). If you have any questions, you can contact us at info@hookdoo.com
 
-# Ensure active development
-## Ad Clicks
-You can show support by clicking the codesponsor.io ad below
-<a target='_blank' rel='nofollow' href='https://app.codesponsor.io/link/2AxDfLX6qJBgxEXxcCPGjJyD/adnanh/webhook'>
-  <img alt='Sponsor' width='888' height='68' src='https://app.codesponsor.io/embed/2AxDfLX6qJBgxEXxcCPGjJyD/adnanh/webhook.svg' />
-</a>
-
 ## Money
 [![Backers on Open Collective](https://opencollective.com/webhook/backers/badge.svg)](#backers) [![Sponsors on Open Collective](https://opencollective.com/webhook/sponsors/badge.svg)](#sponsors) 
 
