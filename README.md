@@ -5,7 +5,7 @@
  
 If you don't have time to waste configuring, hosting, debugging and maintaining your webhook instance, we offer a __SaaS__ solution that has all of the capabilities webhook provides, plus a lot more, and all that packaged in a nice friendly web interface. If you are interested, find out more at [hookdoo website](https://www.hookdoo.com/?ref=github-webhook-readme). If you have any questions, you can contact us at info@hookdoo.com
 
-## Money
+## Support
 [![Backers on Open Collective](https://opencollective.com/webhook/backers/badge.svg)](#backers) [![Sponsors on Open Collective](https://opencollective.com/webhook/sponsors/badge.svg)](#sponsors) 
 
 [![Flattr this](https://button.flattr.com/flattr-badge-large.png)](https://flattr.com/submit/auto?user_id=adnanh&url=https%3A%2F%2Fwww.github.com%2Fadnanh%2Fwebhook) 
