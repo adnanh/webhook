@@ -381,6 +381,7 @@ type Hook struct {
 	PassEnvironmentToCommand            []Argument      `json:"pass-environment-to-command,omitempty"`
 	PassArgumentsToCommand              []Argument      `json:"pass-arguments-to-command,omitempty"`
 	JSONStringParameters                []Argument      `json:"parse-parameters-as-json,omitempty"`
+	MaxConcurrency                      int             `json:"maximum-concurrent-executions,omitempty"`
 	TriggerRule                         *Rules          `json:"trigger-rule,omitempty"`
 	TriggerRuleMismatchHttpResponseCode int             `json:"trigger-rule-mismatch-http-response-code,omitempty"`
 }
