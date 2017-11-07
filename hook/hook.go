@@ -270,7 +270,6 @@ type Argument struct {
 	Name         string `json:"name,omitempty"`
 	EnvName      string `json:"envname,omitempty"`
 	Base64Decode bool   `json:"base64decode,omitempty"`
-	DeleteOnExit bool   `json:"deleteOnExit,omitempty"`
 }
 
 // Get Argument method returns the value for the Argument's key name
@@ -497,10 +496,9 @@ func (h *Hook) ExtractCommandArgumentsForEnv(headers, query, payload *map[string
 
 // FileParameter describes a pass-file-to-command instance to be stored as file
 type FileParameter struct {
-	File         *os.File
-	EnvName      string
-	Data         []byte
-	DeleteOnExit bool
+	File    *os.File
+	EnvName string
+	Data    []byte
 }
 
 // ExtractCommandArgumentsForFile creates a list of arguments in key=value
@@ -529,7 +527,7 @@ func (h *Hook) ExtractCommandArgumentsForFile(headers, query, payload *map[strin
 				fileContent = []byte(arg)
 			}
 
-			args = append(args, FileParameter{EnvName: h.PassFileToCommand[i].EnvName, Data: fileContent, DeleteOnExit: h.PassFileToCommand[i].DeleteOnExit})
+			args = append(args, FileParameter{EnvName: h.PassFileToCommand[i].EnvName, Data: fileContent})
 
 		} else {
 			errors = append(errors, &ArgumentError{h.PassFileToCommand[i]})

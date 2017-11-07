@@ -111,7 +111,7 @@ var argumentGetTests = []struct {
 
 func TestArgumentGet(t *testing.T) {
 	for _, tt := range argumentGetTests {
-		a := Argument{tt.source, tt.name, ""}
+		a := Argument{tt.source, tt.name, "", false}
 		value, ok := a.Get(tt.headers, tt.query, tt.payload)
 		if ok != tt.ok || value != tt.value {
 			t.Errorf("failed to get {%q, %q}:\nexpected {value:%#v, ok:%#v},\ngot {value:%#v, ok:%#v}", tt.source, tt.name, tt.value, tt.ok, value, ok)
@@ -125,14 +125,14 @@ var hookParseJSONParametersTests = []struct {
 	rheaders, rquery, rpayload *map[string]interface{}
 	ok                         bool
 }{
-	{[]Argument{Argument{"header", "a", ""}}, &map[string]interface{}{"A": `{"b": "y"}`}, nil, nil, &map[string]interface{}{"A": map[string]interface{}{"b": "y"}}, nil, nil, true},
-	{[]Argument{Argument{"url", "a", ""}}, nil, &map[string]interface{}{"a": `{"b": "y"}`}, nil, nil, &map[string]interface{}{"a": map[string]interface{}{"b": "y"}}, nil, true},
-	{[]Argument{Argument{"payload", "a", ""}}, nil, nil, &map[string]interface{}{"a": `{"b": "y"}`}, nil, nil, &map[string]interface{}{"a": map[string]interface{}{"b": "y"}}, true},
-	{[]Argument{Argument{"header", "z", ""}}, &map[string]interface{}{"Z": `{}`}, nil, nil, &map[string]interface{}{"Z": map[string]interface{}{}}, nil, nil, true},
+	{[]Argument{Argument{"header", "a", "", false}}, &map[string]interface{}{"A": `{"b": "y"}`}, nil, nil, &map[string]interface{}{"A": map[string]interface{}{"b": "y"}}, nil, nil, true},
+	{[]Argument{Argument{"url", "a", "", false}}, nil, &map[string]interface{}{"a": `{"b": "y"}`}, nil, nil, &map[string]interface{}{"a": map[string]interface{}{"b": "y"}}, nil, true},
+	{[]Argument{Argument{"payload", "a", "", false}}, nil, nil, &map[string]interface{}{"a": `{"b": "y"}`}, nil, nil, &map[string]interface{}{"a": map[string]interface{}{"b": "y"}}, true},
+	{[]Argument{Argument{"header", "z", "", false}}, &map[string]interface{}{"Z": `{}`}, nil, nil, &map[string]interface{}{"Z": map[string]interface{}{}}, nil, nil, true},
 	// failures
-	{[]Argument{Argument{"header", "z", ""}}, &map[string]interface{}{"Z": ``}, nil, nil, &map[string]interface{}{"Z": ``}, nil, nil, false},     // empty string
-	{[]Argument{Argument{"header", "y", ""}}, &map[string]interface{}{"X": `{}`}, nil, nil, &map[string]interface{}{"X": `{}`}, nil, nil, false}, // missing parameter
-	{[]Argument{Argument{"string", "z", ""}}, &map[string]interface{}{"Z": ``}, nil, nil, &map[string]interface{}{"Z": ``}, nil, nil, false},     // invalid argument source
+	{[]Argument{Argument{"header", "z", "", false}}, &map[string]interface{}{"Z": ``}, nil, nil, &map[string]interface{}{"Z": ``}, nil, nil, false},     // empty string
+	{[]Argument{Argument{"header", "y", "", false}}, &map[string]interface{}{"X": `{}`}, nil, nil, &map[string]interface{}{"X": `{}`}, nil, nil, false}, // missing parameter
+	{[]Argument{Argument{"string", "z", "", false}}, &map[string]interface{}{"Z": ``}, nil, nil, &map[string]interface{}{"Z": ``}, nil, nil, false},     // invalid argument source
 }
 
 func TestHookParseJSONParameters(t *testing.T) {
@@ -152,9 +152,9 @@ var hookExtractCommandArgumentsTests = []struct {
 	value                   []string
 	ok                      bool
 }{
-	{"test", []Argument{Argument{"header", "a", ""}}, &map[string]interface{}{"A": "z"}, nil, nil, []string{"test", "z"}, true},
+	{"test", []Argument{Argument{"header", "a", "", false}}, &map[string]interface{}{"A": "z"}, nil, nil, []string{"test", "z"}, true},
 	// failures
-	{"fail", []Argument{Argument{"payload", "a", ""}}, &map[string]interface{}{"A": "z"}, nil, nil, []string{"fail", ""}, false},
+	{"fail", []Argument{Argument{"payload", "a", "", false}}, &map[string]interface{}{"A": "z"}, nil, nil, []string{"fail", ""}, false},
 }
 
 func TestHookExtractCommandArguments(t *testing.T) {
@@ -196,14 +196,14 @@ var hookExtractCommandArgumentsForEnvTests = []struct {
 	// successes
 	{
 		"test",
-		[]Argument{Argument{"header", "a", ""}},
+		[]Argument{Argument{"header", "a", "", false}},
 		&map[string]interface{}{"A": "z"}, nil, nil,
 		[]string{"HOOK_a=z"},
 		true,
 	},
 	{
 		"test",
-		[]Argument{Argument{"header", "a", "MYKEY"}},
+		[]Argument{Argument{"header", "a", "MYKEY", false}},
 		&map[string]interface{}{"A": "z"}, nil, nil,
 		[]string{"MYKEY=z"},
 		true,
@@ -211,7 +211,7 @@ var hookExtractCommandArgumentsForEnvTests = []struct {
 	// failures
 	{
 		"fail",
-		[]Argument{Argument{"payload", "a", ""}},
+		[]Argument{Argument{"payload", "a", "", false}},
 		&map[string]interface{}{"A": "z"}, nil, nil,
 		[]string{},
 		false,
@@ -233,7 +233,7 @@ var hooksLoadFromFileTests = []struct {
 	ok   bool
 }{
 	{"../hooks.json.example", true},
-    {"../hooks.yaml.example", true},
+	{"../hooks.yaml.example", true},
 	{"", true},
 	// failures
 	{"missing.json", false},
@@ -276,18 +276,18 @@ var matchRuleTests = []struct {
 	ok                                 bool
 	err                                bool
 }{
-	{"value", "", "", "z", "", Argument{"header", "a", ""}, &map[string]interface{}{"A": "z"}, nil, nil, []byte{}, "", true, false},
-	{"regex", "^z", "", "z", "", Argument{"header", "a", ""}, &map[string]interface{}{"A": "z"}, nil, nil, []byte{}, "", true, false},
-	{"payload-hash-sha1", "", "secret", "", "", Argument{"header", "a", ""}, &map[string]interface{}{"A": "b17e04cbb22afa8ffbff8796fc1894ed27badd9e"}, nil, nil, []byte(`{"a": "z"}`), "", true, false},
-	{"payload-hash-sha256", "", "secret", "", "", Argument{"header", "a", ""}, &map[string]interface{}{"A": "f417af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89"}, nil, nil, []byte(`{"a": "z"}`), "", true, false},
+	{"value", "", "", "z", "", Argument{"header", "a", "", false}, &map[string]interface{}{"A": "z"}, nil, nil, []byte{}, "", true, false},
+	{"regex", "^z", "", "z", "", Argument{"header", "a", "", false}, &map[string]interface{}{"A": "z"}, nil, nil, []byte{}, "", true, false},
+	{"payload-hash-sha1", "", "secret", "", "", Argument{"header", "a", "", false}, &map[string]interface{}{"A": "b17e04cbb22afa8ffbff8796fc1894ed27badd9e"}, nil, nil, []byte(`{"a": "z"}`), "", true, false},
+	{"payload-hash-sha256", "", "secret", "", "", Argument{"header", "a", "", false}, &map[string]interface{}{"A": "f417af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89"}, nil, nil, []byte(`{"a": "z"}`), "", true, false},
 	// failures
-	{"value", "", "", "X", "", Argument{"header", "a", ""}, &map[string]interface{}{"A": "z"}, nil, nil, []byte{}, "", false, false},
-	{"regex", "^X", "", "", "", Argument{"header", "a", ""}, &map[string]interface{}{"A": "z"}, nil, nil, []byte{}, "", false, false},
-	{"value", "", "2", "X", "", Argument{"header", "a", ""}, &map[string]interface{}{"Y": "z"}, nil, nil, []byte{}, "", false, false}, // reference invalid header
+	{"value", "", "", "X", "", Argument{"header", "a", "", false}, &map[string]interface{}{"A": "z"}, nil, nil, []byte{}, "", false, false},
+	{"regex", "^X", "", "", "", Argument{"header", "a", "", false}, &map[string]interface{}{"A": "z"}, nil, nil, []byte{}, "", false, false},
+	{"value", "", "2", "X", "", Argument{"header", "a", "", false}, &map[string]interface{}{"Y": "z"}, nil, nil, []byte{}, "", false, false}, // reference invalid header
 	// errors
-	{"regex", "*", "", "", "", Argument{"header", "a", ""}, &map[string]interface{}{"A": "z"}, nil, nil, []byte{}, "", false, true},                   // invalid regex
-	{"payload-hash-sha1", "", "secret", "", "", Argument{"header", "a", ""}, &map[string]interface{}{"A": ""}, nil, nil, []byte{}, "", false, true},   // invalid hmac
-	{"payload-hash-sha256", "", "secret", "", "", Argument{"header", "a", ""}, &map[string]interface{}{"A": ""}, nil, nil, []byte{}, "", false, true}, // invalid hmac
+	{"regex", "*", "", "", "", Argument{"header", "a", "", false}, &map[string]interface{}{"A": "z"}, nil, nil, []byte{}, "", false, true},                   // invalid regex
+	{"payload-hash-sha1", "", "secret", "", "", Argument{"header", "a", "", false}, &map[string]interface{}{"A": ""}, nil, nil, []byte{}, "", false, true},   // invalid hmac
+	{"payload-hash-sha256", "", "secret", "", "", Argument{"header", "a", "", false}, &map[string]interface{}{"A": ""}, nil, nil, []byte{}, "", false, true}, // invalid hmac
 	// IP whitelisting, valid cases
 	{"ip-whitelist", "", "", "", "192.168.0.1/24", Argument{}, nil, nil, nil, []byte{}, "192.168.0.2:9000", true, false}, // valid IPv4, with range
 	{"ip-whitelist", "", "", "", "192.168.0.1/24", Argument{}, nil, nil, nil, []byte{}, "192.168.0.2:9000", true, false}, // valid IPv4, with range
@@ -324,8 +324,8 @@ var andRuleTests = []struct {
 	{
 		"(a=z, b=y): a=z && b=y",
 		AndRule{
-			{Match: &MatchRule{"value", "", "", "z", Argument{"header", "a", ""}, ""}},
-			{Match: &MatchRule{"value", "", "", "y", Argument{"header", "b", ""}, ""}},
+			{Match: &MatchRule{"value", "", "", "z", Argument{"header", "a", "", false}, ""}},
+			{Match: &MatchRule{"value", "", "", "y", Argument{"header", "b", "", false}, ""}},
 		},
 		&map[string]interface{}{"A": "z", "B": "y"}, nil, nil, []byte{},
 		true, false,
@@ -333,8 +333,8 @@ var andRuleTests = []struct {
 	{
 		"(a=z, b=Y): a=z && b=y",
 		AndRule{
-			{Match: &MatchRule{"value", "", "", "z", Argument{"header", "a", ""}, ""}},
-			{Match: &MatchRule{"value", "", "", "y", Argument{"header", "b", ""}, ""}},
+			{Match: &MatchRule{"value", "", "", "z", Argument{"header", "a", "", false}, ""}},
+			{Match: &MatchRule{"value", "", "", "y", Argument{"header", "b", "", false}, ""}},
 		},
 		&map[string]interface{}{"A": "z", "B": "Y"}, nil, nil, []byte{},
 		false, false,
@@ -343,22 +343,22 @@ var andRuleTests = []struct {
 	{
 		"(a=z, b=y, c=x, d=w=, e=X, f=X): a=z && (b=y && c=x) && (d=w || e=v) && !f=u",
 		AndRule{
-			{Match: &MatchRule{"value", "", "", "z", Argument{"header", "a", ""}, ""}},
+			{Match: &MatchRule{"value", "", "", "z", Argument{"header", "a", "", false}, ""}},
 			{
 				And: &AndRule{
-					{Match: &MatchRule{"value", "", "", "y", Argument{"header", "b", ""}, ""}},
-					{Match: &MatchRule{"value", "", "", "x", Argument{"header", "c", ""}, ""}},
+					{Match: &MatchRule{"value", "", "", "y", Argument{"header", "b", "", false}, ""}},
+					{Match: &MatchRule{"value", "", "", "x", Argument{"header", "c", "", false}, ""}},
 				},
 			},
 			{
 				Or: &OrRule{
-					{Match: &MatchRule{"value", "", "", "w", Argument{"header", "d", ""}, ""}},
-					{Match: &MatchRule{"value", "", "", "v", Argument{"header", "e", ""}, ""}},
+					{Match: &MatchRule{"value", "", "", "w", Argument{"header", "d", "", false}, ""}},
+					{Match: &MatchRule{"value", "", "", "v", Argument{"header", "e", "", false}, ""}},
 				},
 			},
 			{
 				Not: &NotRule{
-					Match: &MatchRule{"value", "", "", "u", Argument{"header", "f", ""}, ""},
+					Match: &MatchRule{"value", "", "", "u", Argument{"header", "f", "", false}, ""},
 				},
 			},
 		},
@@ -369,7 +369,7 @@ var andRuleTests = []struct {
 	// failures
 	{
 		"invalid rule",
-		AndRule{{Match: &MatchRule{"value", "", "", "X", Argument{"header", "a", ""}, ""}}},
+		AndRule{{Match: &MatchRule{"value", "", "", "X", Argument{"header", "a", "", false}, ""}}},
 		&map[string]interface{}{"Y": "z"}, nil, nil, nil,
 		false, false,
 	},
@@ -395,8 +395,8 @@ var orRuleTests = []struct {
 	{
 		"(a=z, b=X): a=z || b=y",
 		OrRule{
-			{Match: &MatchRule{"value", "", "", "z", Argument{"header", "a", ""}, ""}},
-			{Match: &MatchRule{"value", "", "", "y", Argument{"header", "b", ""}, ""}},
+			{Match: &MatchRule{"value", "", "", "z", Argument{"header", "a", "", false}, ""}},
+			{Match: &MatchRule{"value", "", "", "y", Argument{"header", "b", "", false}, ""}},
 		},
 		&map[string]interface{}{"A": "z", "B": "X"}, nil, nil, []byte{},
 		true, false,
@@ -404,8 +404,8 @@ var orRuleTests = []struct {
 	{
 		"(a=X, b=y): a=z || b=y",
 		OrRule{
-			{Match: &MatchRule{"value", "", "", "z", Argument{"header", "a", ""}, ""}},
-			{Match: &MatchRule{"value", "", "", "y", Argument{"header", "b", ""}, ""}},
+			{Match: &MatchRule{"value", "", "", "z", Argument{"header", "a", "", false}, ""}},
+			{Match: &MatchRule{"value", "", "", "y", Argument{"header", "b", "", false}, ""}},
 		},
 		&map[string]interface{}{"A": "X", "B": "y"}, nil, nil, []byte{},
 		true, false,
@@ -413,8 +413,8 @@ var orRuleTests = []struct {
 	{
 		"(a=Z, b=Y): a=z || b=y",
 		OrRule{
-			{Match: &MatchRule{"value", "", "", "z", Argument{"header", "a", ""}, ""}},
-			{Match: &MatchRule{"value", "", "", "y", Argument{"header", "b", ""}, ""}},
+			{Match: &MatchRule{"value", "", "", "z", Argument{"header", "a", "", false}, ""}},
+			{Match: &MatchRule{"value", "", "", "y", Argument{"header", "b", "", false}, ""}},
 		},
 		&map[string]interface{}{"A": "Z", "B": "Y"}, nil, nil, []byte{},
 		false, false,
@@ -423,7 +423,7 @@ var orRuleTests = []struct {
 	{
 		"invalid rule",
 		OrRule{
-			{Match: &MatchRule{"value", "", "", "z", Argument{"header", "a", ""}, ""}},
+			{Match: &MatchRule{"value", "", "", "z", Argument{"header", "a", "", false}, ""}},
 		},
 		&map[string]interface{}{"Y": "Z"}, nil, nil, []byte{},
 		false, false,
@@ -447,8 +447,8 @@ var notRuleTests = []struct {
 	ok                      bool
 	err                     bool
 }{
-	{"(a=z): !a=X", NotRule{Match: &MatchRule{"value", "", "", "X", Argument{"header", "a", ""}, ""}}, &map[string]interface{}{"A": "z"}, nil, nil, []byte{}, true, false},
-	{"(a=z): !a=z", NotRule{Match: &MatchRule{"value", "", "", "z", Argument{"header", "a", ""}, ""}}, &map[string]interface{}{"A": "z"}, nil, nil, []byte{}, false, false},
+	{"(a=z): !a=X", NotRule{Match: &MatchRule{"value", "", "", "X", Argument{"header", "a", "", false}, ""}}, &map[string]interface{}{"A": "z"}, nil, nil, []byte{}, true, false},
+	{"(a=z): !a=z", NotRule{Match: &MatchRule{"value", "", "", "z", Argument{"header", "a", "", false}, ""}}, &map[string]interface{}{"A": "z"}, nil, nil, []byte{}, false, false},
 }
 
 func TestNotRule(t *testing.T) {
