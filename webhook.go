@@ -11,17 +11,19 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/adnanh/webhook/hook"
 
 	"github.com/codegangsta/negroni"
 	"github.com/gorilla/mux"
+	"github.com/satori/go.uuid"
 
 	fsnotify "gopkg.in/fsnotify.v1"
 )
 
 const (
-	version = "2.6.5"
+	version = "2.6.6"
 )
 
 var (
@@ -155,11 +157,11 @@ func main() {
 
 	l.SetFormat("{{.Status}} | {{.Duration}} | {{.Hostname}} | {{.Method}} {{.Path}} \n")
 
-        standardLogger := log.New(os.Stdout, "[webhook] ", log.Ldate|log.Ltime)
+	standardLogger := log.New(os.Stdout, "[webhook] ", log.Ldate|log.Ltime)
 
-        if !*verbose {
-                standardLogger.SetOutput(ioutil.Discard)
-        }
+	if !*verbose {
+		standardLogger.SetOutput(ioutil.Discard)
+	}
 
 	l.ALogger = standardLogger
 
@@ -197,7 +199,11 @@ func main() {
 }
 
 func hookHandler(w http.ResponseWriter, r *http.Request) {
-	log.Printf("incoming HTTP request from %s\n", r.RemoteAddr)
+
+	// generate a request id for logging
+	rid := uuid.NewV4().String()[:6]
+
+	log.Printf("[%s] incoming HTTP request from %s\n", rid, r.RemoteAddr)
 
 	for _, responseHeader := range responseHeaders {
 		w.Header().Set(responseHeader.Name, responseHeader.Value)
@@ -206,11 +212,11 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
 
 	if matchedHook := matchLoadedHook(id); matchedHook != nil {
-		log.Printf("%s got matched\n", id)
+		log.Printf("[%s] %s got matched\n", rid, id)
 
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
-			log.Printf("error reading the request body. %+v\n", err)
+			log.Printf("[%s] error reading the request body. %+v\n", rid, err)
 		}
 
 		// parse headers
@@ -231,12 +237,12 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 			err := decoder.Decode(&payload)
 
 			if err != nil {
-				log.Printf("error parsing JSON payload %+v\n", err)
+				log.Printf("[%s] error parsing JSON payload %+v\n", rid, err)
 			}
 		} else if strings.Contains(contentType, "form") {
 			fd, err := url.ParseQuery(string(body))
 			if err != nil {
-				log.Printf("error parsing form payload %+v\n", err)
+				log.Printf("[%s] error parsing form payload %+v\n", rid, err)
 			} else {
 				payload = valuesToMap(fd)
 			}
@@ -245,7 +251,7 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 		// handle hook
 		if errors := matchedHook.ParseJSONParameters(&headers, &query, &payload); errors != nil {
 			for _, err := range errors {
-				log.Printf("error parsing JSON parameters: %s\n", err)
+				log.Printf("[%s] error parsing JSON parameters: %s\n", rid, err)
 			}
 		}
 
@@ -256,7 +262,7 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 		} else {
 			ok, err = matchedHook.TriggerRule.Evaluate(&headers, &query, &payload, &body, r.RemoteAddr)
 			if err != nil {
-				msg := fmt.Sprintf("error evaluating hook: %s", err)
+				msg := fmt.Sprintf("[%s] error evaluating hook: %s", rid, err)
 				log.Printf(msg)
 				w.WriteHeader(http.StatusInternalServerError)
 				fmt.Fprintf(w, "Error occurred while evaluating hook rules.")
@@ -265,14 +271,14 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if ok {
-			log.Printf("%s hook triggered successfully\n", matchedHook.ID)
+			log.Printf("[%s] %s hook triggered successfully\n", rid, matchedHook.ID)
 
 			for _, responseHeader := range matchedHook.ResponseHeaders {
 				w.Header().Set(responseHeader.Name, responseHeader.Value)
 			}
 
 			if matchedHook.CaptureCommandOutput {
-				response, err := handleHook(matchedHook, &headers, &query, &payload, &body)
+				response, err := handleHook(matchedHook, rid, &headers, &query, &payload, &body)
 
 				if err != nil {
 					w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -282,7 +288,7 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 					fmt.Fprintf(w, response)
 				}
 			} else {
-				go handleHook(matchedHook, &headers, &query, &payload, &body)
+				go handleHook(matchedHook, rid, &headers, &query, &payload, &body)
 				fmt.Fprintf(w, matchedHook.ResponseMessage)
 			}
 			return
@@ -295,12 +301,12 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 			if len(http.StatusText(matchedHook.TriggerRuleMismatchHttpResponseCode)) > 0 {
 				w.WriteHeader(matchedHook.TriggerRuleMismatchHttpResponseCode)
 			} else {
-				log.Printf("%s got matched, but the configured return code %d is unknown - defaulting to 200\n", matchedHook.ID, matchedHook.TriggerRuleMismatchHttpResponseCode)
+				log.Printf("[%s] %s got matched, but the configured return code %d is unknown - defaulting to 200\n", rid, matchedHook.ID, matchedHook.TriggerRuleMismatchHttpResponseCode)
 			}
 		}
 
 		// if none of the hooks got triggered
-		log.Printf("%s got matched, but didn't get triggered because the trigger rules were not satisfied\n", matchedHook.ID)
+		log.Printf("[%s] %s got matched, but didn't get triggered because the trigger rules were not satisfied\n", rid, matchedHook.ID)
 
 		fmt.Fprintf(w, "Hook rules were not satisfied.")
 	} else {
@@ -309,16 +315,30 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func handleHook(h *hook.Hook, headers, query, payload *map[string]interface{}, body *[]byte) (string, error) {
+func handleHook(h *hook.Hook, rid string, headers, query, payload *map[string]interface{}, body *[]byte) (string, error) {
 	var errors []error
 
-	cmd := exec.Command(h.ExecuteCommand)
+	// check the command exists
+	cmdPath, err := exec.LookPath(h.ExecuteCommand)
+	if err != nil {
+		log.Printf("unable to locate command: '%s'", h.ExecuteCommand)
+
+		// check if parameters specified in execute-command by mistake
+		if strings.IndexByte(h.ExecuteCommand, ' ') != -1 {
+			s := strings.Fields(h.ExecuteCommand)[0]
+			log.Printf("use 'pass-arguments-to-command' to specify args for '%s'", s)
+		}
+
+		return "", err
+	}
+
+	cmd := exec.Command(cmdPath)
 	cmd.Dir = h.CommandWorkingDirectory
 
 	cmd.Args, errors = h.ExtractCommandArguments(headers, query, payload)
 	if errors != nil {
 		for _, err := range errors {
-			log.Printf("error extracting command arguments: %s\n", err)
+			log.Printf("[%s] error extracting command arguments: %s\n", rid, err)
 		}
 	}
 
@@ -327,7 +347,7 @@ func handleHook(h *hook.Hook, headers, query, payload *map[string]interface{}, b
 
 	if errors != nil {
 		for _, err := range errors {
-			log.Printf("error extracting command arguments for environment: %s\n", err)
+			log.Printf("[%s] error extracting command arguments for environment: %s\n", rid, err)
 		}
 	}
 
@@ -358,27 +378,27 @@ func handleHook(h *hook.Hook, headers, query, payload *map[string]interface{}, b
 
 	cmd.Env = append(os.Environ(), envs...)
 
-	log.Printf("executing %s (%s) with arguments %q and environment %s using %s as cwd\n", h.ExecuteCommand, cmd.Path, cmd.Args, envs, cmd.Dir)
+	log.Printf("[%s] executing %s (%s) with arguments %q and environment %s using %s as cwd\n", rid, h.ExecuteCommand, cmd.Path, cmd.Args, envs, cmd.Dir)
 
 	out, err := cmd.CombinedOutput()
 
-	log.Printf("command output: %s\n", out)
+	log.Printf("[%s] command output: %s\n", rid, out)
 
 	if err != nil {
-		log.Printf("error occurred: %+v\n", err)
+		log.Printf("[%s] error occurred: %+v\n", rid, err)
 	}
 
 	for i := range files {
 		if files[i].DeleteOnExit {
-			log.Printf("removing file %s\n", files[i].File.Name())
+			log.Printf("[%s] removing file %s\n", rid, files[i].File.Name())
 			err := os.Remove(files[i].File.Name())
 			if err != nil {
-				log.Printf("error removing file %s [%s]", files[i].File.Name(), err)
+				log.Printf("[%s] error removing file %s [%s]", rid, files[i].File.Name(), err)
 			}
 		}
 	}
 
-	log.Printf("finished handling %s\n", h.ID)
+	log.Printf("[%s] finished handling %s\n", rid, h.ID)
 
 	return string(out), err
 }
@@ -462,10 +482,13 @@ func watchForFileChange() {
 				log.Printf("hooks file %s modified\n", event.Name)
 				reloadHooks(event.Name)
 			} else if event.Op&fsnotify.Remove == fsnotify.Remove {
-				log.Printf("hooks file %s removed, no longer watching this file for changes, removing hooks that were loaded from it\n", event.Name)
-				(*watcher).Remove(event.Name)
-				removeHooks(event.Name)
+				if _, err := os.Stat(event.Name); os.IsNotExist(err) {
+					log.Printf("hooks file %s removed, no longer watching this file for changes, removing hooks that were loaded from it\n", event.Name)
+					(*watcher).Remove(event.Name)
+					removeHooks(event.Name)
+				}
 			} else if event.Op&fsnotify.Rename == fsnotify.Rename {
+				time.Sleep(100 * time.Millisecond)
 				if _, err := os.Stat(event.Name); os.IsNotExist(err) {
 					// file was removed
 					log.Printf("hooks file %s removed, no longer watching this file for changes, and removing hooks that were loaded from it\n", event.Name)
@@ -475,6 +498,8 @@ func watchForFileChange() {
 					// file was overwritten
 					log.Printf("hooks file %s overwritten\n", event.Name)
 					reloadHooks(event.Name)
+					(*watcher).Remove(event.Name)
+					(*watcher).Add(event.Name)
 				}
 			}
 		case err := <-(*watcher).Errors:

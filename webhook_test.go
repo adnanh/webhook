@@ -1,13 +1,16 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"testing"
@@ -16,6 +19,91 @@ import (
 
 	"github.com/adnanh/webhook/hook"
 )
+
+func TestStaticParams(t *testing.T) {
+
+	spHeaders := make(map[string]interface{})
+	spHeaders["User-Agent"] = "curl/7.54.0"
+	spHeaders["Accept"] = "*/*"
+
+	// case 1: correct entry
+	spHook := &hook.Hook{
+		ID:                      "static-params-ok",
+		ExecuteCommand:          "/bin/echo",
+		CommandWorkingDirectory: "/tmp",
+		ResponseMessage:         "success",
+		CaptureCommandOutput:    true,
+		PassArgumentsToCommand: []hook.Argument{
+			hook.Argument{Source: "string", Name: "passed"},
+		},
+	}
+
+	b := &bytes.Buffer{}
+	log.SetOutput(b)
+
+	s, err := handleHook(spHook, &spHeaders, &map[string]interface{}{}, &map[string]interface{}{}, &[]byte{})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v\n", err)
+	}
+	matched, _ := regexp.MatchString("(?s).*command output: passed.*static-params-ok", b.String())
+	if !matched {
+		t.Fatalf("Unexpected log output:\n%s", b)
+	}
+
+	// case 2: binary with spaces in its name
+	err = os.Symlink("/bin/true", "/tmp/with space")
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+	defer os.Remove("/tmp/with space")
+
+	spHook = &hook.Hook{
+		ID:                      "static-params-name-space",
+		ExecuteCommand:          "/tmp/with space",
+		CommandWorkingDirectory: "/tmp",
+		ResponseMessage:         "success",
+		CaptureCommandOutput:    true,
+		PassArgumentsToCommand: []hook.Argument{
+			hook.Argument{Source: "string", Name: "passed"},
+		},
+	}
+
+	b = &bytes.Buffer{}
+	log.SetOutput(b)
+
+	s, err = handleHook(spHook, &spHeaders, &map[string]interface{}{}, &map[string]interface{}{}, &[]byte{})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v\n", err)
+	}
+	matched, _ = regexp.MatchString("(?s)command output: .*static-params-name-space", b.String())
+	if !matched {
+		t.Fatalf("Unexpected log output:\n%sn", b)
+	}
+
+	// case 3: parameters specified in execute-command
+	spHook = &hook.Hook{
+		ID:                      "static-params-bad",
+		ExecuteCommand:          "/bin/echo success",
+		CommandWorkingDirectory: "/tmp",
+		ResponseMessage:         "success",
+		CaptureCommandOutput:    true,
+		PassArgumentsToCommand: []hook.Argument{
+			hook.Argument{Source: "string", Name: "failed"},
+		},
+	}
+
+	b = &bytes.Buffer{}
+	log.SetOutput(b)
+
+	s, err = handleHook(spHook, &spHeaders, &map[string]interface{}{}, &map[string]interface{}{}, &[]byte{})
+	if err == nil {
+		t.Fatalf("Error expected, but none returned: %s\n", s)
+	}
+	matched, _ = regexp.MatchString("(?s)unable to locate command: ..bin.echo success.*use 'pass-arguments-to-command'", b.String())
+	if !matched {
+		t.Fatalf("Unexpected log output:\n%s\n", b)
+	}
+}
 
 func TestWebhook(t *testing.T) {
 	hookecho, cleanupHookecho := buildHookecho(t)
