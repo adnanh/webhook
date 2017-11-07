@@ -355,21 +355,21 @@ func handleHook(h *hook.Hook, rid string, headers, query, payload *map[string]in
 
 	if errors != nil {
 		for _, err := range errors {
-			log.Printf("error extracting command arguments for file: %s\n", err)
+			log.Printf("[%s] error extracting command arguments for file: %s\n", rid, err)
 		}
 	}
 
 	for i := range files {
 		tmpfile, err := ioutil.TempFile(h.CommandWorkingDirectory, files[i].EnvName)
 		if err != nil {
-			log.Printf("error creating temp file [%s]", err)
+			log.Printf("[%s] error creating temp file [%s]", rid, err)
 		}
-		log.Printf("writing env %s file %s", files[i].EnvName, tmpfile.Name())
+		log.Printf("[%s] writing env %s file %s", rid, files[i].EnvName, tmpfile.Name())
 		if _, err := tmpfile.Write(files[i].Data); err != nil {
-			log.Printf("error writing file %s [%s]", tmpfile.Name(), err)
+			log.Printf("[%s] error writing file %s [%s]", rid, tmpfile.Name(), err)
 		}
 		if err := tmpfile.Close(); err != nil {
-			log.Printf("error closing file %s [%s]", tmpfile.Name(), err)
+			log.Printf("[%s] error closing file %s [%s]", rid, tmpfile.Name(), err)
 		}
 
 		files[i].File = tmpfile
