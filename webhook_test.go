@@ -41,7 +41,7 @@ func TestStaticParams(t *testing.T) {
 	b := &bytes.Buffer{}
 	log.SetOutput(b)
 
-	s, err := handleHook(spHook, &spHeaders, &map[string]interface{}{}, &map[string]interface{}{}, &[]byte{})
+	s, err := handleHook(spHook, "test", &spHeaders, &map[string]interface{}{}, &map[string]interface{}{}, &[]byte{})
 	if err != nil {
 		t.Fatalf("Unexpected error: %v\n", err)
 	}
@@ -71,7 +71,7 @@ func TestStaticParams(t *testing.T) {
 	b = &bytes.Buffer{}
 	log.SetOutput(b)
 
-	s, err = handleHook(spHook, &spHeaders, &map[string]interface{}{}, &map[string]interface{}{}, &[]byte{})
+	s, err = handleHook(spHook, "test", &spHeaders, &map[string]interface{}{}, &map[string]interface{}{}, &[]byte{})
 	if err != nil {
 		t.Fatalf("Unexpected error: %v\n", err)
 	}
@@ -95,7 +95,7 @@ func TestStaticParams(t *testing.T) {
 	b = &bytes.Buffer{}
 	log.SetOutput(b)
 
-	s, err = handleHook(spHook, &spHeaders, &map[string]interface{}{}, &map[string]interface{}{}, &[]byte{})
+	s, err = handleHook(spHook, "test", &spHeaders, &map[string]interface{}{}, &map[string]interface{}{}, &[]byte{})
 	if err == nil {
 		t.Fatalf("Error expected, but none returned: %s\n", s)
 	}
