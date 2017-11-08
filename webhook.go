@@ -351,6 +351,31 @@ func handleHook(h *hook.Hook, rid string, headers, query, payload *map[string]in
 		}
 	}
 
+	files, errors := h.ExtractCommandArgumentsForFile(headers, query, payload)
+
+	if errors != nil {
+		for _, err := range errors {
+			log.Printf("[%s] error extracting command arguments for file: %s\n", rid, err)
+		}
+	}
+
+	for i := range files {
+		tmpfile, err := ioutil.TempFile(h.CommandWorkingDirectory, files[i].EnvName)
+		if err != nil {
+			log.Printf("[%s] error creating temp file [%s]", rid, err)
+		}
+		log.Printf("[%s] writing env %s file %s", rid, files[i].EnvName, tmpfile.Name())
+		if _, err := tmpfile.Write(files[i].Data); err != nil {
+			log.Printf("[%s] error writing file %s [%s]", rid, tmpfile.Name(), err)
+		}
+		if err := tmpfile.Close(); err != nil {
+			log.Printf("[%s] error closing file %s [%s]", rid, tmpfile.Name(), err)
+		}
+
+		files[i].File = tmpfile
+		envs = append(envs, files[i].EnvName+"="+tmpfile.Name())
+	}
+
 	cmd.Env = append(os.Environ(), envs...)
 
 	log.Printf("[%s] executing %s (%s) with arguments %q and environment %s using %s as cwd\n", rid, h.ExecuteCommand, cmd.Path, cmd.Args, envs, cmd.Dir)
@@ -361,6 +386,14 @@ func handleHook(h *hook.Hook, rid string, headers, query, payload *map[string]in
 
 	if err != nil {
 		log.Printf("[%s] error occurred: %+v\n", rid, err)
+	}
+
+	for i := range files {
+		log.Printf("[%s] removing file %s\n", rid, files[i].File.Name())
+		err := os.Remove(files[i].File.Name())
+		if err != nil {
+			log.Printf("[%s] error removing file %s [%s]", rid, files[i].File.Name(), err)
+		}
 	}
 
 	log.Printf("[%s] finished handling %s\n", rid, h.ID)

@@ -4,13 +4,16 @@ import (
 	"crypto/hmac"
 	"crypto/sha1"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net"
 	"net/textproto"
+	"os"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -263,9 +266,10 @@ func ExtractParameterAsString(s string, params interface{}) (string, bool) {
 // Argument type specifies the parameter key name and the source it should
 // be extracted from
 type Argument struct {
-	Source  string `json:"source,omitempty"`
-	Name    string `json:"name,omitempty"`
-	EnvName string `json:"envname,omitempty"`
+	Source       string `json:"source,omitempty"`
+	Name         string `json:"name,omitempty"`
+	EnvName      string `json:"envname,omitempty"`
+	Base64Decode bool   `json:"base64decode,omitempty"`
 }
 
 // Get Argument method returns the value for the Argument's key name
@@ -380,6 +384,7 @@ type Hook struct {
 	CaptureCommandOutput                bool            `json:"include-command-output-in-response,omitempty"`
 	PassEnvironmentToCommand            []Argument      `json:"pass-environment-to-command,omitempty"`
 	PassArgumentsToCommand              []Argument      `json:"pass-arguments-to-command,omitempty"`
+	PassFileToCommand                   []Argument      `json:"pass-file-to-command,omitempty"`
 	JSONStringParameters                []Argument      `json:"parse-parameters-as-json,omitempty"`
 	TriggerRule                         *Rules          `json:"trigger-rule,omitempty"`
 	TriggerRuleMismatchHttpResponseCode int             `json:"trigger-rule-mismatch-http-response-code,omitempty"`
@@ -479,6 +484,53 @@ func (h *Hook) ExtractCommandArgumentsForEnv(headers, query, payload *map[string
 			}
 		} else {
 			errors = append(errors, &ArgumentError{h.PassEnvironmentToCommand[i]})
+		}
+	}
+
+	if len(errors) > 0 {
+		return args, errors
+	}
+
+	return args, nil
+}
+
+// FileParameter describes a pass-file-to-command instance to be stored as file
+type FileParameter struct {
+	File    *os.File
+	EnvName string
+	Data    []byte
+}
+
+// ExtractCommandArgumentsForFile creates a list of arguments in key=value
+// format, based on the PassFileToCommand property that is ready to be used
+// with exec.Command().
+func (h *Hook) ExtractCommandArgumentsForFile(headers, query, payload *map[string]interface{}) ([]FileParameter, []error) {
+	var args = make([]FileParameter, 0)
+	var errors = make([]error, 0)
+	for i := range h.PassFileToCommand {
+		if arg, ok := h.PassFileToCommand[i].Get(headers, query, payload); ok {
+
+			if h.PassFileToCommand[i].EnvName == "" {
+				// if no environment-variable name is set, fall-back on the name
+				log.Printf("no ENVVAR name specified, falling back to [%s]", EnvNamespace+strings.ToUpper(h.PassFileToCommand[i].Name))
+				h.PassFileToCommand[i].EnvName = EnvNamespace + strings.ToUpper(h.PassFileToCommand[i].Name)
+			}
+
+			var fileContent []byte
+			if h.PassFileToCommand[i].Base64Decode {
+				dec, err := base64.StdEncoding.DecodeString(arg)
+				if err != nil {
+					log.Printf("error decoding string [%s]", err)
+				}
+				fileContent = []byte(dec)
+			} else {
+				fileContent = []byte(arg)
+			}
+
+			args = append(args, FileParameter{EnvName: h.PassFileToCommand[i].EnvName, Data: fileContent})
+
+		} else {
+			errors = append(errors, &ArgumentError{h.PassFileToCommand[i]})
 		}
 	}
 
