@@ -34,6 +34,7 @@ var (
 	hotReload          = flag.Bool("hotreload", false, "watch hooks file for changes and reload them automatically")
 	hooksURLPrefix     = flag.String("urlprefix", "hooks", "url prefix to use for served hooks (protocol://yourserver:port/PREFIX/:hook-id)")
 	secure             = flag.Bool("secure", false, "use HTTPS instead of HTTP")
+	asTemplate         = flag.Bool("template", false, "parse hooks file as a Go template")
 	cert               = flag.String("cert", "cert.pem", "path to the HTTPS certificate pem file")
 	key                = flag.String("key", "key.pem", "path to the HTTPS certificate private key pem file")
 	justDisplayVersion = flag.Bool("version", false, "display webhook version and quit")
@@ -99,7 +100,7 @@ func main() {
 
 		newHooks := hook.Hooks{}
 
-		err := newHooks.LoadFromFile(hooksFilePath)
+		err := newHooks.LoadFromFile(hooksFilePath, *asTemplate)
 
 		if err != nil {
 			log.Printf("couldn't load hooks from file! %+v\n", err)
@@ -407,7 +408,7 @@ func reloadHooks(hooksFilePath string) {
 	// parse and swap
 	log.Printf("attempting to reload hooks from %s\n", hooksFilePath)
 
-	err := hooksInFile.LoadFromFile(hooksFilePath)
+	err := hooksInFile.LoadFromFile(hooksFilePath, *asTemplate)
 
 	if err != nil {
 		log.Printf("couldn't load hooks from file! %+v\n", err)

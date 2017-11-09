@@ -1,0 +1,60 @@
+[
+  {
+    "id": "webhook",
+    "execute-command": "/home/adnan/redeploy-go-webhook.sh",
+    "command-working-directory": "/home/adnan/go",
+    "response-message": "I got the payload!",
+    "response-headers":
+    [
+      {
+        "name": "Access-Control-Allow-Origin",
+        "value": "*"
+      }
+    ],
+    "pass-arguments-to-command":
+    [
+      {
+        "source": "payload",
+        "name": "head_commit.id"
+      },
+      {
+        "source": "payload",
+        "name": "pusher.name"
+      },
+      {
+        "source": "payload",
+        "name": "pusher.email"
+      }
+    ],
+    "trigger-rule":
+    {
+      "and":
+      [
+        {
+          "match":
+          {
+            "type": "payload-hash-sha1",
+            "secret": "{{ getenv "XXXTEST_SECRET" | js }}",
+            "parameter":
+            {
+              "source": "header",
+              "name": "X-Hub-Signature"
+            }
+          }
+        },
+        {
+          "match":
+          {
+            "type": "value",
+            "value": "refs/heads/master",
+            "parameter":
+            {
+              "source": "payload",
+              "name": "ref"
+            }
+          }
+        }
+      ]
+    }
+  }
+]

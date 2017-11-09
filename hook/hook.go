@@ -1,6 +1,7 @@
 package hook
 
 import (
+	"bytes"
 	"crypto/hmac"
 	"crypto/sha1"
 	"crypto/sha256"
@@ -18,6 +19,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"text/template"
 
 	"github.com/ghodss/yaml"
 )
@@ -544,8 +546,10 @@ func (h *Hook) ExtractCommandArgumentsForFile(headers, query, payload *map[strin
 // Hooks is an array of Hook objects
 type Hooks []Hook
 
-// LoadFromFile attempts to load hooks from specified JSON file
-func (h *Hooks) LoadFromFile(path string) error {
+// LoadFromFile attempts to load hooks from the specified file, which
+// can be either JSON or YAML.  The asTemplate parameter causes the file
+// contents to be parsed as a Go text/template prior to unmarshalling.
+func (h *Hooks) LoadFromFile(path string, asTemplate bool) error {
 	if path == "" {
 		return nil
 	}
@@ -555,6 +559,24 @@ func (h *Hooks) LoadFromFile(path string) error {
 
 	if e != nil {
 		return e
+	}
+
+	if asTemplate {
+		funcMap := template.FuncMap{"getenv": getenv}
+
+		tmpl, err := template.New("hooks").Funcs(funcMap).Parse(string(file))
+		if err != nil {
+			return err
+		}
+
+		var buf bytes.Buffer
+
+		err = tmpl.Execute(&buf, nil)
+		if err != nil {
+			return err
+		}
+
+		file = buf.Bytes()
 	}
 
 	e = yaml.Unmarshal(file, h)
@@ -704,4 +726,9 @@ func (r MatchRule) Evaluate(headers, query, payload *map[string]interface{}, bod
 		}
 	}
 	return false, nil
+}
+
+// getenv provides a template function to retrieve OS environment variables.
+func getenv(s string) string {
+	return os.Getenv(s)
 }

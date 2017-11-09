@@ -1,6 +1,7 @@
 package hook
 
 import (
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -229,22 +230,51 @@ func TestHookExtractCommandArgumentsForEnv(t *testing.T) {
 }
 
 var hooksLoadFromFileTests = []struct {
-	path string
-	ok   bool
+	path       string
+	asTemplate bool
+	ok         bool
 }{
-	{"../hooks.json.example", true},
-	{"../hooks.yaml.example", true},
-	{"", true},
+	{"../hooks.json.example", false, true},
+	{"../hooks.yaml.example", false, true},
+	{"../hooks.json.tmpl.example", true, true},
+	{"../hooks.yaml.tmpl.example", true, true},
+	{"", false, true},
 	// failures
-	{"missing.json", false},
+	{"missing.json", false, false},
 }
 
 func TestHooksLoadFromFile(t *testing.T) {
+	secret := `foo"123`
+	os.Setenv("XXXTEST_SECRET", secret)
+
 	for _, tt := range hooksLoadFromFileTests {
 		h := &Hooks{}
-		err := h.LoadFromFile(tt.path)
+		err := h.LoadFromFile(tt.path, tt.asTemplate)
 		if (err == nil) != tt.ok {
 			t.Errorf(err.Error())
+		}
+	}
+}
+
+func TestHooksTemplateLoadFromFile(t *testing.T) {
+	secret := `foo"123`
+	os.Setenv("XXXTEST_SECRET", secret)
+
+	for _, tt := range hooksLoadFromFileTests {
+		if !tt.asTemplate {
+			continue
+		}
+
+		h := &Hooks{}
+		err := h.LoadFromFile(tt.path, tt.asTemplate)
+		if (err == nil) != tt.ok {
+			t.Errorf(err.Error())
+			continue
+		}
+
+		s := (*h.Match("webhook").TriggerRule.And)[0].Match.Secret
+		if s != secret {
+			t.Errorf("Expected secret of %q, got %q", secret, s)
 		}
 	}
 }
