@@ -1,6 +1,6 @@
 # Hookdoo
 <a href="https://www.hookdoo.com/?github"><img src="https://my.hookdoo.com/logo/logo-dark-96.png" alt="hookdoo" align="left" /></a>
- 
+
 If you don't have time to waste configuring, hosting, debugging and maintaining your webhook instance, we offer a __SaaS__ solution that has all of the capabilities webhook provides, plus a lot more, and all that packaged in a nice friendly web interface. If you are interested, find out more at [hookdoo website](https://www.hookdoo.com/?ref=github-webhook-readme). If you have any questions, you can contact us at info@hookdoo.com
 
 # What is webhook?
@@ -36,7 +36,7 @@ If you are using Debian linux ("stretch" or later), you can install webhook usin
 Prebuilt binaries for different architectures are available at [GitHub Releases](https://github.com/adnanh/webhook/releases).
 
 ## Configuration
-Next step is to define some hooks you want [webhook](https://github.com/adnanh/webhook/) to serve. Begin by creating an empty file named `hooks.json`. This file will contain an array of hooks the [webhook](https://github.com/adnanh/webhook/) will serve. Check [Hook definition page](https://github.com/adnanh/webhook/wiki/Hook-Definition) to see the detailed description of what properties a hook can contain, and how to use them.
+Next step is to define some hooks you want [webhook](https://github.com/adnanh/webhook/) to serve. Begin by creating an empty file named `hooks.json`. This file will contain an array of hooks the [webhook](https://github.com/adnanh/webhook/) will serve. Check [Hook definition page](docs/Hook-Definition.md) to see the detailed description of what properties a hook can contain, and how to use them.
 
 Let's define a simple hook named `redeploy-webhook` that will run a redeploy script located in `/var/scripts/redeploy.sh`.
 
@@ -61,11 +61,11 @@ It will start up on default port 9000 and will provide you with one HTTP endpoin
 http://yourserver:9000/hooks/redeploy-webhook
 ```
 
-Check [webhook parameters page](https://github.com/adnanh/webhook/wiki/Webhook-Parameters) to see how to override the ip, port and other settings such as hook hotreload, verbose output, etc, when starting the [webhook](https://github.com/adnanh/webhook/).
+Check [webhook parameters page](docs/Webhook-Parameters.md) to see how to override the ip, port and other settings such as hook hotreload, verbose output, etc, when starting the [webhook](https://github.com/adnanh/webhook/).
 
 By performing a simple HTTP GET or POST request to that endpoint, your specified redeploy script would be executed. Neat!
 
-However, hook defined like that could pose a security threat to your system, because anyone who knows your endpoint, can send a request and execute your command. To prevent that, you can use the `"trigger-rule"` property for your hook, to specify the exact circumstances under which the hook would be triggered. For example, you can use them to add a secret that you must supply as a parameter in order to successfully trigger the hook. Please check out the [Hook rules page](https://github.com/adnanh/webhook/wiki/Hook-Rules) for detailed list of available rules and their  usage.
+However, hook defined like that could pose a security threat to your system, because anyone who knows your endpoint, can send a request and execute your command. To prevent that, you can use the `"trigger-rule"` property for your hook, to specify the exact circumstances under which the hook would be triggered. For example, you can use them to add a secret that you must supply as a parameter in order to successfully trigger the hook. Please check out the [Hook rules page](docs/Hook-Rules.md) for detailed list of available rules and their  usage.
 
 ## Using HTTPS
 [webhook](https://github.com/adnanh/webhook/) by default serves hooks using http. If you want [webhook](https://github.com/adnanh/webhook/) to serve secure content using https, you can use the `-secure` flag while starting [webhook](https://github.com/adnanh/webhook/). Files containing a certificate and matching private key for the server must be provided using the `-cert /path/to/cert.pem` and `-key /path/to/key.pem` flags. If the certificate is signed by a certificate authority, the cert file should be the concatenation of the server's certificate followed by the CA's certificate.
@@ -77,7 +77,7 @@ If you want to set CORS headers, you can use the `-header name=value` flag while
 You can use [almir/webhook](https://hub.docker.com/r/almir/webhook/) docker image, or create your own (please read [this discussion](https://github.com/adnanh/webhook/issues/63)).
 
 ## Examples
-Check out [Hook examples page](https://github.com/adnanh/webhook/wiki/Hook-Examples) for more complex examples of hooks.
+Check out [Hook examples page](docs/Hook-Examples.md) for more complex examples of hooks.
 
 ### Guides featuring webhook
  - [Webhook & JIRA](https://sites.google.com/site/mrxpalmeiras/notes/jira-webhooks) by [@perfecto25](https://github.com/perfecto25)
@@ -122,14 +122,14 @@ This project exists thanks to all the people who contribute. [Contribute!](CONTR
  - [PayPal](https://paypal.me/hookdoo)
  - [Patreon](https://www.patreon.com/webhook)
  - [Faircode](https://faircode.io/product/webhook?utm_source=badge&utm_medium=badgelarge&utm_campaign=webhook)
- - [Flattr](https://flattr.com/submit/auto?user_id=adnanh&url=https%3A%2F%2Fwww.github.com%2Fadnanh%2Fwebhook) 
+ - [Flattr](https://flattr.com/submit/auto?user_id=adnanh&url=https%3A%2F%2Fwww.github.com%2Fadnanh%2Fwebhook)
 
 ---
 
 Thank you to all our backers!
 
 <a href="https://opencollective.com/webhook#backers" target="_blank"><img src="https://opencollective.com/webhook/backers.svg?width=890"></a>
- 
+
 # License
 
 The MIT License (MIT)
