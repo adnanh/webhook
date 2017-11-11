@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/adnanh/webhook/hook"
 
+	"github.com/armon/go-proxyproto"
 	"github.com/codegangsta/negroni"
 	"github.com/gorilla/mux"
 	"github.com/satori/go.uuid"
@@ -38,6 +40,7 @@ var (
 	cert               = flag.String("cert", "cert.pem", "path to the HTTPS certificate pem file")
 	key                = flag.String("key", "key.pem", "path to the HTTPS certificate private key pem file")
 	justDisplayVersion = flag.Bool("version", false, "display webhook version and quit")
+	proxyProtocol      = flag.Bool("proxyProtocol", false, "enable PROXY protocol support")
 
 	responseHeaders hook.ResponseHeaders
 	hooksFiles      hook.HooksFiles
@@ -186,17 +189,35 @@ func main() {
 	}
 
 	router.HandleFunc(hooksURL, hookHandler)
-
 	n.UseHandler(router)
+
+	addr := fmt.Sprintf("%s:%d", *ip, *port)
+
+	svr := &http.Server{
+		Addr:    addr,
+		Handler: n,
+	}
+
+	// In order to support the PROXY protocol, we need a custom listener.
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Add keep-alive settings
+	listener = tcpKeepAliveListener{listener.(*net.TCPListener)}
+
+	if *proxyProtocol {
+		listener = &proxyproto.Listener{Listener: listener}
+	}
 
 	if *secure {
 		log.Printf("serving hooks on https://%s:%d%s", *ip, *port, hooksURL)
-		log.Fatal(http.ListenAndServeTLS(fmt.Sprintf("%s:%d", *ip, *port), *cert, *key, n))
+		log.Fatal(svr.ServeTLS(listener, *cert, *key))
 	} else {
 		log.Printf("serving hooks on http://%s:%d%s", *ip, *port, hooksURL)
-		log.Fatal(http.ListenAndServe(fmt.Sprintf("%s:%d", *ip, *port), n))
+		log.Fatal(svr.Serve(listener))
 	}
-
 }
 
 func hookHandler(w http.ResponseWriter, r *http.Request) {
