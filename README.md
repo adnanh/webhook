@@ -4,13 +4,13 @@
 If you don't have time to waste configuring, hosting, debugging and maintaining your webhook instance, we offer a __SaaS__ solution that has all of the capabilities webhook provides, plus a lot more, and all that packaged in a nice friendly web interface. If you are interested, find out more at [hookdoo website](https://www.hookdoo.com/?ref=github-webhook-readme). If you have any questions, you can contact us at info@hookdoo.com
 
 # What is webhook?
-[webhook](https://github.com/adnanh/webhook/) is a lightweight configurable tool written in Go, that allows you to easily create HTTP endpoints (hooks) on your server, which you can use to execute configured commands. You can also pass data from the HTTP request (such as headers, payload or query variables) to your commands. [webhook](https://github.com/adnanh/webhook/) also allows you to specify rules which have to be satisfied in order for the hook to be triggered.
+[webhook][w] is a lightweight configurable tool written in Go, that allows you to easily create HTTP endpoints (hooks) on your server, which you can use to execute configured commands. You can also pass data from the HTTP request (such as headers, payload or query variables) to your commands. [webhook][w] also allows you to specify rules which have to be satisfied in order for the hook to be triggered.
 
-For example, if you're using Github or Bitbucket, you can use [webhook](https://github.com/adnanh/webhook/) to set up a hook that runs a redeploy script for your project on your staging server, whenever you push changes to the master branch of your project.
+For example, if you're using Github or Bitbucket, you can use [webhook][w] to set up a hook that runs a redeploy script for your project on your staging server, whenever you push changes to the master branch of your project.
 
 If you use Mattermost or Slack, you can set up an "Outgoing webhook integration" or "Slash command" to run various commands on your server, which can then report back directly to you or your channels using the "Incoming webhook integrations", or the appropriate response body.
 
-[webhook](https://github.com/adnanh/webhook/) aims to do nothing more than it should do, and that is:
+[webhook][w] aims to do nothing more than it should do, and that is:
  1. receive the request,
  2. parse the headers, payload and query variables,
  3. check if the specified rules for the hook are satisfied,
@@ -26,7 +26,7 @@ To get started, first make sure you've properly set up your [Golang](http://gola
 ```bash
 $ go get github.com/adnanh/webhook
 ```
-to get the latest version of the [webhook](https://github.com/adnanh/webhook/).
+to get the latest version of the [webhook][w].
 
 ### Using package manager
 #### Debian
@@ -36,7 +36,7 @@ If you are using Debian linux ("stretch" or later), you can install webhook usin
 Prebuilt binaries for different architectures are available at [GitHub Releases](https://github.com/adnanh/webhook/releases).
 
 ## Configuration
-Next step is to define some hooks you want [webhook](https://github.com/adnanh/webhook/) to serve. Begin by creating an empty file named `hooks.json`. This file will contain an array of hooks the [webhook](https://github.com/adnanh/webhook/) will serve. Check [Hook definition page](docs/Hook-Definition.md) to see the detailed description of what properties a hook can contain, and how to use them.
+Next step is to define some hooks you want [webhook][w] to serve. Begin by creating an empty file named `hooks.json`. This file will contain an array of hooks the [webhook][w] will serve. Check [Hook definition page](docs/Hook-Definition.md) to see the detailed description of what properties a hook can contain, and how to use them.
 
 Let's define a simple hook named `redeploy-webhook` that will run a redeploy script located in `/var/scripts/redeploy.sh`.
 
@@ -51,7 +51,7 @@ Our `hooks.json` file will now look like this:
 ]
 ```
 
-You can now run [webhook](https://github.com/adnanh/webhook/) using
+You can now run [webhook][w] using
 ```bash
 $ /path/to/webhook -hooks hooks.json -verbose
 ```
@@ -61,17 +61,20 @@ It will start up on default port 9000 and will provide you with one HTTP endpoin
 http://yourserver:9000/hooks/redeploy-webhook
 ```
 
-Check [webhook parameters page](docs/Webhook-Parameters.md) to see how to override the ip, port and other settings such as hook hotreload, verbose output, etc, when starting the [webhook](https://github.com/adnanh/webhook/).
+Check [webhook parameters page](docs/Webhook-Parameters.md) to see how to override the ip, port and other settings such as hook hotreload, verbose output, etc, when starting the [webhook][w].
 
 By performing a simple HTTP GET or POST request to that endpoint, your specified redeploy script would be executed. Neat!
 
 However, hook defined like that could pose a security threat to your system, because anyone who knows your endpoint, can send a request and execute your command. To prevent that, you can use the `"trigger-rule"` property for your hook, to specify the exact circumstances under which the hook would be triggered. For example, you can use them to add a secret that you must supply as a parameter in order to successfully trigger the hook. Please check out the [Hook rules page](docs/Hook-Rules.md) for detailed list of available rules and their  usage.
 
+## Templates
+[webhook][w] can parse the `hooks.json` input file as a Go template when given the `-template` [CLI parameter](docs/Webhook-Parameters.md). See the [Templates page](docs/Templates.md) for more details on template usage.
+
 ## Using HTTPS
-[webhook](https://github.com/adnanh/webhook/) by default serves hooks using http. If you want [webhook](https://github.com/adnanh/webhook/) to serve secure content using https, you can use the `-secure` flag while starting [webhook](https://github.com/adnanh/webhook/). Files containing a certificate and matching private key for the server must be provided using the `-cert /path/to/cert.pem` and `-key /path/to/key.pem` flags. If the certificate is signed by a certificate authority, the cert file should be the concatenation of the server's certificate followed by the CA's certificate.
+[webhook][w] by default serves hooks using http. If you want [webhook][w] to serve secure content using https, you can use the `-secure` flag while starting [webhook][w]. Files containing a certificate and matching private key for the server must be provided using the `-cert /path/to/cert.pem` and `-key /path/to/key.pem` flags. If the certificate is signed by a certificate authority, the cert file should be the concatenation of the server's certificate followed by the CA's certificate.
 
 ## CORS Headers
-If you want to set CORS headers, you can use the `-header name=value` flag while starting [webhook](https://github.com/adnanh/webhook/) to set the appropriate CORS headers that will be returned with each response.
+If you want to set CORS headers, you can use the `-header name=value` flag while starting [webhook][w] to set the appropriate CORS headers that will be returned with each response.
 
 ## Interested in running webhook inside of a Docker container?
 You can use [almir/webhook](https://hub.docker.com/r/almir/webhook/) docker image, or create your own (please read [this discussion](https://github.com/adnanh/webhook/issues/63)).
