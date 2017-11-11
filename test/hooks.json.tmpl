@@ -136,5 +136,49 @@
         }
       }
     }
+  },
+  {
+    "id": "capture-command-output-on-success-not-by-default",
+    "pass-arguments-to-command": [
+      {
+        "source": "string",
+        "name": "exit=0"
+      }
+    ],
+    "execute-command": "{{ .Hookecho }}"
+  },
+  {
+    "id": "capture-command-output-on-success-yes-with-flag",
+    "pass-arguments-to-command": [
+      {
+        "source": "string",
+        "name": "exit=0"
+      }
+    ],
+    "execute-command": "{{ .Hookecho }}",
+    "include-command-output-in-response": true
+  },
+  {
+    "id": "capture-command-output-on-error-not-by-default",
+    "pass-arguments-to-command": [
+      {
+        "source": "string",
+        "name": "exit=1"
+      }
+    ],
+    "execute-command": "{{ .Hookecho }}",
+    "include-command-output-in-response": true
+  },
+  {
+    "id": "capture-command-output-on-error-yes-with-extra-flag",
+    "pass-arguments-to-command": [
+      {
+        "source": "string",
+        "name": "exit=1"
+      }
+    ],
+    "execute-command": "{{ .Hookecho }}",
+    "include-command-output-in-response": true,
+    "include-command-output-in-response-on-error": true
   }
 ]
