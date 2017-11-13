@@ -51,7 +51,7 @@ func TestStaticParams(t *testing.T) {
 	}
 
 	// case 2: binary with spaces in its name
-	err = os.Symlink("/bin/true", "/tmp/with space")
+	err = os.Symlink("/bin/echo", "/tmp/with space")
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -613,4 +613,12 @@ env: HOOK_head_commit.timestamp=2013-03-12T08:14:29-07:00
 	{"empty payload", "bitbucket", nil, `{}`, false, http.StatusOK, `Hook rules were not satisfied.`},
 	// test with no configured http return code, should default to 200 OK
 	{"empty payload", "gitlab", nil, `{}`, false, http.StatusOK, `Hook rules were not satisfied.`},
+
+	// test capturing command output
+	{"don't capture output on success by default", "capture-command-output-on-success-not-by-default", nil, `{}`, false, http.StatusOK, ``},
+	{"capture output on success with flag set", "capture-command-output-on-success-yes-with-flag", nil, `{}`, false, http.StatusOK, `arg: exit=0
+`},
+	{"don't capture output on error by default", "capture-command-output-on-error-not-by-default", nil, `{}`, false, http.StatusInternalServerError, `Error occurred while executing the hook's command. Please check your logs for more details.`},
+	{"capture output on error with extra flag set", "capture-command-output-on-error-yes-with-extra-flag", nil, `{}`, false, http.StatusInternalServerError, `arg: exit=1
+`},
 }

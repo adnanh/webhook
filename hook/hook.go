@@ -384,6 +384,7 @@ type Hook struct {
 	ResponseMessage                     string          `json:"response-message,omitempty"`
 	ResponseHeaders                     ResponseHeaders `json:"response-headers,omitempty"`
 	CaptureCommandOutput                bool            `json:"include-command-output-in-response,omitempty"`
+	CaptureCommandOutputOnError         bool            `json:"include-command-output-in-response-on-error,omitempty"`
 	PassEnvironmentToCommand            []Argument      `json:"pass-environment-to-command,omitempty"`
 	PassArgumentsToCommand              []Argument      `json:"pass-arguments-to-command,omitempty"`
 	PassFileToCommand                   []Argument      `json:"pass-file-to-command,omitempty"`
