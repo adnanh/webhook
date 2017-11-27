@@ -229,9 +229,14 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 		// parse body
 		var payload map[string]interface{}
 
-		contentType := r.Header.Get("Content-Type")
+		// set contentType to IncomingPayloadContentType or header value
+		if len(matchedHook.IncomingPayloadContentType) != 0 {
+			contentType := matchedHook.IncomingPayloadContentType
+		} else {
+			contentType := r.Header.Get("Content-Type")
+		}
 
-		if strings.Contains(matchedHook.IncomingPayloadContentType, "json") || strings.Contains(contentType, "json") {
+		if strings.Contains(contentType, "json") {
 			decoder := json.NewDecoder(strings.NewReader(string(body)))
 			decoder.UseNumber()
 
@@ -240,7 +245,7 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				log.Printf("[%s] error parsing JSON payload %+v\n", rid, err)
 			}
-		} else if strings.Contains(matchedHook.IncomingPayloadContentType, "form") || strings.Contains(contentType, "form") {
+		} else if strings.Contains(contentType, "form") {
 			fd, err := url.ParseQuery(string(body))
 			if err != nil {
 				log.Printf("[%s] error parsing form payload %+v\n", rid, err)
