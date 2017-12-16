@@ -94,7 +94,7 @@ func main() {
 	// set os signal watcher
 	setupSignals()
 
-	// load and parse hooks
+	// load and parse hooks hass edit
 	for _, hooksFilePath := range hooksFiles {
 		log.Printf("attempting to load hooks from %s\n", hooksFilePath)
 
