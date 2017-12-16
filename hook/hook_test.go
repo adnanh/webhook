@@ -60,6 +60,54 @@ func TestCheckPayloadSignature256(t *testing.T) {
 	}
 }
 
+var checkScalrSignatureTests = []struct {
+	description       string
+	headers           map[string]interface{}
+	payload           []byte
+	secret            string
+	expectedSignature string
+	ok                bool
+}{
+	{
+		"Valid signature",
+		map[string]interface{}{"Date": "Thu 07 Sep 2017 06:30:04 UTC", "X-Signature": "48e395e38ac48988929167df531eb2da00063a7d"},
+		[]byte(`{"a": "b"}`), "bilFGi4ZVZUdG+C6r0NIM9tuRq6PaG33R3eBUVhLwMAErGBaazvXe4Gq2DcJs5q+",
+		"48e395e38ac48988929167df531eb2da00063a7d", true,
+	},
+	{
+		"Wrong signature",
+		map[string]interface{}{"Date": "Thu 07 Sep 2017 06:30:04 UTC", "X-Signature": "999395e38ac48988929167df531eb2da00063a7d"},
+		[]byte(`{"a": "b"}`), "bilFGi4ZVZUdG+C6r0NIM9tuRq6PaG33R3eBUVhLwMAErGBaazvXe4Gq2DcJs5q+",
+		"48e395e38ac48988929167df531eb2da00063a7d", false,
+	},
+	{
+		"Missing Date header",
+		map[string]interface{}{"X-Signature": "999395e38ac48988929167df531eb2da00063a7d"},
+		[]byte(`{"a": "b"}`), "bilFGi4ZVZUdG+C6r0NIM9tuRq6PaG33R3eBUVhLwMAErGBaazvXe4Gq2DcJs5q+",
+		"48e395e38ac48988929167df531eb2da00063a7d", false,
+	},
+	{
+		"Missing X-Signature header",
+		map[string]interface{}{"Date": "Thu 07 Sep 2017 06:30:04 UTC"},
+		[]byte(`{"a": "b"}`), "bilFGi4ZVZUdG+C6r0NIM9tuRq6PaG33R3eBUVhLwMAErGBaazvXe4Gq2DcJs5q+",
+		"48e395e38ac48988929167df531eb2da00063a7d", false,
+	},
+}
+
+func TestCheckScalrSignature(t *testing.T) {
+	for _, testCase := range checkScalrSignatureTests {
+		valid, err := CheckScalrSignature(testCase.headers, testCase.payload, testCase.secret, false)
+		if valid != testCase.ok {
+			t.Errorf("failed to check scalr signature fot test case: %s\nexpected ok:%#v, got ok:%#v}",
+				testCase.description, testCase.ok, valid)
+		}
+
+		if err != nil && strings.Contains(err.Error(), testCase.expectedSignature) {
+			t.Errorf("error message should not disclose expected mac: %s on test case %s", err, testCase.description)
+		}
+	}
+}
+
 var extractParameterTests = []struct {
 	s      string
 	params interface{}
