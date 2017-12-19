@@ -17,7 +17,7 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/hassanbabaie/webhook/hook"
+	"github.com/adnanh/webhook/hook"
 )
 
 func TestStaticParams(t *testing.T) {
