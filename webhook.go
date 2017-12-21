@@ -397,10 +397,12 @@ func handleHook(h *hook.Hook, rid string, headers, query, payload *map[string]in
 	}
 
 	for i := range files {
-		log.Printf("[%s] removing file %s\n", rid, files[i].File.Name())
-		err := os.Remove(files[i].File.Name())
-		if err != nil {
-			log.Printf("[%s] error removing file %s [%s]", rid, files[i].File.Name(), err)
+		if files[i].File != nil {
+			log.Printf("[%s] removing file %s\n", rid, files[i].File.Name())
+			err := os.Remove(files[i].File.Name())
+			if err != nil {
+				log.Printf("[%s] error removing file %s [%s]", rid, files[i].File.Name(), err)
+			}
 		}
 	}
 
