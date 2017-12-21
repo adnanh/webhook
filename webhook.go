@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	version = "2.6.7"
+	version = "2.6.8"
 )
 
 var (
@@ -368,13 +368,16 @@ func handleHook(h *hook.Hook, rid string, headers, query, payload *map[string]in
 		tmpfile, err := ioutil.TempFile(h.CommandWorkingDirectory, files[i].EnvName)
 		if err != nil {
 			log.Printf("[%s] error creating temp file [%s]", rid, err)
+			continue
 		}
 		log.Printf("[%s] writing env %s file %s", rid, files[i].EnvName, tmpfile.Name())
 		if _, err := tmpfile.Write(files[i].Data); err != nil {
 			log.Printf("[%s] error writing file %s [%s]", rid, tmpfile.Name(), err)
+			continue
 		}
 		if err := tmpfile.Close(); err != nil {
 			log.Printf("[%s] error closing file %s [%s]", rid, tmpfile.Name(), err)
+			continue
 		}
 
 		files[i].File = tmpfile
