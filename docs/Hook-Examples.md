@@ -281,3 +281,44 @@ or in a single line, using https://github.com/jpmens/jo to generate the JSON cod
 jo binary=%filename.zip | curl -H "Content-Type:application/json" -X POST -d @- \
 http://localhost:9000/hooks/test-file-webhook
 </pre>
+
+
+## Incoming Scalr Webhook
+[Guide by @hassanbabaie]
+Scalr makes webhook calls based on an event to a configured webhook endpoint (for example Host Down, Host Up). Webhook endpoints are URLs where Scalr will deliver Webhook notifications.  
+Scalr assigns a unique signing key for every configured webhook endpoint.
+Refer to this URL for information on how to setup the webhook call on the Scalr side: [Scalr Wiki Webhooks](https://scalr-wiki.atlassian.net/wiki/spaces/docs/pages/6193173/Webhooks)
+In order to leverage the Signing Key for addtional authentication/security you must configure the trigger rule with a match type of "scalr-signature".
+
+```json
+[
+    {
+        "id": "redeploy-webhook",
+        "execute-command": "/home/adnan/redeploy-go-webhook.sh",
+        "command-working-directory": "/home/adnan/go",
+        "include-command-output-in-response": true,
+        "trigger-rule": 
+		{
+            "match": 
+			{
+                "type": "scalr-signature",
+                "secret": "Scalr-provided signing key"
+            }
+        },
+        "pass-environment-to-command": 
+		[
+            {
+                "envname": "EVENT_NAME",
+                "source": "payload",
+                "name": "eventName"
+            },
+            {
+                "envname": "SERVER_HOSTNAME",
+                "source": "payload",
+                "name": "data.SCALR_SERVER_HOSTNAME"
+            }
+        ]
+    }
+]
+
+```
