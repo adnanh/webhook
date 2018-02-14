@@ -1,0 +1,15 @@
+clone_folder: C:\gopath\src\github.com\adnanh\webhook
+
+environment:
+  GOPATH: c:\gopath
+
+install:
+  - set PATH=%PATH%;C:\MinGW\bin;%GOPATH%\bin
+  - echo %PATH%
+  - echo %GOPATH%
+  - go version
+  - go env
+  - go get -d -v -t ./...
+
+build_script:
+  - go test -v -race ./...
