@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"text/template"
 	"time"
@@ -66,18 +67,18 @@ func TestWebhook(t *testing.T) {
 	hookecho, cleanupHookecho := buildHookecho(t)
 	defer cleanupHookecho()
 
+	webhook, cleanupWebhookFn := buildWebhook(t)
+	defer cleanupWebhookFn()
+
 	for _, hookTmpl := range []string{"test/hooks.json.tmpl", "test/hooks.yaml.tmpl"} {
 		configPath, cleanupConfigFn := genConfig(t, hookecho, hookTmpl)
 		defer cleanupConfigFn()
-
-		webhook, cleanupWebhookFn := buildWebhook(t)
-		defer cleanupWebhookFn()
 
 		ip, port := serverAddress(t)
 		args := []string{fmt.Sprintf("-hooks=%s", configPath), fmt.Sprintf("-ip=%s", ip), fmt.Sprintf("-port=%s", port), "-verbose"}
 
 		// Setup a buffer for capturing webhook logs for later evaluation
-		b := &bytes.Buffer{}
+		b := &buffer{}
 
 		cmd := exec.Command(webhook, args...)
 		cmd.Stderr = b
@@ -609,4 +610,34 @@ env: HOOK_head_commit.timestamp=2013-03-12T08:14:29-07:00
 	// Check logs
 	{"static params should pass", "static-params-ok", nil, `{}`, false, http.StatusOK, "arg: passed\n", `(?s)command output: arg: passed`},
 	{"command with space logs warning", "warn-on-space", nil, `{}`, false, http.StatusInternalServerError, "Error occurred while executing the hook's command. Please check your logs for more details.", `(?s)unable to locate command.*use 'pass[-]arguments[-]to[-]command' to specify args`},
+}
+
+// buffer provides a concurrency-safe bytes.Buffer to tests above.
+type buffer struct {
+	b bytes.Buffer
+	m sync.Mutex
+}
+
+func (b *buffer) Read(p []byte) (n int, err error) {
+	b.m.Lock()
+	defer b.m.Unlock()
+	return b.b.Read(p)
+}
+
+func (b *buffer) Write(p []byte) (n int, err error) {
+	b.m.Lock()
+	defer b.m.Unlock()
+	return b.b.Write(p)
+}
+
+func (b *buffer) String() string {
+	b.m.Lock()
+	defer b.m.Unlock()
+	return b.b.String()
+}
+
+func (b *buffer) Reset() {
+	b.m.Lock()
+	defer b.m.Unlock()
+	b.b.Reset()
 }
