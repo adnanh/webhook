@@ -74,25 +74,25 @@ func TestWebhook(t *testing.T) {
 		configPath, cleanupConfigFn := genConfig(t, hookecho, hookTmpl)
 		defer cleanupConfigFn()
 
-		ip, port := serverAddress(t)
-		args := []string{fmt.Sprintf("-hooks=%s", configPath), fmt.Sprintf("-ip=%s", ip), fmt.Sprintf("-port=%s", port), "-verbose"}
-
-		// Setup a buffer for capturing webhook logs for later evaluation
-		b := &buffer{}
-
-		cmd := exec.Command(webhook, args...)
-		cmd.Stderr = b
-		cmd.Env = webhookEnv()
-		cmd.Args[0] = "webhook"
-		if err := cmd.Start(); err != nil {
-			t.Fatalf("failed to start webhook: %s", err)
-		}
-		defer killAndWait(cmd)
-
-		waitForServerReady(t, ip, port)
-
 		for _, tt := range hookHandlerTests {
 			t.Run(tt.desc, func(t *testing.T) {
+
+				ip, port := serverAddress(t)
+				args := []string{fmt.Sprintf("-hooks=%s", configPath), fmt.Sprintf("-ip=%s", ip), fmt.Sprintf("-port=%s", port), "-verbose"}
+
+				// Setup a buffer for capturing webhook logs for later evaluation
+				b := &buffer{}
+
+				cmd := exec.Command(webhook, args...)
+				cmd.Stderr = b
+				cmd.Env = webhookEnv()
+				cmd.Args[0] = "webhook"
+				if err := cmd.Start(); err != nil {
+					t.Fatalf("failed to start webhook: %s", err)
+				}
+				defer killAndWait(cmd)
+
+				waitForServerReady(t, ip, port)
 
 				url := fmt.Sprintf("http://%s:%s/hooks/%s", ip, port, tt.id)
 
@@ -130,15 +130,19 @@ func TestWebhook(t *testing.T) {
 				}
 
 				if tt.logMatch == "" {
-					b.Reset()
 					return
 				}
 
+				// There's the potential for a race condition below where we
+				// try to read the logs buffer b before the logs have been
+				// flushed by the webhook process. Kill the process to flush
+				// the logs.
+				killAndWait(cmd)
+
 				matched, _ := regexp.MatchString(tt.logMatch, b.String())
 				if !matched {
-					t.Fatalf("Unexpected log output:\n%s", b)
+					t.Errorf("failed log match for %q (id: %s):\nmatch pattern: %q\ngot:\n%s", tt.desc, tt.id, tt.logMatch, b)
 				}
-				b.Reset()
 			})
 		}
 	}
@@ -267,6 +271,10 @@ func waitForServer(t *testing.T, url string, status int, timeout time.Duration) 
 }
 
 func killAndWait(cmd *exec.Cmd) {
+	if cmd == nil || cmd.ProcessState != nil && cmd.ProcessState.Exited() {
+		return
+	}
+
 	cmd.Process.Kill()
 	cmd.Wait()
 }
