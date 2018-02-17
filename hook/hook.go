@@ -94,9 +94,7 @@ func (e *ParseError) Error() string {
 
 // CheckPayloadSignature calculates and verifies SHA1 signature of the given payload
 func CheckPayloadSignature(payload []byte, secret string, signature string) (string, error) {
-	if strings.HasPrefix(signature, "sha1=") {
-		signature = signature[5:]
-	}
+	signature = strings.TrimPrefix(signature, "sha1=")
 
 	mac := hmac.New(sha1.New, []byte(secret))
 	_, err := mac.Write(payload)
@@ -113,9 +111,7 @@ func CheckPayloadSignature(payload []byte, secret string, signature string) (str
 
 // CheckPayloadSignature256 calculates and verifies SHA256 signature of the given payload
 func CheckPayloadSignature256(payload []byte, secret string, signature string) (string, error) {
-	if strings.HasPrefix(signature, "sha256=") {
-		signature = signature[7:]
-	}
+	signature = strings.TrimPrefix(signature, "sha256=")
 
 	mac := hmac.New(sha256.New, []byte(secret))
 	_, err := mac.Write(payload)
