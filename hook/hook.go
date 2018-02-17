@@ -196,7 +196,7 @@ func CheckIPWhitelist(remoteAddr string, ipRange string) (bool, error) {
 
 	ipRange = strings.TrimSpace(ipRange)
 
-	if strings.Index(ipRange, "/") == -1 {
+	if !strings.Contains(ipRange, "/") {
 		ipRange = ipRange + "/32"
 	}
 
