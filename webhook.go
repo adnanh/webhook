@@ -264,7 +264,7 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 			ok, err = matchedHook.TriggerRule.Evaluate(&headers, &query, &payload, &body, r.RemoteAddr)
 			if err != nil {
 				msg := fmt.Sprintf("[%s] error evaluating hook: %s", rid, err)
-				log.Printf(msg)
+				log.Print(msg)
 				w.WriteHeader(http.StatusInternalServerError)
 				fmt.Fprintf(w, "Error occurred while evaluating hook rules.")
 				return
