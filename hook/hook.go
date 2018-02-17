@@ -11,8 +11,8 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"math"
 	"log"
+	"math"
 	"net"
 	"net/textproto"
 	"os"
@@ -131,30 +131,30 @@ func CheckPayloadSignature256(payload []byte, secret string, signature string) (
 }
 
 func CheckScalrSignature(headers map[string]interface{}, body []byte, signingKey string, checkDate bool) (bool, error) {
- 	// Check for the signature and date headers
- 	if _, ok := headers["X-Signature"]; !ok {
- 		return false, nil
- 	}
- 	if _, ok := headers["Date"]; !ok {
- 		return false, nil
- 	}
- 	providedSignature := headers["X-Signature"].(string)
- 	dateHeader := headers["Date"].(string)
- 	mac := hmac.New(sha1.New, []byte(signingKey))
- 	mac.Write(body)
- 	mac.Write([]byte(dateHeader))
- 	expectedSignature := hex.EncodeToString(mac.Sum(nil))
- 
- 	if !hmac.Equal([]byte(providedSignature), []byte(expectedSignature)) {
- 		return false, &SignatureError{providedSignature}
- 	}
+	// Check for the signature and date headers
+	if _, ok := headers["X-Signature"]; !ok {
+		return false, nil
+	}
+	if _, ok := headers["Date"]; !ok {
+		return false, nil
+	}
+	providedSignature := headers["X-Signature"].(string)
+	dateHeader := headers["Date"].(string)
+	mac := hmac.New(sha1.New, []byte(signingKey))
+	mac.Write(body)
+	mac.Write([]byte(dateHeader))
+	expectedSignature := hex.EncodeToString(mac.Sum(nil))
+
+	if !hmac.Equal([]byte(providedSignature), []byte(expectedSignature)) {
+		return false, &SignatureError{providedSignature}
+	}
 
 	if !checkDate {
 		return true, nil
 	}
-  // Example format: Fri 08 Sep 2017 11:24:32 UTC
-  date, err := time.Parse("Mon 02 Jan 2006 15:04:05 MST", dateHeader)
-  //date, err := time.Parse(time.RFC1123, dateHeader)	
+	// Example format: Fri 08 Sep 2017 11:24:32 UTC
+	date, err := time.Parse("Mon 02 Jan 2006 15:04:05 MST", dateHeader)
+	//date, err := time.Parse(time.RFC1123, dateHeader)
 	if err != nil {
 		return false, err
 	}
@@ -165,8 +165,8 @@ func CheckScalrSignature(headers map[string]interface{}, body []byte, signingKey
 		return false, &SignatureError{"outdated"}
 	}
 	return true, nil
- }
- 
+}
+
 // CheckIPWhitelist makes sure the provided remote address (of the form IP:port) falls within the provided IP range
 // (in CIDR form or a single IP address).
 func CheckIPWhitelist(remoteAddr string, ipRange string) (bool, error) {
@@ -754,7 +754,7 @@ func (r MatchRule) Evaluate(headers, query, payload *map[string]interface{}, bod
 	if r.Type == ScalrSignature {
 		return CheckScalrSignature(*headers, *body, r.Secret, true)
 	}
-	
+
 	if arg, ok := r.Parameter.Get(headers, query, payload); ok {
 		switch r.Type {
 		case MatchValue:
