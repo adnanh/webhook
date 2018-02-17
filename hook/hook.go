@@ -687,7 +687,7 @@ func (r AndRule) Evaluate(headers, query, payload *map[string]interface{}, body 
 		}
 
 		res = res && rv
-		if res == false {
+		if !res {
 			return res, nil
 		}
 	}
@@ -709,7 +709,7 @@ func (r OrRule) Evaluate(headers, query, payload *map[string]interface{}, body *
 		}
 
 		res = res || rv
-		if res == true {
+		if res {
 			return res, nil
 		}
 	}

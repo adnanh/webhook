@@ -120,7 +120,7 @@ func main() {
 
 	newHooksFiles := hooksFiles[:0]
 	for _, filePath := range hooksFiles {
-		if _, ok := loadedHooksFromFiles[filePath]; ok == true {
+		if _, ok := loadedHooksFromFiles[filePath]; ok {
 			newHooksFiles = append(newHooksFiles, filePath)
 		}
 	}
@@ -436,7 +436,7 @@ func reloadHooks(hooksFilePath string) {
 				}
 			}
 
-			if (matchLoadedHook(hook.ID) != nil && !wasHookIDAlreadyLoaded) || seenHooksIds[hook.ID] == true {
+			if (matchLoadedHook(hook.ID) != nil && !wasHookIDAlreadyLoaded) || seenHooksIds[hook.ID] {
 				log.Printf("error: hook with the id %s has already been loaded!\nplease check your hooks file for duplicate hooks ids!", hook.ID)
 				log.Println("reverting hooks back to the previous configuration")
 				return
