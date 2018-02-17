@@ -250,10 +250,9 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// handle hook
-		if errors := matchedHook.ParseJSONParameters(&headers, &query, &payload); errors != nil {
-			for _, err := range errors {
-				log.Printf("[%s] error parsing JSON parameters: %s\n", rid, err)
-			}
+		errors := matchedHook.ParseJSONParameters(&headers, &query, &payload)
+		for _, err := range errors {
+			log.Printf("[%s] error parsing JSON parameters: %s\n", rid, err)
 		}
 
 		var ok bool
@@ -341,27 +340,21 @@ func handleHook(h *hook.Hook, rid string, headers, query, payload *map[string]in
 	cmd.Dir = h.CommandWorkingDirectory
 
 	cmd.Args, errors = h.ExtractCommandArguments(headers, query, payload)
-	if errors != nil {
-		for _, err := range errors {
-			log.Printf("[%s] error extracting command arguments: %s\n", rid, err)
-		}
+	for _, err := range errors {
+		log.Printf("[%s] error extracting command arguments: %s\n", rid, err)
 	}
 
 	var envs []string
 	envs, errors = h.ExtractCommandArgumentsForEnv(headers, query, payload)
 
-	if errors != nil {
-		for _, err := range errors {
-			log.Printf("[%s] error extracting command arguments for environment: %s\n", rid, err)
-		}
+	for _, err := range errors {
+		log.Printf("[%s] error extracting command arguments for environment: %s\n", rid, err)
 	}
 
 	files, errors := h.ExtractCommandArgumentsForFile(headers, query, payload)
 
-	if errors != nil {
-		for _, err := range errors {
-			log.Printf("[%s] error extracting command arguments for file: %s\n", rid, err)
-		}
+	for _, err := range errors {
+		log.Printf("[%s] error extracting command arguments for file: %s\n", rid, err)
 	}
 
 	for i := range files {
