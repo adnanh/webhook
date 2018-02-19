@@ -11,8 +11,8 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"math"
 	"log"
+	"math"
 	"net"
 	"net/textproto"
 	"os"
@@ -94,9 +94,7 @@ func (e *ParseError) Error() string {
 
 // CheckPayloadSignature calculates and verifies SHA1 signature of the given payload
 func CheckPayloadSignature(payload []byte, secret string, signature string) (string, error) {
-	if strings.HasPrefix(signature, "sha1=") {
-		signature = signature[5:]
-	}
+	signature = strings.TrimPrefix(signature, "sha1=")
 
 	mac := hmac.New(sha1.New, []byte(secret))
 	_, err := mac.Write(payload)
@@ -113,9 +111,7 @@ func CheckPayloadSignature(payload []byte, secret string, signature string) (str
 
 // CheckPayloadSignature256 calculates and verifies SHA256 signature of the given payload
 func CheckPayloadSignature256(payload []byte, secret string, signature string) (string, error) {
-	if strings.HasPrefix(signature, "sha256=") {
-		signature = signature[7:]
-	}
+	signature = strings.TrimPrefix(signature, "sha256=")
 
 	mac := hmac.New(sha256.New, []byte(secret))
 	_, err := mac.Write(payload)
@@ -131,30 +127,30 @@ func CheckPayloadSignature256(payload []byte, secret string, signature string) (
 }
 
 func CheckScalrSignature(headers map[string]interface{}, body []byte, signingKey string, checkDate bool) (bool, error) {
- 	// Check for the signature and date headers
- 	if _, ok := headers["X-Signature"]; !ok {
- 		return false, nil
- 	}
- 	if _, ok := headers["Date"]; !ok {
- 		return false, nil
- 	}
- 	providedSignature := headers["X-Signature"].(string)
- 	dateHeader := headers["Date"].(string)
- 	mac := hmac.New(sha1.New, []byte(signingKey))
- 	mac.Write(body)
- 	mac.Write([]byte(dateHeader))
- 	expectedSignature := hex.EncodeToString(mac.Sum(nil))
- 
- 	if !hmac.Equal([]byte(providedSignature), []byte(expectedSignature)) {
- 		return false, &SignatureError{providedSignature}
- 	}
+	// Check for the signature and date headers
+	if _, ok := headers["X-Signature"]; !ok {
+		return false, nil
+	}
+	if _, ok := headers["Date"]; !ok {
+		return false, nil
+	}
+	providedSignature := headers["X-Signature"].(string)
+	dateHeader := headers["Date"].(string)
+	mac := hmac.New(sha1.New, []byte(signingKey))
+	mac.Write(body)
+	mac.Write([]byte(dateHeader))
+	expectedSignature := hex.EncodeToString(mac.Sum(nil))
+
+	if !hmac.Equal([]byte(providedSignature), []byte(expectedSignature)) {
+		return false, &SignatureError{providedSignature}
+	}
 
 	if !checkDate {
 		return true, nil
 	}
-  // Example format: Fri 08 Sep 2017 11:24:32 UTC
-  date, err := time.Parse("Mon 02 Jan 2006 15:04:05 MST", dateHeader)
-  //date, err := time.Parse(time.RFC1123, dateHeader)	
+	// Example format: Fri 08 Sep 2017 11:24:32 UTC
+	date, err := time.Parse("Mon 02 Jan 2006 15:04:05 MST", dateHeader)
+	//date, err := time.Parse(time.RFC1123, dateHeader)
 	if err != nil {
 		return false, err
 	}
@@ -165,8 +161,8 @@ func CheckScalrSignature(headers map[string]interface{}, body []byte, signingKey
 		return false, &SignatureError{"outdated"}
 	}
 	return true, nil
- }
- 
+}
+
 // CheckIPWhitelist makes sure the provided remote address (of the form IP:port) falls within the provided IP range
 // (in CIDR form or a single IP address).
 func CheckIPWhitelist(remoteAddr string, ipRange string) (bool, error) {
@@ -196,7 +192,7 @@ func CheckIPWhitelist(remoteAddr string, ipRange string) (bool, error) {
 
 	ipRange = strings.TrimSpace(ipRange)
 
-	if strings.Index(ipRange, "/") == -1 {
+	if !strings.Contains(ipRange, "/") {
 		ipRange = ipRange + "/32"
 	}
 
@@ -687,7 +683,7 @@ func (r AndRule) Evaluate(headers, query, payload *map[string]interface{}, body 
 		}
 
 		res = res && rv
-		if res == false {
+		if !res {
 			return res, nil
 		}
 	}
@@ -709,7 +705,7 @@ func (r OrRule) Evaluate(headers, query, payload *map[string]interface{}, body *
 		}
 
 		res = res || rv
-		if res == true {
+		if res {
 			return res, nil
 		}
 	}
@@ -754,7 +750,7 @@ func (r MatchRule) Evaluate(headers, query, payload *map[string]interface{}, bod
 	if r.Type == ScalrSignature {
 		return CheckScalrSignature(*headers, *body, r.Secret, true)
 	}
-	
+
 	if arg, ok := r.Parameter.Get(headers, query, payload); ok {
 		switch r.Type {
 		case MatchValue:
