@@ -1,4 +1,5 @@
-- trigger-rule:
+- id: github
+  trigger-rule:
     and:
     - match:
         parameter:
@@ -23,9 +24,10 @@
   pass-environment-to-command:
   - source: payload
     name: head_commit.timestamp
-  id: github
   command-working-directory: /
-- trigger-rule:
+
+- id: bitbucket
+  trigger-rule:
     and:
     - match:
         parameter:
@@ -52,9 +54,10 @@
   execute-command: '{{ .Hookecho }}'
   response-message: success
   include-command-output-in-response: false
-  id: bitbucket
   command-working-directory: /
-- trigger-rule:
+
+- id: gitlab
+  trigger-rule:
     match:
       parameter:
         source: payload
@@ -71,25 +74,28 @@
   execute-command: '{{ .Hookecho }}'
   response-message: success
   include-command-output-in-response: true
-  id: gitlab
   command-working-directory: /
+
 - id: capture-command-output-on-success-not-by-default
   pass-arguments-to-command:
   - source: string
     name: exit=0
   execute-command: '{{ .Hookecho }}'
+
 - id: capture-command-output-on-success-yes-with-flag
   pass-arguments-to-command:
   - source: string
     name: exit=0
   execute-command: '{{ .Hookecho }}'
   include-command-output-in-response: true
+
 - id: capture-command-output-on-error-not-by-default
   pass-arguments-to-command:
   - source: string
     name: exit=1
   execute-command: '{{ .Hookecho }}'
   include-command-output-in-response: true
+
 - id: capture-command-output-on-error-yes-with-extra-flag
   pass-arguments-to-command:
   - source: string
@@ -97,3 +103,14 @@
   execute-command: '{{ .Hookecho }}'
   include-command-output-in-response: true
   include-command-output-in-response-on-error: true
+
+- id: static-params-ok
+  execute-command: '{{ .Hookecho }}'
+  include-command-output-in-response: true
+  pass-arguments-to-command:
+  - source: string
+    name: passed
+
+- id: warn-on-space
+  execute-command: '{{ .Hookecho }} foo'
+  include-command-output-in-response: true
