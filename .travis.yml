@@ -1,0 +1,21 @@
+language: go
+
+go:
+  - 1.8.x
+  - 1.9.x
+  - tip
+
+os:
+  - linux
+  - osx
+
+matrix:
+  fast_finish: true
+  allow_failures:
+    - go: tip
+
+install:
+  - go get -d -v -t ./...
+
+script:
+  - go test -v -race ./...

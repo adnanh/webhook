@@ -199,3 +199,19 @@ The IP can be IPv4- or IPv6-formatted, using [CIDR notation](https://en.wikipedi
   }
 }
 ```
+
+### 5. Match scalr-signature
+
+The trigger rule checks the scalr signature and also checks that the request was signed less than 5 minutes before it was received. 
+A unqiue signing key is generated for each webhook endpoint URL you register in Scalr.
+Given the time check make sure that NTP is enabled on both your Scalr and webhook server to prevent any issues
+
+```json
+{
+  "match":
+  {
+    "type": "scalr-signature",
+    "secret": "Scalr-provided signing key"
+  }
+}
+```

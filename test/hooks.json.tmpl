@@ -180,5 +180,29 @@
     "execute-command": "{{ .Hookecho }}",
     "include-command-output-in-response": true,
     "include-command-output-in-response-on-error": true
+  },
+  {
+    "id": "static-params-ok",
+		"execute-command": "{{ .Hookecho }}",
+		"response-message": "success",
+    "include-command-output-in-response": true,
+		"pass-arguments-to-command": [
+      {
+        "source": "string",
+        "name": "passed"
+      }
+    ],
+  },
+  {
+    "id": "warn-on-space",
+		"execute-command": "{{ .Hookecho }} foo",
+		"response-message": "success",
+    "include-command-output-in-response": true,
+		"pass-arguments-to-command": [
+      {
+        "source": "string",
+        "name": "passed"
+      }
+    ],
   }
 ]

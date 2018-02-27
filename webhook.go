@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	version = "2.6.7"
+	version = "2.6.8"
 )
 
 var (
@@ -120,7 +120,7 @@ func main() {
 
 	newHooksFiles := hooksFiles[:0]
 	for _, filePath := range hooksFiles {
-		if _, ok := loadedHooksFromFiles[filePath]; ok == true {
+		if _, ok := loadedHooksFromFiles[filePath]; ok {
 			newHooksFiles = append(newHooksFiles, filePath)
 		}
 	}
@@ -250,10 +250,9 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// handle hook
-		if errors := matchedHook.ParseJSONParameters(&headers, &query, &payload); errors != nil {
-			for _, err := range errors {
-				log.Printf("[%s] error parsing JSON parameters: %s\n", rid, err)
-			}
+		errors := matchedHook.ParseJSONParameters(&headers, &query, &payload)
+		for _, err := range errors {
+			log.Printf("[%s] error parsing JSON parameters: %s\n", rid, err)
 		}
 
 		var ok bool
@@ -264,7 +263,7 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 			ok, err = matchedHook.TriggerRule.Evaluate(&headers, &query, &payload, &body, r.RemoteAddr)
 			if err != nil {
 				msg := fmt.Sprintf("[%s] error evaluating hook: %s", rid, err)
-				log.Printf(msg)
+				log.Print(msg)
 				w.WriteHeader(http.StatusInternalServerError)
 				fmt.Fprintf(w, "Error occurred while evaluating hook rules.")
 				return
@@ -341,40 +340,37 @@ func handleHook(h *hook.Hook, rid string, headers, query, payload *map[string]in
 	cmd.Dir = h.CommandWorkingDirectory
 
 	cmd.Args, errors = h.ExtractCommandArguments(headers, query, payload)
-	if errors != nil {
-		for _, err := range errors {
-			log.Printf("[%s] error extracting command arguments: %s\n", rid, err)
-		}
+	for _, err := range errors {
+		log.Printf("[%s] error extracting command arguments: %s\n", rid, err)
 	}
 
 	var envs []string
 	envs, errors = h.ExtractCommandArgumentsForEnv(headers, query, payload)
 
-	if errors != nil {
-		for _, err := range errors {
-			log.Printf("[%s] error extracting command arguments for environment: %s\n", rid, err)
-		}
+	for _, err := range errors {
+		log.Printf("[%s] error extracting command arguments for environment: %s\n", rid, err)
 	}
 
 	files, errors := h.ExtractCommandArgumentsForFile(headers, query, payload)
 
-	if errors != nil {
-		for _, err := range errors {
-			log.Printf("[%s] error extracting command arguments for file: %s\n", rid, err)
-		}
+	for _, err := range errors {
+		log.Printf("[%s] error extracting command arguments for file: %s\n", rid, err)
 	}
 
 	for i := range files {
 		tmpfile, err := ioutil.TempFile(h.CommandWorkingDirectory, files[i].EnvName)
 		if err != nil {
 			log.Printf("[%s] error creating temp file [%s]", rid, err)
+			continue
 		}
 		log.Printf("[%s] writing env %s file %s", rid, files[i].EnvName, tmpfile.Name())
 		if _, err := tmpfile.Write(files[i].Data); err != nil {
 			log.Printf("[%s] error writing file %s [%s]", rid, tmpfile.Name(), err)
+			continue
 		}
 		if err := tmpfile.Close(); err != nil {
 			log.Printf("[%s] error closing file %s [%s]", rid, tmpfile.Name(), err)
+			continue
 		}
 
 		files[i].File = tmpfile
@@ -394,10 +390,12 @@ func handleHook(h *hook.Hook, rid string, headers, query, payload *map[string]in
 	}
 
 	for i := range files {
-		log.Printf("[%s] removing file %s\n", rid, files[i].File.Name())
-		err := os.Remove(files[i].File.Name())
-		if err != nil {
-			log.Printf("[%s] error removing file %s [%s]", rid, files[i].File.Name(), err)
+		if files[i].File != nil {
+			log.Printf("[%s] removing file %s\n", rid, files[i].File.Name())
+			err := os.Remove(files[i].File.Name())
+			if err != nil {
+				log.Printf("[%s] error removing file %s [%s]", rid, files[i].File.Name(), err)
+			}
 		}
 	}
 
@@ -431,7 +429,7 @@ func reloadHooks(hooksFilePath string) {
 				}
 			}
 
-			if (matchLoadedHook(hook.ID) != nil && !wasHookIDAlreadyLoaded) || seenHooksIds[hook.ID] == true {
+			if (matchLoadedHook(hook.ID) != nil && !wasHookIDAlreadyLoaded) || seenHooksIds[hook.ID] {
 				log.Printf("error: hook with the id %s has already been loaded!\nplease check your hooks file for duplicate hooks ids!", hook.ID)
 				log.Println("reverting hooks back to the previous configuration")
 				return
