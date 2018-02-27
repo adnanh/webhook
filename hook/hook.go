@@ -142,7 +142,7 @@ func CheckScalrSignature(headers map[string]interface{}, body []byte, signingKey
 	expectedSignature := hex.EncodeToString(mac.Sum(nil))
 
 	if !hmac.Equal([]byte(providedSignature), []byte(expectedSignature)) {
-		return false, &SignatureError{providedSignature}
+		return false, nil
 	}
 
 	if !checkDate {
