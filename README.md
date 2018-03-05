@@ -72,6 +72,8 @@ Check [webhook parameters page](docs/Webhook-Parameters.md) to see how to overri
 
 By performing a simple HTTP GET or POST request to that endpoint, your specified redeploy script would be executed. Neat!
 
+_Note_: Be sure to send the webhook body using `Content type: application/json`.  Using other content types won't work.  
+
 However, hook defined like that could pose a security threat to your system, because anyone who knows your endpoint, can send a request and execute your command. To prevent that, you can use the `"trigger-rule"` property for your hook, to specify the exact circumstances under which the hook would be triggered. For example, you can use them to add a secret that you must supply as a parameter in order to successfully trigger the hook. Please check out the [Hook rules page](docs/Hook-Rules.md) for detailed list of available rules and their  usage.
 
 ## Templates
