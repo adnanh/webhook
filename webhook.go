@@ -19,11 +19,12 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/satori/go.uuid"
 
-	fsnotify "gopkg.in/fsnotify.v1"
+	 "gopkg.in/fsnotify.v1"
 )
 
 const (
 	version = "2.6.8"
+	sudoPrefix = "sudo"
 )
 
 var (
@@ -202,7 +203,8 @@ func main() {
 func hookHandler(w http.ResponseWriter, r *http.Request) {
 
 	// generate a request id for logging
-	rid := uuid.NewV4().String()[:6]
+	newUid, _ := uuid.NewV4()
+	rid := string(newUid[:6])
 
 	log.Printf("[%s] incoming HTTP request from %s\n", rid, r.RemoteAddr)
 
@@ -323,17 +325,9 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 func handleHook(h *hook.Hook, rid string, headers, query, payload *map[string]interface{}, body *[]byte) (string, error) {
 	var errors []error
 
-	// check the command exists
-	cmdPath, err := exec.LookPath(h.ExecuteCommand)
+	cmdPath, err := getAndCheckCommandPath(h.ExecuteCommand)
+
 	if err != nil {
-		log.Printf("unable to locate command: '%s'", h.ExecuteCommand)
-
-		// check if parameters specified in execute-command by mistake
-		if strings.IndexByte(h.ExecuteCommand, ' ') != -1 {
-			s := strings.Fields(h.ExecuteCommand)[0]
-			log.Printf("use 'pass-arguments-to-command' to specify args for '%s'", s)
-		}
-
 		return "", err
 	}
 
@@ -527,4 +521,39 @@ func valuesToMap(values map[string][]string) map[string]interface{} {
 	}
 
 	return ret
+}
+
+func getAndCheckCommandPath(command string) (string, error) {
+	var newCommand string
+
+	if command[:4] == sudoPrefix {
+		newCommand = command[4:]
+
+		_, err := exec.LookPath(sudoPrefix)
+
+		if err != nil {
+			log.Printf(sudoPrefix + " command not found")
+			return "", err
+		}
+
+	} else {
+		newCommand = command
+	}
+
+	// check the command exists
+	cmdPath, err := exec.LookPath(newCommand)
+
+	if err != nil {
+		log.Printf("unable to locate command: '%s'", newCommand)
+
+		// check if parameters specified in execute-command by mistake
+		if strings.IndexByte(newCommand, ' ') != -1 {
+			s := strings.Fields(newCommand)[0]
+			log.Printf("use 'pass-arguments-to-command' to specify args for '%s'", s)
+		}
+
+		return "", err
+	}
+
+	return sudoPrefix + " " + cmdPath, nil
 }
