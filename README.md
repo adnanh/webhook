@@ -45,7 +45,7 @@ Prebuilt binaries for different architectures are available at [GitHub Releases]
 ## Configuration
 Next step is to define some hooks you want [webhook][w] to serve. Begin by creating an empty file named `hooks.json`. This file will contain an array of hooks the [webhook][w] will serve. Check [Hook definition page](docs/Hook-Definition.md) to see the detailed description of what properties a hook can contain, and how to use them.
 
-Let's define a simple hook named `redeploy-webhook` that will run a redeploy script located in `/var/scripts/redeploy.sh`.
+Let's define a simple hook named `redeploy-webhook` that will run a redeploy script located in `/var/scripts/redeploy.sh`. Make sure that your bash script has `#!/bin/sh` shebang on top.
 
 Our `hooks.json` file will now look like this:
 ```json
