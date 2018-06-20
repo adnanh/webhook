@@ -294,6 +294,12 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 				}
 			} else {
 				go handleHook(matchedHook, rid, &headers, &query, &payload, &body)
+
+				// Check if a return code is configured for the hook
+				if matchedHook.HttpResponseCode != 0 {
+					writeHttpResponseCode(w, rid, matchedHook.ID, matchedHook.HttpResponseCode)
+				}
+
 				fmt.Fprintf(w, matchedHook.ResponseMessage)
 			}
 			return
@@ -301,13 +307,7 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 
 		// Check if a return code is configured for the hook
 		if matchedHook.TriggerRuleMismatchHttpResponseCode != 0 {
-			// Check if the configured return code is supported by the http package
-			// by testing if there is a StatusText for this code.
-			if len(http.StatusText(matchedHook.TriggerRuleMismatchHttpResponseCode)) > 0 {
-				w.WriteHeader(matchedHook.TriggerRuleMismatchHttpResponseCode)
-			} else {
-				log.Printf("[%s] %s got matched, but the configured return code %d is unknown - defaulting to 200\n", rid, matchedHook.ID, matchedHook.TriggerRuleMismatchHttpResponseCode)
-			}
+			writeHttpResponseCode(w, rid, matchedHook.ID, matchedHook.TriggerRuleMismatchHttpResponseCode)
 		}
 
 		// if none of the hooks got triggered
@@ -409,6 +409,16 @@ func handleHook(h *hook.Hook, rid string, headers, query, payload *map[string]in
 	log.Printf("[%s] finished handling %s\n", rid, h.ID)
 
 	return string(out), err
+}
+
+func writeHttpResponseCode(w http.ResponseWriter, rid string, hookId string, responseCode int) {
+	// Check if the given return code is supported by the http package
+	// by testing if there is a StatusText for this code.
+	if len(http.StatusText(responseCode)) > 0 {
+		w.WriteHeader(responseCode)
+	} else {
+		log.Printf("[%s] %s got matched, but the configured return code %d is unknown - defaulting to 200\n", rid, hookId, responseCode)
+	}
 }
 
 func reloadHooks(hooksFilePath string) {
