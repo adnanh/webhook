@@ -92,6 +92,7 @@ Check out [Hook examples page](docs/Hook-Examples.md) for more complex examples 
 ### Guides featuring webhook
  - [Webhook & JIRA](https://sites.google.com/site/mrxpalmeiras/notes/jira-webhooks) by [@perfecto25](https://github.com/perfecto25)
  - [Trigger Ansible AWX job runs on SCM (e.g. git) commit](http://jpmens.net/2017/10/23/trigger-awx-job-runs-on-scm-commit/) by [@jpmens](http://mens.de/)
+ - [Deploy using GitHub webhooks](https://davidauthier.wearemd.com/blog/deploy-using-github-webhooks.html) by [@awea](https://davidauthier.wearemd.com)
 
 ## Community Contributions
 See the [webhook-contrib][wc] repository for a collections of tools and helpers related to [webhook][w] that have been contributed by the [webhook][w] community.
