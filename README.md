@@ -103,7 +103,7 @@ Check out [existing issues](https://github.com/adnanh/webhook/issues) to see if 
 # Support active development
 
 ## Sponsors
-## <a href="https://www.digitalocean.com/?ref=webhook"><img src="https://www.digitalocean.com/assets/media/logos-badges/png/DO_Logo_Horizontal_Blue-3db19536.png" alt="DigitalOcean" width="250"/></a>
+## <a href="https://www.digitalocean.com/?ref=webhook"><img src="http://www.hajdarevic.net/DO_Logo_Horizontal_Blue.png" alt="DigitalOcean" width="250"/></a>
 [DigitalOcean](https://www.digitalocean.com/?ref=webhook) is a simple and robust cloud computing platform, designed for developers.
 
 
