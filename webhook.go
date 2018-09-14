@@ -229,7 +229,11 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 		// parse body
 		var payload map[string]interface{}
 
+		// set contentType to IncomingPayloadContentType or header value
 		contentType := r.Header.Get("Content-Type")
+		if len(matchedHook.IncomingPayloadContentType) != 0 {
+			contentType = matchedHook.IncomingPayloadContentType
+		}
 
 		if strings.Contains(contentType, "json") {
 			decoder := json.NewDecoder(strings.NewReader(string(body)))
