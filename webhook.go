@@ -293,12 +293,16 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 						fmt.Fprintf(w, "Error occurred while executing the hook's command. Please check your logs for more details.")
 					}
 				} else {
+					// Check if a success return code is configured for the hook
+					if matchedHook.SuccessHttpResponseCode != 0 {
+						writeHttpResponseCode(w, rid, matchedHook.ID, matchedHook.HttpResponseCode)
+					}
 					fmt.Fprintf(w, response)
 				}
 			} else {
 				go handleHook(matchedHook, rid, &headers, &query, &payload, &body)
 
-				// Check if a return code is configured for the hook
+				// Check if a success return code is configured for the hook
 				if matchedHook.SuccessHttpResponseCode != 0 {
 					writeHttpResponseCode(w, rid, matchedHook.ID, matchedHook.SuccessHttpResponseCode)
 				}
