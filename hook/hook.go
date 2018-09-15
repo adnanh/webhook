@@ -427,7 +427,7 @@ type Hook struct {
 	TriggerRule                         *Rules          `json:"trigger-rule,omitempty"`
 	TriggerRuleMismatchHttpResponseCode int             `json:"trigger-rule-mismatch-http-response-code,omitempty"`
 	IncomingPayloadContentType          string          `json:"incoming-payload-content-type,omitempty"`	
-	HttpResponseCode                    int             `json:"http-response-code,omitempty"`
+	SuccessHttpResponseCode             int             `json:"success-http-response-code,omitempty"`
 }
 
 // ParseJSONParameters decodes specified arguments to JSON objects and replaces the
