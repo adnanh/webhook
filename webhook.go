@@ -295,7 +295,7 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 				} else {
 					// Check if a success return code is configured for the hook
 					if matchedHook.SuccessHttpResponseCode != 0 {
-						writeHttpResponseCode(w, rid, matchedHook.ID, matchedHook.HttpResponseCode)
+						writeHttpResponseCode(w, rid, matchedHook.ID, matchedHook.SuccessHttpResponseCode)
 					}
 					fmt.Fprintf(w, response)
 				}
