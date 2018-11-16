@@ -93,7 +93,20 @@ Check out [Hook examples page](docs/Hook-Examples.md) for more complex examples 
  - [Webhook & JIRA](https://sites.google.com/site/mrxpalmeiras/notes/jira-webhooks) by [@perfecto25](https://github.com/perfecto25)
  - [Trigger Ansible AWX job runs on SCM (e.g. git) commit](http://jpmens.net/2017/10/23/trigger-awx-job-runs-on-scm-commit/) by [@jpmens](http://mens.de/)
  - [Deploy using GitHub webhooks](https://davidauthier.wearemd.com/blog/deploy-using-github-webhooks.html) by [@awea](https://davidauthier.wearemd.com)
-
+ - [Setting up Automatic Deployment and Builds Using Webhooks](https://willbrowning.me/setting-up-automatic-deployment-and-builds-using-webhooks/) by [Will Browning](https://willbrowning.me/about/)
+ - [Auto deploy your Node.js app on push to GitHub in 3 simple steps](https://webhookrelay.com/blog/2018/07/17/auto-deploy-on-git-push/) by Karolis Rusenas
+ - [Automate Static Site Deployments with Salt, Git, and Webhooks](https://www.linode.com/docs/applications/configuration-management/automate-a-static-site-deployment-with-salt/) by [Linode](https://www.linode.com)
+ - [Using Prometheus to Automatically Scale WebLogic Clusters on Kubernetes](https://blogs.oracle.com/weblogicserver/using-prometheus-to-automatically-scale-weblogic-clusters-on-kubernetes-v5) by [Marina Kogan](https://blogs.oracle.com/author/9a4fe754-1cc2-4c64-95fc-360642b62927)
+ - [Github Pages and Jekyll - A New Platform for LACNIC Labs](https://labs.lacnic.net/a-new-platform-for-lacniclabs/) by [Carlos Martínez Cagnazzo](https://twitter.com/carlosm3011)
+ - [How to Deploy React Apps Using Webhooks and Integrating Slack on Ubuntu](https://www.alibabacloud.com/blog/how-to-deploy-react-apps-using-webhooks-and-integrating-slack-on-ubuntu_594116) by Arslan Ud Din Shafiq
+ - [Private webhooks](https://ihateithe.re/2018/01/private-webhooks/) by [Thomas](https://ihateithe.re/colophon/)
+ - [Adventures in webhooks](https://medium.com/@draketech/adventures-in-webhooks-2d6584501c62) by [Drake](https://medium.com/@draketech)
+ - [GitHub pro tips](http://notes.spencerlyon.com/2016/01/04/github-pro-tips/) by [Spencer Lyon](http://notes.spencerlyon.com/)
+ - [XiaoMi Vacuum + Amazon Button = Dash Cleaning](https://www.instructables.com/id/XiaoMi-Vacuum-Amazon-Button-Dash-Cleaning/) by [c0mmensal](https://www.instructables.com/member/c0mmensal/)
+ - VIDEO: [Gitlab CI/CD configuration using Docker and adnanh/webhook to deploy on VPS - Tutorial #1](https://www.youtube.com/watch?v=Qhn-lXjyrZA&feature=youtu.be) by [Yes! Let's Learn Software Engineering](https://www.youtube.com/channel/UCH4XJf2BZ_52fbf8fOBMF3w)
+ - ...
+ - Want to add your own? Open an Issue or create a PR :-)
+ 
 ## Community Contributions
 See the [webhook-contrib][wc] repository for a collections of tools and helpers related to [webhook][w] that have been contributed by the [webhook][w] community.
 
