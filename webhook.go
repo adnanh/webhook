@@ -185,6 +185,10 @@ func main() {
 		hooksURL = "/" + *hooksURLPrefix + "/{id}"
 	}
 
+	router.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
+		fmt.Fprintf(w, "OK")
+	})
+
 	router.HandleFunc(hooksURL, hookHandler)
 
 	n.UseHandler(router)
