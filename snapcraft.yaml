@@ -1,0 +1,24 @@
+name: webhook
+version: '1.0'
+summary: webhook is a lightweight incoming webhook server to run shell commands  
+description: |
+  webhook is a lightweight incoming webhook server to run shell commands. 
+grade: stable
+confinement: strict
+base: core18
+parts:
+  webhook:
+    plugin: go
+    source: https://github.com/adnanh/webhook.git
+    go-importpath: github.com/adnanh/webhook
+    build-packages:
+      - build-essential
+apps:
+  webhook:
+    command: bin/webhook
+    daemon: simple
+    restart-condition: on-abnormal
+    plugs:
+      - home
+      - network
+      - network-bind
