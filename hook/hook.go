@@ -168,41 +168,36 @@ func CheckScalrSignature(headers map[string]interface{}, body []byte, signingKey
 func CheckIPWhitelist(remoteAddr string, ipRange string) (bool, error) {
 	// Extract IP address from remote address.
 
-	ip := remoteAddr
+	// IPv6 addresses will likely be surrounded by [].
+	ip := strings.Trim(remoteAddr, " []")
 
-	if strings.LastIndex(remoteAddr, ":") != -1 {
-		ip = remoteAddr[0:strings.LastIndex(remoteAddr, ":")]
+	if i := strings.LastIndex(ip, ":"); i != -1 {
+		ip = ip[:i]
 	}
 
-	ip = strings.TrimSpace(ip)
-
-	// IPv6 addresses will likely be surrounded by [], so don't forget to remove those.
-
-	if strings.HasPrefix(ip, "[") && strings.HasSuffix(ip, "]") {
-		ip = ip[1 : len(ip)-1]
-	}
-
-	parsedIP := net.ParseIP(strings.TrimSpace(ip))
-
+	parsedIP := net.ParseIP(ip)
 	if parsedIP == nil {
 		return false, fmt.Errorf("invalid IP address found in remote address '%s'", remoteAddr)
 	}
 
-	// Extract IP range in CIDR form.  If a single IP address is provided, turn it into CIDR form.
+	for _, r := range strings.Fields(ipRange) {
+		// Extract IP range in CIDR form.  If a single IP address is provided, turn it into CIDR form.
 
-	ipRange = strings.TrimSpace(ipRange)
+		if !strings.Contains(r, "/") {
+			r = r + "/32"
+		}
 
-	if !strings.Contains(ipRange, "/") {
-		ipRange = ipRange + "/32"
+		_, cidr, err := net.ParseCIDR(r)
+		if err != nil {
+			return false, err
+		}
+
+		if cidr.Contains(parsedIP) {
+			return true, nil
+		}
 	}
 
-	_, cidr, err := net.ParseCIDR(ipRange)
-
-	if err != nil {
-		return false, err
-	}
-
-	return cidr.Contains(parsedIP), nil
+	return false, nil
 }
 
 // ReplaceParameter replaces parameter value with the passed value in the passed map

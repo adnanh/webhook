@@ -108,6 +108,30 @@ func TestCheckScalrSignature(t *testing.T) {
 	}
 }
 
+var checkIPWhitelistTests = []struct {
+	addr    string
+	ipRange string
+	expect  bool
+	ok      bool
+}{
+	{"[ 10.0.0.1:1234 ] ", "  10.0.0.1 ", true, true},
+	{"[ 10.0.0.1:1234 ] ", "  10.0.0.0 ", false, true},
+	{"[ 10.0.0.1:1234 ] ", "  10.0.0.1 10.0.0.1 ", true, true},
+	{"[ 10.0.0.1:1234 ] ", "  10.0.0.0/31 ", true, true},
+	{" [2001:db8:1:2::1:1234] ", "  2001:db8:1::/48 ", true, true},
+	{" [2001:db8:1:2::1:1234] ", "  2001:db8:1::/48 2001:db8:1::/64", true, true},
+	{" [2001:db8:1:2::1:1234] ", "  2001:db8:1::/64 ", false, true},
+}
+
+func TestCheckIPWhitelist(t *testing.T) {
+	for _, tt := range checkIPWhitelistTests {
+		result, err := CheckIPWhitelist(tt.addr, tt.ipRange)
+		if (err == nil) != tt.ok || result != tt.expect {
+			t.Errorf("ip whitelist test failed {%q, %q}:\nwant {expect:%#v, ok:%#v},\ngot {result:%#v, ok:%#v}", tt.addr, tt.ipRange, tt.expect, tt.ok, result, err)
+		}
+	}
+}
+
 var extractParameterTests = []struct {
 	s      string
 	params interface{}
@@ -129,7 +153,7 @@ var extractParameterTests = []struct {
 	{"a.501.b", map[string]interface{}{"a": []interface{}{map[string]interface{}{"b": "y"}, map[string]interface{}{"b": "z"}}}, "", false}, // non-existent slice index
 	{"a.502.b", map[string]interface{}{"a": []interface{}{}}, "", false},                                                                   // non-existent slice index
 	{"a.b.503", map[string]interface{}{"a": map[string]interface{}{"b": []interface{}{"x", "y", "z"}}}, "", false},                         // trailing, non-existent slice index
-	{"a.b", interface{}("a"), "", false},                                                                                                   // non-map, non-slice input
+	{"a.b", interface{}("a"), "", false}, // non-map, non-slice input
 }
 
 func TestExtractParameter(t *testing.T) {
