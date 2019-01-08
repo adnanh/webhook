@@ -19,6 +19,7 @@ var checkPayloadSignatureTests = []struct {
 	// failures
 	{[]byte(`{"a": "z"}`), "secret", "XXXe04cbb22afa8ffbff8796fc1894ed27badd9e", "b17e04cbb22afa8ffbff8796fc1894ed27badd9e", false},
 	{[]byte(`{"a": "z"}`), "secreX", "b17e04cbb22afa8ffbff8796fc1894ed27badd9e", "900225703e9342328db7307692736e2f7cc7b36e", false},
+	{[]byte(`{"a": "z"}`), "", "b17e04cbb22afa8ffbff8796fc1894ed27badd9e", "", false},
 }
 
 func TestCheckPayloadSignature(t *testing.T) {
@@ -28,7 +29,7 @@ func TestCheckPayloadSignature(t *testing.T) {
 			t.Errorf("failed to check payload signature {%q, %q, %q}:\nexpected {mac:%#v, ok:%#v},\ngot {mac:%#v, ok:%#v}", tt.payload, tt.secret, tt.signature, tt.mac, tt.ok, mac, (err == nil))
 		}
 
-		if err != nil && strings.Contains(err.Error(), tt.mac) {
+		if err != nil && tt.mac != "" && strings.Contains(err.Error(), tt.mac) {
 			t.Errorf("error message should not disclose expected mac: %s", err)
 		}
 	}
@@ -45,6 +46,7 @@ var checkPayloadSignature256Tests = []struct {
 	{[]byte(`{"a": "z"}`), "secret", "sha256=f417af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89", "f417af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89", true},
 	// failures
 	{[]byte(`{"a": "z"}`), "secret", "XXX7af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89", "f417af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89", false},
+	{[]byte(`{"a": "z"}`), "", "XXX7af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89", "", false},
 }
 
 func TestCheckPayloadSignature256(t *testing.T) {
@@ -54,7 +56,7 @@ func TestCheckPayloadSignature256(t *testing.T) {
 			t.Errorf("failed to check payload signature {%q, %q, %q}:\nexpected {mac:%#v, ok:%#v},\ngot {mac:%#v, ok:%#v}", tt.payload, tt.secret, tt.signature, tt.mac, tt.ok, mac, (err == nil))
 		}
 
-		if err != nil && strings.Contains(err.Error(), tt.mac) {
+		if err != nil && tt.mac != "" && strings.Contains(err.Error(), tt.mac) {
 			t.Errorf("error message should not disclose expected mac: %s", err)
 		}
 	}
@@ -92,6 +94,12 @@ var checkScalrSignatureTests = []struct {
 		[]byte(`{"a": "b"}`), "bilFGi4ZVZUdG+C6r0NIM9tuRq6PaG33R3eBUVhLwMAErGBaazvXe4Gq2DcJs5q+",
 		"48e395e38ac48988929167df531eb2da00063a7d", false,
 	},
+	{
+		"Missing signing key",
+		map[string]interface{}{"Date": "Thu 07 Sep 2017 06:30:04 UTC", "X-Signature": "48e395e38ac48988929167df531eb2da00063a7d"},
+		[]byte(`{"a": "b"}`), "",
+		"48e395e38ac48988929167df531eb2da00063a7d", false,
+	},
 }
 
 func TestCheckScalrSignature(t *testing.T) {
@@ -102,7 +110,7 @@ func TestCheckScalrSignature(t *testing.T) {
 				testCase.description, testCase.ok, valid)
 		}
 
-		if err != nil && strings.Contains(err.Error(), testCase.expectedSignature) {
+		if err != nil && testCase.secret != "" && strings.Contains(err.Error(), testCase.expectedSignature) {
 			t.Errorf("error message should not disclose expected mac: %s on test case %s", err, testCase.description)
 		}
 	}

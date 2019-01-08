@@ -94,6 +94,10 @@ func (e *ParseError) Error() string {
 
 // CheckPayloadSignature calculates and verifies SHA1 signature of the given payload
 func CheckPayloadSignature(payload []byte, secret string, signature string) (string, error) {
+	if secret == "" {
+		return "", errors.New("signature validation secret can not be empty")
+	}
+
 	signature = strings.TrimPrefix(signature, "sha1=")
 
 	mac := hmac.New(sha1.New, []byte(secret))
@@ -111,6 +115,10 @@ func CheckPayloadSignature(payload []byte, secret string, signature string) (str
 
 // CheckPayloadSignature256 calculates and verifies SHA256 signature of the given payload
 func CheckPayloadSignature256(payload []byte, secret string, signature string) (string, error) {
+	if secret == "" {
+		return "", errors.New("signature validation secret can not be empty")
+	}
+
 	signature = strings.TrimPrefix(signature, "sha256=")
 
 	mac := hmac.New(sha256.New, []byte(secret))
@@ -134,6 +142,10 @@ func CheckScalrSignature(headers map[string]interface{}, body []byte, signingKey
 	if _, ok := headers["Date"]; !ok {
 		return false, nil
 	}
+	if signingKey == "" {
+		return false, errors.New("signature validation signing key can not be empty")
+	}
+
 	providedSignature := headers["X-Signature"].(string)
 	dateHeader := headers["Date"].(string)
 	mac := hmac.New(sha1.New, []byte(signingKey))
