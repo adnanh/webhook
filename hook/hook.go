@@ -420,6 +420,9 @@ type Hook struct {
 	ResponseHeaders                     ResponseHeaders `json:"response-headers,omitempty"`
 	CaptureCommandOutput                bool            `json:"include-command-output-in-response,omitempty"`
 	CaptureCommandOutputOnError         bool            `json:"include-command-output-in-response-on-error,omitempty"`
+	StreamCommandStdout					bool			`json:"stream-stdout-in-response,omitempty"`
+	StreamCommandStderrOnError			bool			`json:"stream-stderr-in-response-on-error,omitempty"`
+	StreamCommandKillGraceSecs			float64			`json:"stream-command-kill-grace-period-seconds,omitempty"`
 	PassEnvironmentToCommand            []Argument      `json:"pass-environment-to-command,omitempty"`
 	PassArgumentsToCommand              []Argument      `json:"pass-arguments-to-command,omitempty"`
 	PassFileToCommand                   []Argument      `json:"pass-file-to-command,omitempty"`

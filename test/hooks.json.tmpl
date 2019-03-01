@@ -204,5 +204,36 @@
         "name": "passed"
       }
     ],
+  },
+  {
+    "id": "stream-stdout-in-response",
+    "pass-arguments-to-command": [
+      {
+        "source": "string",
+        "name": "exit=0"
+      },
+      {
+        "source": "string",
+        "name": "stream=both"
+      }
+    ],
+    "execute-command": "{{ .Hookecho }}",
+    "stream-stdout-in-response": true
+  },
+  {
+    "id": "stream-stderr-in-response-on-error",
+    "pass-arguments-to-command": [
+      {
+        "source": "string",
+        "name": "exit=1"
+      },
+      {
+        "source": "string",
+        "name": "stream=stderr"
+      }
+    ],
+    "execute-command": "{{ .Hookecho }}",
+    "stream-stdout-in-response": true,
+    "stream-stderr-in-response-on-error": true
   }
 ]

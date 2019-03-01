@@ -114,3 +114,22 @@
 - id: warn-on-space
   execute-command: '{{ .Hookecho }} foo'
   include-command-output-in-response: true
+
+- id: stream-stdout-in-response
+  execute-command: '{{ .Hookecho }}'
+  stream-stdout-in-response: true
+  pass-arguments-to-command:
+  - source: string
+    name: exit=0
+  - source: string
+    name: stream=both
+
+- id: stream-stderr-in-response-on-error
+  execute-command: '{{ .Hookecho }}'
+  stream-stdout-in-response: true
+  stream-stderr-in-response-on-error: true
+  pass-arguments-to-command:
+  - source: string
+    name: exit=1
+  - source: string
+    name: stream=stderr

@@ -20,6 +20,11 @@ import (
 	"github.com/satori/go.uuid"
 
 	fsnotify "gopkg.in/fsnotify.v1"
+	"io"
+	"bytes"
+	"syscall"
+	"context"
+	"bufio"
 )
 
 const (
@@ -199,131 +204,289 @@ func main() {
 
 }
 
-func hookHandler(w http.ResponseWriter, r *http.Request) {
+func lineReader(rdr io.Reader, out io.Writer) <-chan struct{} {
+	done := make(chan struct{})
+	go func() {
+		scanner := bufio.NewScanner(rdr)
+		for scanner.Scan() {
+			fmt.Fprintf(out, "%s\n", scanner.Text())
+		}
+		close(done)
+	}()
+	return done
+}
 
+// combinedOutput simply reads two streams until they terminate and returns the result as a string.
+func combinedOutput(stdout io.Reader, stderr io.Reader) string {
+	outStream := bytes.NewBuffer(nil)
+
+	stdoutdone := lineReader(stdout, outStream)
+	stderrdone := lineReader(stderr, outStream)
+
+	// Order doesn't matter here, we just need both to finish
+	<-stdoutdone
+	<-stderrdone
+
+	return outStream.String()
+}
+
+func hookHandler(w http.ResponseWriter, r *http.Request) {
 	// generate a request id for logging
 	rid := uuid.NewV4().String()[:6]
 
 	log.Printf("[%s] incoming HTTP request from %s\n", rid, r.RemoteAddr)
 
-	for _, responseHeader := range responseHeaders {
-		w.Header().Set(responseHeader.Name, responseHeader.Value)
-	}
-
 	id := mux.Vars(r)["id"]
 
-	if matchedHook := matchLoadedHook(id); matchedHook != nil {
-		log.Printf("[%s] %s got matched\n", rid, id)
+	matchedHook := matchLoadedHook(id)
 
-		body, err := ioutil.ReadAll(r.Body)
+	// Exit early if no hook matches
+	if matchedHook == nil {
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprintf(w, "Hook not found.")
+		return
+	}
+
+
+	log.Printf("[%s] %s got matched\n", rid, id)
+
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		log.Printf("[%s] error reading the request body. %+v\n", rid, err)
+	}
+
+	// parse headers
+	headers := valuesToMap(r.Header)
+
+	// parse query variables
+	query := valuesToMap(r.URL.Query())
+
+	// parse body
+	var payload map[string]interface{}
+
+	contentType := r.Header.Get("Content-Type")
+
+	if strings.Contains(contentType, "json") {
+		decoder := json.NewDecoder(strings.NewReader(string(body)))
+		decoder.UseNumber()
+
+		err := decoder.Decode(&payload)
+
 		if err != nil {
-			log.Printf("[%s] error reading the request body. %+v\n", rid, err)
+			log.Printf("[%s] error parsing JSON payload %+v\n", rid, err)
 		}
-
-		// parse headers
-		headers := valuesToMap(r.Header)
-
-		// parse query variables
-		query := valuesToMap(r.URL.Query())
-
-		// parse body
-		var payload map[string]interface{}
-
-		// set contentType to IncomingPayloadContentType or header value
-		contentType := r.Header.Get("Content-Type")
-		if len(matchedHook.IncomingPayloadContentType) != 0 {
-			contentType = matchedHook.IncomingPayloadContentType
+	} else if strings.Contains(contentType, "form") {
+		fd, err := url.ParseQuery(string(body))
+		if err != nil {
+			log.Printf("[%s] error parsing form payload %+v\n", rid, err)
+		} else {
+			payload = valuesToMap(fd)
 		}
+	}
 
-		if strings.Contains(contentType, "json") {
-			decoder := json.NewDecoder(strings.NewReader(string(body)))
-			decoder.UseNumber()
-
-			err := decoder.Decode(&payload)
-
-			if err != nil {
-				log.Printf("[%s] error parsing JSON payload %+v\n", rid, err)
-			}
-		} else if strings.Contains(contentType, "form") {
-			fd, err := url.ParseQuery(string(body))
-			if err != nil {
-				log.Printf("[%s] error parsing form payload %+v\n", rid, err)
-			} else {
-				payload = valuesToMap(fd)
-			}
-		}
-
-		// handle hook
-		errors := matchedHook.ParseJSONParameters(&headers, &query, &payload)
+	// handle hook
+	if errors := matchedHook.ParseJSONParameters(&headers, &query, &payload); errors != nil {
 		for _, err := range errors {
 			log.Printf("[%s] error parsing JSON parameters: %s\n", rid, err)
 		}
+	}
 
-		var ok bool
-
-		if matchedHook.TriggerRule == nil {
-			ok = true
-		} else {
-			ok, err = matchedHook.TriggerRule.Evaluate(&headers, &query, &payload, &body, r.RemoteAddr)
-			if err != nil {
-				msg := fmt.Sprintf("[%s] error evaluating hook: %s", rid, err)
-				log.Print(msg)
-				w.WriteHeader(http.StatusInternalServerError)
-				fmt.Fprintf(w, "Error occurred while evaluating hook rules.")
-				return
-			}
-		}
-
-		if ok {
-			log.Printf("[%s] %s hook triggered successfully\n", rid, matchedHook.ID)
-
-			for _, responseHeader := range matchedHook.ResponseHeaders {
-				w.Header().Set(responseHeader.Name, responseHeader.Value)
-			}
-
-			if matchedHook.CaptureCommandOutput {
-				response, err := handleHook(matchedHook, rid, &headers, &query, &payload, &body)
-
-				if err != nil {
-					w.WriteHeader(http.StatusInternalServerError)
-					if matchedHook.CaptureCommandOutputOnError {
-						fmt.Fprintf(w, response)
-					} else {
-						w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-						fmt.Fprintf(w, "Error occurred while executing the hook's command. Please check your logs for more details.")
-					}
-				} else {
-					fmt.Fprintf(w, response)
-				}
-			} else {
-				go handleHook(matchedHook, rid, &headers, &query, &payload, &body)
-				fmt.Fprintf(w, matchedHook.ResponseMessage)
-			}
+	if matchedHook.TriggerRule != nil {
+		ok, err := matchedHook.TriggerRule.Evaluate(&headers, &query, &payload, &body, r.RemoteAddr)
+		if err != nil {
+			msg := fmt.Sprintf("[%s] error evaluating hook: %s", rid, err)
+			log.Printf(msg)
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprintf(w, "Error occurred while evaluating hook rules.")
 			return
 		}
 
-		// Check if a return code is configured for the hook
-		if matchedHook.TriggerRuleMismatchHttpResponseCode != 0 {
-			// Check if the configured return code is supported by the http package
-			// by testing if there is a StatusText for this code.
-			if len(http.StatusText(matchedHook.TriggerRuleMismatchHttpResponseCode)) > 0 {
-				w.WriteHeader(matchedHook.TriggerRuleMismatchHttpResponseCode)
-			} else {
-				log.Printf("[%s] %s got matched, but the configured return code %d is unknown - defaulting to 200\n", rid, matchedHook.ID, matchedHook.TriggerRuleMismatchHttpResponseCode)
+		// Trigger rules did not evaluate. Handle an error.
+		if !ok {
+			// Check if a return code is configured for the hook
+			if matchedHook.TriggerRuleMismatchHttpResponseCode != 0 {
+				// Check if the configured return code is supported by the http package
+				// by testing if there is a StatusText for this code.
+				if len(http.StatusText(matchedHook.TriggerRuleMismatchHttpResponseCode)) > 0 {
+					w.WriteHeader(matchedHook.TriggerRuleMismatchHttpResponseCode)
+				} else {
+					log.Printf("[%s] %s got matched, but the configured return code %d is unknown - defaulting to 200\n", rid, matchedHook.ID, matchedHook.TriggerRuleMismatchHttpResponseCode)
+				}
 			}
+
+			// if none of the hooks got triggered
+			log.Printf("[%s] %s got matched, but didn't get triggered because the trigger rules were not satisfied\n", rid, matchedHook.ID)
+
+			fmt.Fprintf(w, "Hook rules were not satisfied.")
+
+			// Bail.
+			return
+		}
+	}
+
+	// Rule evaluated successfully by this point and will be triggered.
+
+	log.Printf("[%s] %s hook triggered successfully\n", rid, matchedHook.ID)
+
+	// if a regular style webhook, use a background context since we want it to run till it's done.
+	// if a streaming webhook, we want to enforce it dies if the user disconnects since it's liable to
+	// block forever otherwise.
+	var ctx context.Context
+	if matchedHook.StreamCommandStdout {
+		ctx = r.Context()
+	} else {
+		ctx = context.Background()
+	}
+
+	stdoutRdr, stderrRdr, errCh := handleHook(ctx, matchedHook, rid, &headers, &query, &payload, &body)
+
+	if matchedHook.StreamCommandStdout {
+		log.Printf("[%s] Hook (%s) is a streaming command hook\n", rid, matchedHook.ID)
+		// Collect stderr to avoid blocking processes and emit it as a string
+		stderrRdy := make(chan string, 1)
+		go func() {
+			stderrOut := bytes.NewBuffer(nil)
+			n, err := io.Copy(stderrOut, stderrRdr)
+			if err != nil {
+				log.Printf("[%s] Hook error while collecting stderr\n", rid)
+			}
+			log.Printf("[%s] Hook logged %d bytes of stderr data\n", rid, n)
+			stderrStr := stderrOut.String()
+			log.Printf("[%s] command stderr: %s\n", rid, stderrStr)
+			stderrRdy <- stderrStr
+			close(stderrRdy)
+		}()
+
+		// Streaming output should commence as soon as the command execution tries to write any data
+		firstByte := make([]byte,1)
+		_, fbErr := stdoutRdr.Read(firstByte)
+		if fbErr != nil && fbErr != io.EOF {
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprintf(w, "Error occurred while trying to read from the process's first byte. Please check your logs for more details.")
+			log.Printf("[%s] Hook error while reading first byte: %v\n", rid, err)
+			return
+		} else if fbErr == io.EOF {
+			log.Printf("[%s] EOF from hook stdout while reading first byte. Waiting for program exit status\n", rid)
+			if err := <- errCh; err != nil {
+				log.Printf("[%s] Hook (%s) returned an error before the first byte. Collecting stderr and failing.\n", rid, matchedHook.ID)
+				w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+				w.WriteHeader(http.StatusInternalServerError)
+				if matchedHook.StreamCommandStderrOnError {
+					// Wait for the stderr buffer to finish collecting
+					if n, err := fmt.Fprint(w, <- stderrRdy); err != nil {
+						msg := fmt.Sprintf("[%s] error while writing user response message (after %d bytes): %s", rid, n, err)
+						log.Printf(msg)
+						return
+					}
+				} else {
+					fmt.Fprintf(w, "Error occurred while executing the hooks command. Please check your logs for more details.")
+				}
+				return	// Cannot proceed beyond here
+			}
+			// early EOF, but program exited successfully so stream as normal.
 		}
 
-		// if none of the hooks got triggered
-		log.Printf("[%s] %s got matched, but didn't get triggered because the trigger rules were not satisfied\n", rid, matchedHook.ID)
+		// Write user success headers
+		for _, responseHeader := range matchedHook.ResponseHeaders {
+			w.Header().Set(responseHeader.Name, responseHeader.Value)
+		}
 
-		fmt.Fprintf(w, "Hook rules were not satisfied.")
+		// Got the first byte (or possibly nothing) successfully. Write the success header, then commence
+		// streaming.
+		w.WriteHeader(http.StatusOK)
+
+		if _, err := w.Write(firstByte); err != nil {
+			// Hard fail, client has disconnected or otherwise we can't continue.
+			msg := fmt.Sprintf("[%s] error while trying to stream first byte: %s", rid, err)
+			log.Printf(msg)
+			return
+		}
+
+		n, err := io.Copy(w, stdoutRdr)
+		if err != nil {
+			msg := fmt.Sprintf("[%s] error while streaming command output (after %d bytes): %s", rid, n, err)
+			log.Printf(msg)
+			return
+		}
+
+		msg := fmt.Sprintf("[%s] Streamed %d bytes", rid, n)
+		log.Printf(msg)
+
 	} else {
-		w.WriteHeader(http.StatusNotFound)
-		fmt.Fprintf(w, "Hook not found.")
+		log.Printf("[%s] Hook (%s) is a conventional command hook\n", rid, matchedHook.ID)
+		// Don't break the original API and just combine the streams (specifically, kick off two readers which
+		// break on newlines and the emit that data in temporal order to the output buffer.
+		out := combinedOutput(stdoutRdr, stderrRdr)
+
+		log.Printf("[%s] command output: %s\n", rid, out)
+
+		err := <-errCh
+
+		log.Printf("[%s] got command execution result: %v", rid, err)
+
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+		} else {
+			for _, responseHeader := range matchedHook.ResponseHeaders {
+				w.Header().Set(responseHeader.Name, responseHeader.Value)
+			}
+			w.WriteHeader(http.StatusOK)
+		}
+
+		if matchedHook.CaptureCommandOutput {
+			if matchedHook.CaptureCommandOutputOnError || err == nil {
+				// Send output if send output on error or no error
+				if n, err := fmt.Fprint(w, out); err != nil {
+					msg := fmt.Sprintf("[%s] error while writing command output (after %d bytes): %s", rid, n, err)
+					log.Printf(msg)
+					return
+				}
+			} else if !matchedHook.CaptureCommandOutputOnError && err != nil {
+				// Have an error but not allowed to send output - send error message
+				w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+				if n, err := fmt.Fprintf(w, "Error occurred while executing the hook's command. Please check your logs for more details."); err != nil {
+					msg := fmt.Sprintf("[%s] error while writing error message (after %d bytes): %s", rid, n, err)
+					log.Printf(msg)
+					return
+				}
+			}
+		} else {
+			// Not capturing command output
+			if err != nil {
+				w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+				if n, err := fmt.Fprintf(w, "Error occurred while executing the hook's command. Please check your logs for more details."); err != nil {
+					msg := fmt.Sprintf("[%s] error while writing user response message (after %d bytes): %s", rid, n, err)
+					log.Printf(msg)
+					return
+				}
+			} else {
+				// Ignore all command output and send the response message
+				if n, err := fmt.Fprint(w, matchedHook.ResponseMessage); err != nil {
+					msg := fmt.Sprintf("[%s] error while writing user response message (after %d bytes): %s", rid, n, err)
+					log.Printf(msg)
+					return
+				}
+			}
+		}
 	}
 }
 
-func handleHook(h *hook.Hook, rid string, headers, query, payload *map[string]interface{}, body *[]byte) (string, error) {
+// errDispatch is a helper to non-blockingly send a single error to a waiting channel and then close it
+func errDispatch(err error) <-chan error {
+	errCh := make(chan error)
+	go func() {
+		errCh <- err
+		close(errCh)
+	}()
+	return errCh
+}
+
+// handleHook sets up and start the hook command, returning readers for stdout and stderr,
+// a channel to return the command result on
+func handleHook(ctx context.Context, h *hook.Hook, rid string, headers, query, payload *map[string]interface{},
+body *[]byte) (io.Reader, io.Reader, <-chan error) {
+
 	var errors []error
 
 	// check the command exists
@@ -337,7 +500,7 @@ func handleHook(h *hook.Hook, rid string, headers, query, payload *map[string]in
 			log.Printf("use 'pass-arguments-to-command' to specify args for '%s'", s)
 		}
 
-		return "", err
+		return bytes.NewBufferString(""), bytes.NewBufferString(""), errDispatch(err)
 	}
 
 	cmd := exec.Command(cmdPath)
@@ -346,6 +509,10 @@ func handleHook(h *hook.Hook, rid string, headers, query, payload *map[string]in
 	cmd.Args, errors = h.ExtractCommandArguments(headers, query, payload)
 	for _, err := range errors {
 		log.Printf("[%s] error extracting command arguments: %s\n", rid, err)
+	}
+
+	for _, err := range errors {
+		log.Printf("[%s] error setting up command pipes: %s\n", rid, err)
 	}
 
 	var envs []string
@@ -383,29 +550,89 @@ func handleHook(h *hook.Hook, rid string, headers, query, payload *map[string]in
 
 	cmd.Env = append(os.Environ(), envs...)
 
+	// Setup stdout and stderr pipe
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return bytes.NewBufferString(""), bytes.NewBufferString(""), errDispatch(err)
+	}
+
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return bytes.NewBufferString(""), bytes.NewBufferString(""), errDispatch(err)
+	}
+
 	log.Printf("[%s] executing %s (%s) with arguments %q and environment %s using %s as cwd\n", rid, h.ExecuteCommand, cmd.Path, cmd.Args, envs, cmd.Dir)
 
-	out, err := cmd.CombinedOutput()
-
-	log.Printf("[%s] command output: %s\n", rid, out)
-
-	if err != nil {
-		log.Printf("[%s] error occurred: %+v\n", rid, err)
+	// Attempt to start the command...
+	if err := cmd.Start(); err != nil {
+		log.Printf("[%s] error occurred on command start: %+v\n", rid, err)
+		return bytes.NewBufferString(""), bytes.NewBufferString(""), errDispatch(err)
 	}
 
-	for i := range files {
-		if files[i].File != nil {
-			log.Printf("[%s] removing file %s\n", rid, files[i].File.Name())
-			err := os.Remove(files[i].File.Name())
-			if err != nil {
-				log.Printf("[%s] error removing file %s [%s]", rid, files[i].File.Name(), err)
+	// From this point on we need to actually wait to emit the error
+	errCh := make(chan error)
+	doneCh := make(chan struct{})
+
+	// Spawn a goroutine to wait for the command to end supply errors
+	go func() {
+		resultErr := cmd.Wait()
+		close(doneCh)	// Close the doneCh immediately so handlers exit correctly.
+		if resultErr != nil {
+			log.Printf("[%s] error occurred: %+v\n", rid, resultErr)
+		}
+
+		for i := range files {
+			if files[i].File != nil {
+				log.Printf("[%s] removing file %s\n", rid, files[i].File.Name())
+				err := os.Remove(files[i].File.Name())
+				if err != nil {
+					log.Printf("[%s] error removing file %s [%s]", rid, files[i].File.Name(), err)
+				}
 			}
 		}
-	}
 
-	log.Printf("[%s] finished handling %s\n", rid, h.ID)
+		log.Printf("[%s] finished handling: %s\n", rid, h.ID)
 
-	return string(out), err
+		errCh <- resultErr
+		close(errCh)
+	}()
+
+	// Spawn a goroutine which checks if the context is ever cancelled, and sends SIGTERM / SIGKILL if it is
+	go func() {
+		ctxDone := ctx.Done()
+
+		select {
+		case <- ctxDone:
+			log.Printf("[%s] Context done (request finished) - killing process.", rid)
+			// AFAIK this works on Win/Mac/Unix - where does it not work?
+			if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {
+				log.Printf("[%s] error sending SIGTERM to process for %s: %s\n", rid, h.ID, err)
+			} else {
+				log.Printf("[%s] Context cancelled sending SIGTERM to process for %s\n", rid, h.ID)
+			}
+		case <- doneCh:
+			// Process has exited, this isn't needed anymore.
+			return
+		}
+
+		// Process may still be alive, so wait the grace period and then send SIGKILL.
+		select {
+		case <- doneCh:
+			// Process exited after timeout - nothing to do.
+			return
+		case <- time.After( time.Duration(float64(time.Second) * h.StreamCommandKillGraceSecs) ):
+			// Timeout beat process exit. Send kill!
+			log.Printf("[%s] Sending SIGKILL to process for %s after grace period of %f seconds\n", rid, h.ID, h.StreamCommandKillGraceSecs)
+			if err := cmd.Process.Kill(); err != nil {
+				log.Printf("[%s] error sending SIGKILL to process for %s: %s\n", rid, h.ID, err)
+			} else {
+				log.Printf("[%s] Sent SIGKILL to process for %s\n", rid, h.ID)
+			}
+		}
+		// Nothing left to do. Everything should be dead now.
+	}()
+
+	return stdout, stderr, errCh
 }
 
 func reloadHooks(hooksFilePath string) {
