@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/adnanh/webhook/hook"
+	"context"
 )
 
 func TestStaticParams(t *testing.T) {
@@ -53,11 +54,15 @@ func TestStaticParams(t *testing.T) {
 	b := &bytes.Buffer{}
 	log.SetOutput(b)
 
-	_, err = handleHook(spHook, "test", &spHeaders, &map[string]interface{}{}, &map[string]interface{}{}, &[]byte{})
+	stdout, stderr, errCh := handleHook(context.Background(), spHook, "test", &spHeaders, &map[string]interface{}{}, &map[string]interface{}{}, &[]byte{})
+
+	combinedOutput(stdout, stderr)
+	err = <- errCh
+
 	if err != nil {
 		t.Fatalf("Unexpected error: %v\n", err)
 	}
-	matched, _ := regexp.MatchString("(?s)command output: .*static-params-name-space", b.String())
+	matched, _ := regexp.MatchString("(?s)finished handling: .*static-params-name-space", b.String())
 	if !matched {
 		t.Fatalf("Unexpected log output:\n%sn", b)
 	}
@@ -618,6 +623,10 @@ env: HOOK_head_commit.timestamp=2013-03-12T08:14:29-07:00
 	// Check logs
 	{"static params should pass", "static-params-ok", nil, `{}`, false, http.StatusOK, "arg: passed\n", `(?s)command output: arg: passed`},
 	{"command with space logs warning", "warn-on-space", nil, `{}`, false, http.StatusInternalServerError, "Error occurred while executing the hook's command. Please check your logs for more details.", `(?s)unable to locate command.*use 'pass[-]arguments[-]to[-]command' to specify args`},
+
+  	// Streaming commands
+	{"streaming response yields stdout only", "stream-stdout-in-response", nil, `{}`, false, http.StatusOK, "arg: exit=0 stream=both\n",``},
+	{"streaming response yields stdout only", "stream-stdout-in-response", nil, `{}`, false, http.StatusOK, "arg: exit=0 stream=both\n",``},
 }
 
 // buffer provides a concurrency-safe bytes.Buffer to tests above.

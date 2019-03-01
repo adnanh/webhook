@@ -1,4 +1,5 @@
-// Hook Echo is a simply utility used for testing the Webhook package.
+// Hook Stream is a simple utility for testing Webhook streaming capability. It spawns a TCP server on execution
+// which echos all connections to its stdout until it receives the string EOF.
 
 package main
 
@@ -8,6 +9,8 @@ import (
 	"strings"
 	"strconv"
 	"io"
+	"net"
+	"bufio"
 )
 
 func checkPrefix(prefixMap map[string]struct{}, prefix string, arg string) bool {
@@ -55,20 +58,50 @@ func main() {
 		}
 	}
 
-	if len(os.Args) > 1 {
-		fmt.Fprintf(outputStream, "arg: %s\n", strings.Join(os.Args[1:], " "))
+	l, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		fmt.Printf("Error starting tcp server: %v\n", err)
+		os.Exit(-1)
 	}
+	defer l.Close()
 
-	var env []string
-	for _, v := range os.Environ() {
-		if strings.HasPrefix(v, "HOOK_") {
-			env = append(env, v)
+	// Emit the address of the server
+	fmt.Printf("%v\n",l.Addr())
+
+	manageCh := make(chan struct{})
+
+	go func() {
+		for {
+			conn, err := l.Accept()
+			if err != nil {
+				fmt.Printf("Error accepting connection: %v\n", err)
+				os.Exit(-1)
+			}
+			go handleRequest(manageCh, outputStream, conn)
 		}
-	}
+	}()
 
-	if len(env) > 0 {
-		fmt.Fprintf(outputStream, "env: %s\n", strings.Join(env, " "))
-	}
+	<- manageCh
+	l.Close()
 
 	os.Exit(exit_code)
+}
+
+// Handles incoming requests.
+func handleRequest(manageCh chan<- struct{}, w io.Writer, conn net.Conn) {
+	defer conn.Close()
+	bio := bufio.NewScanner(conn)
+	for bio.Scan() {
+		if line := strings.TrimSuffix(bio.Text(), "\n"); line == "EOF" {
+			// Request program close
+			select {
+				case manageCh <- struct{}{}:
+					// Request sent.
+				default:
+					// Already closing
+			}
+			break
+		}
+		fmt.Fprintf(w, "%s\n", bio.Text())
+	}
 }
