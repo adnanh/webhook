@@ -19,6 +19,7 @@ var checkPayloadSignatureTests = []struct {
 	// failures
 	{[]byte(`{"a": "z"}`), "secret", "XXXe04cbb22afa8ffbff8796fc1894ed27badd9e", "b17e04cbb22afa8ffbff8796fc1894ed27badd9e", false},
 	{[]byte(`{"a": "z"}`), "secreX", "b17e04cbb22afa8ffbff8796fc1894ed27badd9e", "900225703e9342328db7307692736e2f7cc7b36e", false},
+	{[]byte(`{"a": "z"}`), "", "b17e04cbb22afa8ffbff8796fc1894ed27badd9e", "", false},
 }
 
 func TestCheckPayloadSignature(t *testing.T) {
@@ -28,7 +29,7 @@ func TestCheckPayloadSignature(t *testing.T) {
 			t.Errorf("failed to check payload signature {%q, %q, %q}:\nexpected {mac:%#v, ok:%#v},\ngot {mac:%#v, ok:%#v}", tt.payload, tt.secret, tt.signature, tt.mac, tt.ok, mac, (err == nil))
 		}
 
-		if err != nil && strings.Contains(err.Error(), tt.mac) {
+		if err != nil && tt.mac != "" && strings.Contains(err.Error(), tt.mac) {
 			t.Errorf("error message should not disclose expected mac: %s", err)
 		}
 	}
@@ -45,6 +46,7 @@ var checkPayloadSignature256Tests = []struct {
 	{[]byte(`{"a": "z"}`), "secret", "sha256=f417af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89", "f417af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89", true},
 	// failures
 	{[]byte(`{"a": "z"}`), "secret", "XXX7af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89", "f417af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89", false},
+	{[]byte(`{"a": "z"}`), "", "XXX7af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89", "", false},
 }
 
 func TestCheckPayloadSignature256(t *testing.T) {
@@ -54,7 +56,7 @@ func TestCheckPayloadSignature256(t *testing.T) {
 			t.Errorf("failed to check payload signature {%q, %q, %q}:\nexpected {mac:%#v, ok:%#v},\ngot {mac:%#v, ok:%#v}", tt.payload, tt.secret, tt.signature, tt.mac, tt.ok, mac, (err == nil))
 		}
 
-		if err != nil && strings.Contains(err.Error(), tt.mac) {
+		if err != nil && tt.mac != "" && strings.Contains(err.Error(), tt.mac) {
 			t.Errorf("error message should not disclose expected mac: %s", err)
 		}
 	}
@@ -92,6 +94,12 @@ var checkScalrSignatureTests = []struct {
 		[]byte(`{"a": "b"}`), "bilFGi4ZVZUdG+C6r0NIM9tuRq6PaG33R3eBUVhLwMAErGBaazvXe4Gq2DcJs5q+",
 		"48e395e38ac48988929167df531eb2da00063a7d", false,
 	},
+	{
+		"Missing signing key",
+		map[string]interface{}{"Date": "Thu 07 Sep 2017 06:30:04 UTC", "X-Signature": "48e395e38ac48988929167df531eb2da00063a7d"},
+		[]byte(`{"a": "b"}`), "",
+		"48e395e38ac48988929167df531eb2da00063a7d", false,
+	},
 }
 
 func TestCheckScalrSignature(t *testing.T) {
@@ -102,8 +110,32 @@ func TestCheckScalrSignature(t *testing.T) {
 				testCase.description, testCase.ok, valid)
 		}
 
-		if err != nil && strings.Contains(err.Error(), testCase.expectedSignature) {
+		if err != nil && testCase.secret != "" && strings.Contains(err.Error(), testCase.expectedSignature) {
 			t.Errorf("error message should not disclose expected mac: %s on test case %s", err, testCase.description)
+		}
+	}
+}
+
+var checkIPWhitelistTests = []struct {
+	addr    string
+	ipRange string
+	expect  bool
+	ok      bool
+}{
+	{"[ 10.0.0.1:1234 ] ", "  10.0.0.1 ", true, true},
+	{"[ 10.0.0.1:1234 ] ", "  10.0.0.0 ", false, true},
+	{"[ 10.0.0.1:1234 ] ", "  10.0.0.1 10.0.0.1 ", true, true},
+	{"[ 10.0.0.1:1234 ] ", "  10.0.0.0/31 ", true, true},
+	{" [2001:db8:1:2::1:1234] ", "  2001:db8:1::/48 ", true, true},
+	{" [2001:db8:1:2::1:1234] ", "  2001:db8:1::/48 2001:db8:1::/64", true, true},
+	{" [2001:db8:1:2::1:1234] ", "  2001:db8:1::/64 ", false, true},
+}
+
+func TestCheckIPWhitelist(t *testing.T) {
+	for _, tt := range checkIPWhitelistTests {
+		result, err := CheckIPWhitelist(tt.addr, tt.ipRange)
+		if (err == nil) != tt.ok || result != tt.expect {
+			t.Errorf("ip whitelist test failed {%q, %q}:\nwant {expect:%#v, ok:%#v},\ngot {result:%#v, ok:%#v}", tt.addr, tt.ipRange, tt.expect, tt.ok, result, err)
 		}
 	}
 }
@@ -129,7 +161,7 @@ var extractParameterTests = []struct {
 	{"a.501.b", map[string]interface{}{"a": []interface{}{map[string]interface{}{"b": "y"}, map[string]interface{}{"b": "z"}}}, "", false}, // non-existent slice index
 	{"a.502.b", map[string]interface{}{"a": []interface{}{}}, "", false},                                                                   // non-existent slice index
 	{"a.b.503", map[string]interface{}{"a": map[string]interface{}{"b": []interface{}{"x", "y", "z"}}}, "", false},                         // trailing, non-existent slice index
-	{"a.b", interface{}("a"), "", false},                                                                                                   // non-map, non-slice input
+	{"a.b", interface{}("a"), "", false}, // non-map, non-slice input
 }
 
 func TestExtractParameter(t *testing.T) {

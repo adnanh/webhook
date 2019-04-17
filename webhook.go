@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	version = "2.6.8"
+	version = "2.6.9"
 )
 
 var (
@@ -184,6 +184,10 @@ func main() {
 	} else {
 		hooksURL = "/" + *hooksURLPrefix + "/{id}"
 	}
+
+	router.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
+		fmt.Fprintf(w, "OK")
+	})
 
 	router.HandleFunc(hooksURL, hookHandler)
 

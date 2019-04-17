@@ -94,6 +94,10 @@ func (e *ParseError) Error() string {
 
 // CheckPayloadSignature calculates and verifies SHA1 signature of the given payload
 func CheckPayloadSignature(payload []byte, secret string, signature string) (string, error) {
+	if secret == "" {
+		return "", errors.New("signature validation secret can not be empty")
+	}
+
 	signature = strings.TrimPrefix(signature, "sha1=")
 
 	mac := hmac.New(sha1.New, []byte(secret))
@@ -111,6 +115,10 @@ func CheckPayloadSignature(payload []byte, secret string, signature string) (str
 
 // CheckPayloadSignature256 calculates and verifies SHA256 signature of the given payload
 func CheckPayloadSignature256(payload []byte, secret string, signature string) (string, error) {
+	if secret == "" {
+		return "", errors.New("signature validation secret can not be empty")
+	}
+
 	signature = strings.TrimPrefix(signature, "sha256=")
 
 	mac := hmac.New(sha256.New, []byte(secret))
@@ -134,6 +142,10 @@ func CheckScalrSignature(headers map[string]interface{}, body []byte, signingKey
 	if _, ok := headers["Date"]; !ok {
 		return false, nil
 	}
+	if signingKey == "" {
+		return false, errors.New("signature validation signing key can not be empty")
+	}
+
 	providedSignature := headers["X-Signature"].(string)
 	dateHeader := headers["Date"].(string)
 	mac := hmac.New(sha1.New, []byte(signingKey))
@@ -168,41 +180,36 @@ func CheckScalrSignature(headers map[string]interface{}, body []byte, signingKey
 func CheckIPWhitelist(remoteAddr string, ipRange string) (bool, error) {
 	// Extract IP address from remote address.
 
-	ip := remoteAddr
+	// IPv6 addresses will likely be surrounded by [].
+	ip := strings.Trim(remoteAddr, " []")
 
-	if strings.LastIndex(remoteAddr, ":") != -1 {
-		ip = remoteAddr[0:strings.LastIndex(remoteAddr, ":")]
+	if i := strings.LastIndex(ip, ":"); i != -1 {
+		ip = ip[:i]
 	}
 
-	ip = strings.TrimSpace(ip)
-
-	// IPv6 addresses will likely be surrounded by [], so don't forget to remove those.
-
-	if strings.HasPrefix(ip, "[") && strings.HasSuffix(ip, "]") {
-		ip = ip[1 : len(ip)-1]
-	}
-
-	parsedIP := net.ParseIP(strings.TrimSpace(ip))
-
+	parsedIP := net.ParseIP(ip)
 	if parsedIP == nil {
 		return false, fmt.Errorf("invalid IP address found in remote address '%s'", remoteAddr)
 	}
 
-	// Extract IP range in CIDR form.  If a single IP address is provided, turn it into CIDR form.
+	for _, r := range strings.Fields(ipRange) {
+		// Extract IP range in CIDR form.  If a single IP address is provided, turn it into CIDR form.
 
-	ipRange = strings.TrimSpace(ipRange)
+		if !strings.Contains(r, "/") {
+			r = r + "/32"
+		}
 
-	if !strings.Contains(ipRange, "/") {
-		ipRange = ipRange + "/32"
+		_, cidr, err := net.ParseCIDR(r)
+		if err != nil {
+			return false, err
+		}
+
+		if cidr.Contains(parsedIP) {
+			return true, nil
+		}
 	}
 
-	_, cidr, err := net.ParseCIDR(ipRange)
-
-	if err != nil {
-		return false, err
-	}
-
-	return cidr.Contains(parsedIP), nil
+	return false, nil
 }
 
 // ReplaceParameter replaces parameter value with the passed value in the passed map
