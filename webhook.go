@@ -186,7 +186,7 @@ func main() {
 	}
 
 	router.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
-		fmt.Fprintf(w, "OK")
+		fmt.Fprint(w, "OK")
 	})
 
 	router.HandleFunc(hooksURL, hookHandler)
@@ -273,7 +273,7 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 				msg := fmt.Sprintf("[%s] error evaluating hook: %s", rid, err)
 				log.Print(msg)
 				w.WriteHeader(http.StatusInternalServerError)
-				fmt.Fprintf(w, "Error occurred while evaluating hook rules.")
+				fmt.Fprint(w, "Error occurred while evaluating hook rules.")
 				return
 			}
 		}
@@ -291,17 +291,17 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 				if err != nil {
 					w.WriteHeader(http.StatusInternalServerError)
 					if matchedHook.CaptureCommandOutputOnError {
-						fmt.Fprintf(w, response)
+						fmt.Fprint(w, response)
 					} else {
 						w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-						fmt.Fprintf(w, "Error occurred while executing the hook's command. Please check your logs for more details.")
+						fmt.Fprint(w, "Error occurred while executing the hook's command. Please check your logs for more details.")
 					}
 				} else {
 					// Check if a success return code is configured for the hook
 					if matchedHook.SuccessHttpResponseCode != 0 {
 						writeHttpResponseCode(w, rid, matchedHook.ID, matchedHook.SuccessHttpResponseCode)
 					}
-					fmt.Fprintf(w, response)
+					fmt.Fprint(w, response)
 				}
 			} else {
 				go handleHook(matchedHook, rid, &headers, &query, &payload, &body)
@@ -311,7 +311,7 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 					writeHttpResponseCode(w, rid, matchedHook.ID, matchedHook.SuccessHttpResponseCode)
 				}
 
-				fmt.Fprintf(w, matchedHook.ResponseMessage)
+				fmt.Fprint(w, matchedHook.ResponseMessage)
 			}
 			return
 		}
@@ -324,10 +324,10 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 		// if none of the hooks got triggered
 		log.Printf("[%s] %s got matched, but didn't get triggered because the trigger rules were not satisfied\n", rid, matchedHook.ID)
 
-		fmt.Fprintf(w, "Hook rules were not satisfied.")
+		fmt.Fprint(w, "Hook rules were not satisfied.")
 	} else {
 		w.WriteHeader(http.StatusNotFound)
-		fmt.Fprintf(w, "Hook not found.")
+		fmt.Fprint(w, "Hook not found.")
 	}
 }
 
