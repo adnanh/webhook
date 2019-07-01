@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -190,8 +191,26 @@ func main() {
 	n.UseHandler(router)
 
 	if *secure {
+		os.Setenv("GODEBUG", os.Getenv("GODEBUG")+",tls13=1") // enable TLS 1.3 in GO 1.12
+		cfg := &tls.Config{
+			MinVersion:               tls.VersionTLS12,
+			CurvePreferences:         []tls.CurveID{tls.CurveP521, tls.CurveP384, tls.CurveP256},
+			PreferServerCipherSuites: true,
+			CipherSuites: []uint16{
+				tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+				tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+				tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
+				tls.TLS_RSA_WITH_AES_256_CBC_SHA,
+			},
+		}
+		srv := &http.Server{
+			Addr:         fmt.Sprintf("%s:%d", *ip, *port),
+			Handler:      n,
+			TLSConfig:    cfg,
+			TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler), 0),
+		}
 		log.Printf("serving hooks on https://%s:%d%s", *ip, *port, hooksURL)
-		log.Fatal(http.ListenAndServeTLS(fmt.Sprintf("%s:%d", *ip, *port), *cert, *key, n))
+		log.Fatal(srv.ListenAndServeTLS(*cert, *key))
 	} else {
 		log.Printf("serving hooks on http://%s:%d%s", *ip, *port, hooksURL)
 		log.Fatal(http.ListenAndServe(fmt.Sprintf("%s:%d", *ip, *port), n))
