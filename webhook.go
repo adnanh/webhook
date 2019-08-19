@@ -202,7 +202,13 @@ func main() {
 func hookHandler(w http.ResponseWriter, r *http.Request) {
 
 	// generate a request id for logging
-	rid := uuid.NewV4().String()[:6]
+	uuid, err := uuid.NewV4()
+
+	if err != nil {
+		log.Printf("[%s] error generating uuid %s\n", uuid, err)
+	}
+
+	rid := uuid.String()[:6]
 
 	log.Printf("[%s] incoming HTTP request from %s\n", rid, r.RemoteAddr)
 
