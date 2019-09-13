@@ -222,7 +222,6 @@ func ReplaceParameter(s string, params interface{}, value interface{}) bool {
 
 	if paramsValue := reflect.ValueOf(params); paramsValue.Kind() == reflect.Slice {
 		if paramsValueSliceLength := paramsValue.Len(); paramsValueSliceLength > 0 {
-
 			if p := strings.SplitN(s, ".", 2); len(p) > 1 {
 				index, err := strconv.ParseUint(p[0], 10, 64)
 
@@ -257,8 +256,12 @@ func GetParameter(s string, params interface{}) (interface{}, bool) {
 		return nil, false
 	}
 
-	if paramsValue := reflect.ValueOf(params); paramsValue.Kind() == reflect.Slice {
-		if paramsValueSliceLength := paramsValue.Len(); paramsValueSliceLength > 0 {
+	paramsValue := reflect.ValueOf(params)
+
+	switch paramsValue.Kind() {
+	case reflect.Slice:
+		paramsValueSliceLength := paramsValue.Len()
+		if paramsValueSliceLength > 0 {
 
 			if p := strings.SplitN(s, ".", 2); len(p) > 1 {
 				index, err := strconv.ParseUint(p[0], 10, 64)
@@ -280,18 +283,20 @@ func GetParameter(s string, params interface{}) (interface{}, bool) {
 		}
 
 		return nil, false
-	}
 
-	if p := strings.SplitN(s, ".", 2); len(p) > 1 {
-		if paramsValue := reflect.ValueOf(params); paramsValue.Kind() == reflect.Map {
-			if pValue, ok := params.(map[string]interface{})[p[0]]; ok {
+	case reflect.Map:
+		// Check for raw key
+		if v, ok := params.(map[string]interface{})[s]; ok {
+			return v, true
+		}
+
+		// Checked for dotted references
+		p := strings.SplitN(s, ".", 2)
+		if pValue, ok := params.(map[string]interface{})[p[0]]; ok {
+			if len(p) > 1 {
 				return GetParameter(p[1], pValue)
 			}
-		} else {
-			return nil, false
-		}
-	} else {
-		if pValue, ok := params.(map[string]interface{})[p[0]]; ok {
+
 			return pValue, true
 		}
 	}
