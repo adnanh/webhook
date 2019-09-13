@@ -162,7 +162,6 @@ func CheckScalrSignature(headers map[string]interface{}, body []byte, signingKey
 	}
 	// Example format: Fri 08 Sep 2017 11:24:32 UTC
 	date, err := time.Parse("Mon 02 Jan 2006 15:04:05 MST", dateHeader)
-	//date, err := time.Parse(time.RFC1123, dateHeader)
 	if err != nil {
 		return false, err
 	}
@@ -185,6 +184,7 @@ func CheckIPWhitelist(remoteAddr string, ipRange string) (bool, error) {
 
 	if i := strings.LastIndex(ip, ":"); i != -1 {
 		ip = ip[:i]
+		ip = strings.Trim(ip, " []")
 	}
 
 	parsedIP := net.ParseIP(ip)
@@ -334,7 +334,6 @@ func (ha *Argument) Get(headers, query, payload *map[string]interface{}) (string
 		return ha.Name, true
 	case SourceEntirePayload:
 		r, err := json.Marshal(payload)
-
 		if err != nil {
 			return "", false
 		}
@@ -342,7 +341,6 @@ func (ha *Argument) Get(headers, query, payload *map[string]interface{}) (string
 		return string(r), true
 	case SourceEntireHeaders:
 		r, err := json.Marshal(headers)
-
 		if err != nil {
 			return "", false
 		}
@@ -350,7 +348,6 @@ func (ha *Argument) Get(headers, query, payload *map[string]interface{}) (string
 		return string(r), true
 	case SourceEntireQuery:
 		r, err := json.Marshal(query)
-
 		if err != nil {
 			return "", false
 		}
@@ -440,7 +437,7 @@ type Hook struct {
 // ParseJSONParameters decodes specified arguments to JSON objects and replaces the
 // string with the newly created object
 func (h *Hook) ParseJSONParameters(headers, query, payload *map[string]interface{}) []error {
-	var errors = make([]error, 0)
+	errors := make([]error, 0)
 
 	for i := range h.JSONStringParameters {
 		if arg, ok := h.JSONStringParameters[i].Get(headers, query, payload); ok {
@@ -450,7 +447,6 @@ func (h *Hook) ParseJSONParameters(headers, query, payload *map[string]interface
 			decoder.UseNumber()
 
 			err := decoder.Decode(&newArg)
-
 			if err != nil {
 				errors = append(errors, &ParseError{err})
 				continue
@@ -493,8 +489,8 @@ func (h *Hook) ParseJSONParameters(headers, query, payload *map[string]interface
 // ExtractCommandArguments creates a list of arguments, based on the
 // PassArgumentsToCommand property that is ready to be used with exec.Command()
 func (h *Hook) ExtractCommandArguments(headers, query, payload *map[string]interface{}) ([]string, []error) {
-	var args = make([]string, 0)
-	var errors = make([]error, 0)
+	args := make([]string, 0)
+	errors := make([]error, 0)
 
 	args = append(args, h.ExecuteCommand)
 
@@ -518,8 +514,8 @@ func (h *Hook) ExtractCommandArguments(headers, query, payload *map[string]inter
 // format, based on the PassEnvironmentToCommand property that is ready to be used
 // with exec.Command().
 func (h *Hook) ExtractCommandArgumentsForEnv(headers, query, payload *map[string]interface{}) ([]string, []error) {
-	var args = make([]string, 0)
-	var errors = make([]error, 0)
+	args := make([]string, 0)
+	errors := make([]error, 0)
 	for i := range h.PassEnvironmentToCommand {
 		if arg, ok := h.PassEnvironmentToCommand[i].Get(headers, query, payload); ok {
 			if h.PassEnvironmentToCommand[i].EnvName != "" {
@@ -552,8 +548,8 @@ type FileParameter struct {
 // format, based on the PassFileToCommand property that is ready to be used
 // with exec.Command().
 func (h *Hook) ExtractCommandArgumentsForFile(headers, query, payload *map[string]interface{}) ([]FileParameter, []error) {
-	var args = make([]FileParameter, 0)
-	var errors = make([]error, 0)
+	args := make([]FileParameter, 0)
+	errors := make([]error, 0)
 	for i := range h.PassFileToCommand {
 		if arg, ok := h.PassFileToCommand[i].Get(headers, query, payload); ok {
 
