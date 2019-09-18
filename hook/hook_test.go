@@ -7,6 +7,38 @@ import (
 	"testing"
 )
 
+func TestGetParameter(t *testing.T) {
+	for _, test := range []struct {
+		key    string
+		val    interface{}
+		expect interface{}
+		ok     bool
+	}{
+		// True
+		{"a", map[string]interface{}{"a": "1"}, "1", true},
+		{"a.b", map[string]interface{}{"a.b": "1"}, "1", true},
+		{"a.c", map[string]interface{}{"a": map[string]interface{}{"c": 2}}, 2, true},
+		{"a.1", map[string]interface{}{"a": map[string]interface{}{"1": 3}}, 3, true},
+		{"a.1", map[string]interface{}{"a": []interface{}{"a", "b"}}, "b", true},
+		{"0", []interface{}{"a", "b"}, "a", true},
+
+		// False
+		{"z", map[string]interface{}{"a": "1"}, nil, false},
+		{"a.z", map[string]interface{}{"a": map[string]interface{}{"b": 2}}, nil, false},
+		{"z.b", map[string]interface{}{"a": map[string]interface{}{"z": 2}}, nil, false},
+		{"a.2", map[string]interface{}{"a": []interface{}{"a", "b"}}, nil, false},
+	} {
+		res, ok := GetParameter(test.key, test.val)
+		if ok != test.ok {
+			t.Errorf("unexpected result given {%q, %q}: %t\n", test.key, test.val, ok)
+		}
+
+		if !reflect.DeepEqual(res, test.expect) {
+			t.Errorf("failed given {%q, %q}:\nexpected {%#v}\ngot {%#v}\n", test.key, test.val, test.expect, res)
+		}
+	}
+}
+
 var checkPayloadSignatureTests = []struct {
 	payload   []byte
 	secret    string
