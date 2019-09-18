@@ -33,6 +33,9 @@ $ go get github.com/adnanh/webhook
 to get the latest version of the [webhook][w].
 
 ### Using package manager
+#### Snap store
+[![Get it from the Snap Store](https://snapcraft.io/static/images/badges/en/snap-store-white.svg)](https://snapcraft.io/webhook)
+
 #### Ubuntu
 If you are using Ubuntu linux (17.04 or later), you can install webhook using `sudo apt-get install webhook` which will install community packaged version.
 

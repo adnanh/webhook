@@ -377,3 +377,50 @@ In order to leverage the Signing Key for addtional authentication/security you m
 ]
 
 ```
+
+## Travis CI webhook
+Travis sends webhooks as `payload=<JSON_STRING>`, so the payload needs to be parsed as JSON. Here is an example to run on successful builds of the master branch.
+
+```json
+[
+  {
+    "id": "deploy",
+    "execute-command": "/root/my-server/deployment.sh",
+    "command-working-directory": "/root/my-server",
+    "parse-parameters-as-json": [
+      {
+        "source": "payload",
+        "name": "payload"
+      }
+    ],
+    "trigger-rule":
+    {
+      "and":
+      [
+        {
+          "match":
+          {
+            "type": "value",
+            "value": "passed",
+            "parameter": {
+              "name": "payload.state",
+              "source": "payload"
+            }
+          }
+        },
+        {
+          "match":
+          {
+            "type": "value",
+            "value": "master",
+            "parameter": {
+              "name": "payload.branch",
+              "source": "payload"
+            }
+          }
+        }
+      ]
+    }
+  }
+]
+```
