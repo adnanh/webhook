@@ -76,7 +76,6 @@ func TestWebhook(t *testing.T) {
 
 		for _, tt := range hookHandlerTests {
 			t.Run(tt.desc, func(t *testing.T) {
-
 				ip, port := serverAddress(t)
 				args := []string{fmt.Sprintf("-hooks=%s", configPath), fmt.Sprintf("-ip=%s", ip), fmt.Sprintf("-port=%s", port), "-verbose"}
 
@@ -249,7 +248,7 @@ func serverAddress(t *testing.T) (string, string) {
 func waitForServerReady(t *testing.T, ip, port string) {
 	waitForServer(t,
 		fmt.Sprintf("http://%v:%v/", ip, port),
-		http.StatusNotFound,
+		http.StatusOK,
 		5*time.Second)
 }
 
