@@ -1,47 +1,43 @@
 [
-    {
-	"id": "uname",
-	"execute-command": "uname",
-	"command-working-directory": "/tmp",
-        "response-message": "I got the payload!",
-	"include-command-output-in-response": true,
-	"response-headers":
-	[
-	    {
-		"name": "Access-Control-Allow-Origin",
-		"value": "*"
-	    }
-	],
-	"pass-arguments-to-command":
-	[
-	    {
-		"source": "query",
-		"name": "args"
-	    }
-	],
-    },
-    {
-	"id": "delivery-test-webhack",
-	"execute-command": "/Users/john-paul.foster/go/src/github.com/iZettle/webhook/process_webhook.sh",
-	"command-working-directory": "/tmp",
-	"success-http-response-code": 200,
-	"include-command-output-in-response": true,
-	"pass-arguments-to-command":
-	[
-	    {
-		"source": "entire-payload",
-	    }
-	],
-	"response-headers":
-	[
-	    {
-		"name": "Access-Control-Allow-Origin",
-		"value": "*"
-	    },
-	    {
-		"name": "Content-Type",
-		"value": "application/json"
-	    }	    
-	],
-    }
+	{
+		"id": "uname",
+		"execute-command": "uname",
+		"command-working-directory": "/tmp",
+		"response-message": "I got the payload!",
+		"include-command-output-in-response": true,
+		"response-headers": [
+			{
+				"name": "Access-Control-Allow-Origin",
+				"value": "*"
+			}
+		],
+		"pass-arguments-to-command": [
+			{
+				"source": "query",
+				"name": "args"
+			}
+		]
+	},
+	{
+		"id": "delivery-test-webhack",
+		"execute-command": "~/go_dev/src/github.com/jaypee-f/webhook/process_webhook.sh",
+		"command-working-directory": "/tmp",
+		"success-http-response-code": 200,
+		"include-command-output-in-response": true,
+		"pass-arguments-to-command": [
+			{
+				"source": "entire-payload"
+			}
+		],
+		"response-headers": [
+			{
+				"name": "Access-Control-Allow-Origin",
+				"value": "*"
+			},
+			{
+				"name": "Content-Type",
+				"value": "application/json"
+			}
+		]
+	}
 ]
