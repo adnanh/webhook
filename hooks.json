@@ -20,13 +20,39 @@
 	},
 	{
 		"id": "delivery-test-webhack",
-		"execute-command": "~/go_dev/src/github.com/jaypee-f/webhook/process_webhook.sh",
+		"execute-command": "/Users/kate.manson/go_dev/src/github.com/jaypee-f/webhook/process_webhook.sh",
 		"command-working-directory": "/tmp",
 		"success-http-response-code": 200,
 		"include-command-output-in-response": true,
 		"pass-arguments-to-command": [
 			{
 				"source": "entire-payload"
+			}
+		],
+		"response-headers": [
+			{
+				"name": "Access-Control-Allow-Origin",
+				"value": "*"
+			},
+			{
+				"name": "Content-Type",
+				"value": "application/json"
+			}
+		]
+	},
+	{
+		"id": "delivery-webhack",
+		"execute-command": "/Users/kate.manson/go_dev/src/github.com/iZettle/hackweek-mse-edi-delivery/process_webhook.sh",
+		"command-working-directory": "/Users/kate.manson/go_dev/src/github.com/iZettle/hackweek-mse-edi-delivery/webhook/delivery_data",
+		"success-http-response-code": 201,
+		"include-command-output-in-response": true,
+		"pass-arguments-to-command": [
+			{
+				"source": "payload",
+				"name": "location"
+			},
+			{
+				"source": "entire-payload",
 			}
 		],
 		"response-headers": [
