@@ -17,6 +17,7 @@ import (
 	"math"
 	"net"
 	"net/textproto"
+	"net/url"
 	"os"
 	"reflect"
 	"regexp"
@@ -48,13 +49,19 @@ const (
 
 // SignatureError describes an invalid payload signature passed to Hook.
 type SignatureError struct {
-	Signature string
+	Signature  string
+	Signatures []string
 }
 
 func (e *SignatureError) Error() string {
 	if e == nil {
 		return "<nil>"
 	}
+
+	if e.Signatures != nil {
+		return fmt.Sprintf("invalid payload signatures %s", e.Signatures)
+	}
+
 	return fmt.Sprintf("invalid payload signature %s", e.Signature)
 }
 
@@ -94,13 +101,47 @@ func (e *ParseError) Error() string {
 	return e.Err.Error()
 }
 
+// ExtractCommaSeperatedValues will extract the values matching the key.
+func ExtractCommaSeperatedValues(source, key string) []string {
+	parts := strings.Split(source, ",")
+	values := make([]string, 0)
+	for _, part := range parts {
+		m, err := url.ParseQuery(part)
+		if err != nil {
+			continue
+		}
+
+		// Try to get the value.
+		value := m.Get(key)
+		if value != "" {
+			values = append(values, value)
+		}
+	}
+
+	return values
+}
+
+func ExtractSignatures(signature, key string) []string {
+	// If there are multiple possible matches, let the comma seperated extractor
+	// do it's work.
+	if strings.Contains(signature, ",") {
+		return ExtractCommaSeperatedValues(signature, key)
+	}
+
+	// There were no commas, so just trim the prefix (if it even exists) and
+	// pass it back.
+	return []string{
+		strings.TrimPrefix(signature, key+"="),
+	}
+}
+
 // CheckPayloadSignature calculates and verifies SHA1 signature of the given payload
 func CheckPayloadSignature(payload []byte, secret string, signature string) (string, error) {
 	if secret == "" {
 		return "", errors.New("signature validation secret can not be empty")
 	}
 
-	signature = strings.TrimPrefix(signature, "sha1=")
+	signatures := ExtractSignatures(signature, "sha1")
 
 	mac := hmac.New(sha1.New, []byte(secret))
 	_, err := mac.Write(payload)
@@ -109,10 +150,15 @@ func CheckPayloadSignature(payload []byte, secret string, signature string) (str
 	}
 	expectedMAC := hex.EncodeToString(mac.Sum(nil))
 
-	if !hmac.Equal([]byte(signature), []byte(expectedMAC)) {
-		return expectedMAC, &SignatureError{signature}
+	for _, signature := range signatures {
+		if hmac.Equal([]byte(signature), []byte(expectedMAC)) {
+			return expectedMAC, err
+		}
 	}
-	return expectedMAC, err
+
+	return expectedMAC, &SignatureError{
+		Signatures: signatures,
+	}
 }
 
 // CheckPayloadSignature256 calculates and verifies SHA256 signature of the given payload
@@ -121,7 +167,7 @@ func CheckPayloadSignature256(payload []byte, secret string, signature string) (
 		return "", errors.New("signature validation secret can not be empty")
 	}
 
-	signature = strings.TrimPrefix(signature, "sha256=")
+	signatures := ExtractSignatures(signature, "sha256")
 
 	mac := hmac.New(sha256.New, []byte(secret))
 	_, err := mac.Write(payload)
@@ -151,10 +197,15 @@ func CheckPayloadSignature512(payload []byte, secret string, signature string) (
 	}
 	expectedMAC := hex.EncodeToString(mac.Sum(nil))
 
-	if !hmac.Equal([]byte(signature), []byte(expectedMAC)) {
-		return expectedMAC, &SignatureError{signature}
+	for _, signature := range signatures {
+		if hmac.Equal([]byte(signature), []byte(expectedMAC)) {
+			return expectedMAC, err
+		}
 	}
-	return expectedMAC, err
+
+	return expectedMAC, &SignatureError{
+		Signatures: signatures,
+	}
 }
 
 func CheckScalrSignature(headers map[string]interface{}, body []byte, signingKey string, checkDate bool) (bool, error) {
@@ -177,7 +228,7 @@ func CheckScalrSignature(headers map[string]interface{}, body []byte, signingKey
 	expectedSignature := hex.EncodeToString(mac.Sum(nil))
 
 	if !hmac.Equal([]byte(providedSignature), []byte(expectedSignature)) {
-		return false, &SignatureError{providedSignature}
+		return false, &SignatureError{Signature: providedSignature}
 	}
 
 	if !checkDate {
@@ -192,7 +243,7 @@ func CheckScalrSignature(headers map[string]interface{}, body []byte, signingKey
 	delta := math.Abs(now.Sub(date).Seconds())
 
 	if delta > 300 {
-		return false, &SignatureError{"outdated"}
+		return false, &SignatureError{Signature: "outdated"}
 	}
 	return true, nil
 }
