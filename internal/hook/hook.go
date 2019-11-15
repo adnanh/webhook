@@ -17,7 +17,6 @@ import (
 	"math"
 	"net"
 	"net/textproto"
-	"net/url"
 	"os"
 	"reflect"
 	"regexp"
@@ -102,36 +101,29 @@ func (e *ParseError) Error() string {
 }
 
 // ExtractCommaSeperatedValues will extract the values matching the key.
-func ExtractCommaSeperatedValues(source, key string) []string {
+func ExtractCommaSeperatedValues(source, prefix string) []string {
 	parts := strings.Split(source, ",")
 	values := make([]string, 0)
 	for _, part := range parts {
-		m, err := url.ParseQuery(part)
-		if err != nil {
-			continue
-		}
-
-		// Try to get the value.
-		value := m.Get(key)
-		if value != "" {
-			values = append(values, value)
+		if strings.HasPrefix(part, prefix) {
+			values = append(values, strings.TrimPrefix(part, prefix))
 		}
 	}
 
 	return values
 }
 
-func ExtractSignatures(signature, key string) []string {
+func ExtractSignatures(signature, prefix string) []string {
 	// If there are multiple possible matches, let the comma seperated extractor
 	// do it's work.
 	if strings.Contains(signature, ",") {
-		return ExtractCommaSeperatedValues(signature, key)
+		return ExtractCommaSeperatedValues(signature, prefix)
 	}
 
 	// There were no commas, so just trim the prefix (if it even exists) and
 	// pass it back.
 	return []string{
-		strings.TrimPrefix(signature, key+"="),
+		strings.TrimPrefix(signature, prefix),
 	}
 }
 
@@ -141,7 +133,7 @@ func CheckPayloadSignature(payload []byte, secret string, signature string) (str
 		return "", errors.New("signature validation secret can not be empty")
 	}
 
-	signatures := ExtractSignatures(signature, "sha1")
+	signatures := ExtractSignatures(signature, "sha1=")
 
 	mac := hmac.New(sha1.New, []byte(secret))
 	_, err := mac.Write(payload)
@@ -167,7 +159,7 @@ func CheckPayloadSignature256(payload []byte, secret string, signature string) (
 		return "", errors.New("signature validation secret can not be empty")
 	}
 
-	signatures := ExtractSignatures(signature, "sha256")
+	signatures := ExtractSignatures(signature, "sha256=")
 
 	mac := hmac.New(sha256.New, []byte(secret))
 	_, err := mac.Write(payload)
