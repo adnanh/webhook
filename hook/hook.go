@@ -100,8 +100,8 @@ func (e *ParseError) Error() string {
 	return e.Err.Error()
 }
 
-// ExtractCommaSeperatedValues will extract the values matching the key.
-func ExtractCommaSeperatedValues(source, prefix string) []string {
+// ExtractCommaSeparatedValues will extract the values matching the key.
+func ExtractCommaSeparatedValues(source, prefix string) []string {
 	parts := strings.Split(source, ",")
 	values := make([]string, 0)
 	for _, part := range parts {
@@ -117,7 +117,7 @@ func ExtractSignatures(signature, prefix string) []string {
 	// If there are multiple possible matches, let the comma seperated extractor
 	// do it's work.
 	if strings.Contains(signature, ",") {
-		return ExtractCommaSeperatedValues(signature, prefix)
+		return ExtractCommaSeparatedValues(signature, prefix)
 	}
 
 	// There were no commas, so just trim the prefix (if it even exists) and
