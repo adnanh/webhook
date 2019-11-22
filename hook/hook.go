@@ -32,6 +32,7 @@ const (
 	SourceQuery         string = "url"
 	SourceQueryAlias    string = "query"
 	SourcePayload       string = "payload"
+	SourceContext       string = "context"
 	SourceString        string = "string"
 	SourceEntirePayload string = "entire-payload"
 	SourceEntireQuery   string = "entire-query"
@@ -323,7 +324,7 @@ type Argument struct {
 
 // Get Argument method returns the value for the Argument's key name
 // based on the Argument's source
-func (ha *Argument) Get(headers, query, payload *map[string]interface{}) (string, bool) {
+func (ha *Argument) Get(headers, query, payload *map[string]interface{}, context *map[string]interface{}) (string, bool) {
 	var source *map[string]interface{}
 	key := ha.Name
 
@@ -335,6 +336,8 @@ func (ha *Argument) Get(headers, query, payload *map[string]interface{}) (string
 		source = query
 	case SourcePayload:
 		source = payload
+	case SourceContext:
+		source = context
 	case SourceString:
 		return ha.Name, true
 	case SourceEntirePayload:
@@ -424,6 +427,7 @@ func (h *HooksFiles) Set(value string) error {
 type Hook struct {
 	ID                                  string          `json:"id,omitempty"`
 	ExecuteCommand                      string          `json:"execute-command,omitempty"`
+	ContextProviderCommand              string          `json:"context-provider-command,omitempty"`
 	CommandWorkingDirectory             string          `json:"command-working-directory,omitempty"`
 	ResponseMessage                     string          `json:"response-message,omitempty"`
 	ResponseHeaders                     ResponseHeaders `json:"response-headers,omitempty"`
@@ -441,11 +445,11 @@ type Hook struct {
 
 // ParseJSONParameters decodes specified arguments to JSON objects and replaces the
 // string with the newly created object
-func (h *Hook) ParseJSONParameters(headers, query, payload *map[string]interface{}) []error {
+func (h *Hook) ParseJSONParameters(headers, query, payload *map[string]interface{}, context *map[string]interface{}) []error {
 	errors := make([]error, 0)
 
 	for i := range h.JSONStringParameters {
-		if arg, ok := h.JSONStringParameters[i].Get(headers, query, payload); ok {
+		if arg, ok := h.JSONStringParameters[i].Get(headers, query, payload, context); ok {
 			var newArg map[string]interface{}
 
 			decoder := json.NewDecoder(strings.NewReader(string(arg)))
@@ -464,6 +468,8 @@ func (h *Hook) ParseJSONParameters(headers, query, payload *map[string]interface
 				source = headers
 			case SourcePayload:
 				source = payload
+			case SourceContext:
+				source = context
 			case SourceQuery, SourceQueryAlias:
 				source = query
 			}
@@ -493,14 +499,14 @@ func (h *Hook) ParseJSONParameters(headers, query, payload *map[string]interface
 
 // ExtractCommandArguments creates a list of arguments, based on the
 // PassArgumentsToCommand property that is ready to be used with exec.Command()
-func (h *Hook) ExtractCommandArguments(headers, query, payload *map[string]interface{}) ([]string, []error) {
+func (h *Hook) ExtractCommandArguments(headers, query, payload *map[string]interface{}, context *map[string]interface{}) ([]string, []error) {
 	args := make([]string, 0)
 	errors := make([]error, 0)
 
 	args = append(args, h.ExecuteCommand)
 
 	for i := range h.PassArgumentsToCommand {
-		if arg, ok := h.PassArgumentsToCommand[i].Get(headers, query, payload); ok {
+		if arg, ok := h.PassArgumentsToCommand[i].Get(headers, query, payload, context); ok {
 			args = append(args, arg)
 		} else {
 			args = append(args, "")
@@ -518,11 +524,11 @@ func (h *Hook) ExtractCommandArguments(headers, query, payload *map[string]inter
 // ExtractCommandArgumentsForEnv creates a list of arguments in key=value
 // format, based on the PassEnvironmentToCommand property that is ready to be used
 // with exec.Command().
-func (h *Hook) ExtractCommandArgumentsForEnv(headers, query, payload *map[string]interface{}) ([]string, []error) {
+func (h *Hook) ExtractCommandArgumentsForEnv(headers, query, payload *map[string]interface{}, context *map[string]interface{}) ([]string, []error) {
 	args := make([]string, 0)
 	errors := make([]error, 0)
 	for i := range h.PassEnvironmentToCommand {
-		if arg, ok := h.PassEnvironmentToCommand[i].Get(headers, query, payload); ok {
+		if arg, ok := h.PassEnvironmentToCommand[i].Get(headers, query, payload, context); ok {
 			if h.PassEnvironmentToCommand[i].EnvName != "" {
 				// first try to use the EnvName if specified
 				args = append(args, h.PassEnvironmentToCommand[i].EnvName+"="+arg)
@@ -552,11 +558,11 @@ type FileParameter struct {
 // ExtractCommandArgumentsForFile creates a list of arguments in key=value
 // format, based on the PassFileToCommand property that is ready to be used
 // with exec.Command().
-func (h *Hook) ExtractCommandArgumentsForFile(headers, query, payload *map[string]interface{}) ([]FileParameter, []error) {
+func (h *Hook) ExtractCommandArgumentsForFile(headers, query, payload *map[string]interface{}, context *map[string]interface{}) ([]FileParameter, []error) {
 	args := make([]FileParameter, 0)
 	errors := make([]error, 0)
 	for i := range h.PassFileToCommand {
-		if arg, ok := h.PassFileToCommand[i].Get(headers, query, payload); ok {
+		if arg, ok := h.PassFileToCommand[i].Get(headers, query, payload, context); ok {
 
 			if h.PassFileToCommand[i].EnvName == "" {
 				// if no environment-variable name is set, fall-back on the name
@@ -664,16 +670,16 @@ type Rules struct {
 
 // Evaluate finds the first rule property that is not nil and returns the value
 // it evaluates to
-func (r Rules) Evaluate(headers, query, payload *map[string]interface{}, body *[]byte, remoteAddr string) (bool, error) {
+func (r Rules) Evaluate(headers, query, payload *map[string]interface{}, context *map[string]interface{}, body *[]byte, remoteAddr string) (bool, error) {
 	switch {
 	case r.And != nil:
-		return r.And.Evaluate(headers, query, payload, body, remoteAddr)
+		return r.And.Evaluate(headers, query, payload, context, body, remoteAddr)
 	case r.Or != nil:
-		return r.Or.Evaluate(headers, query, payload, body, remoteAddr)
+		return r.Or.Evaluate(headers, query, payload, context, body, remoteAddr)
 	case r.Not != nil:
-		return r.Not.Evaluate(headers, query, payload, body, remoteAddr)
+		return r.Not.Evaluate(headers, query, payload, context, body, remoteAddr)
 	case r.Match != nil:
-		return r.Match.Evaluate(headers, query, payload, body, remoteAddr)
+		return r.Match.Evaluate(headers, query, payload, context, body, remoteAddr)
 	}
 
 	return false, nil
@@ -683,11 +689,11 @@ func (r Rules) Evaluate(headers, query, payload *map[string]interface{}, body *[
 type AndRule []Rules
 
 // Evaluate AndRule will return true if and only if all of ChildRules evaluate to true
-func (r AndRule) Evaluate(headers, query, payload *map[string]interface{}, body *[]byte, remoteAddr string) (bool, error) {
+func (r AndRule) Evaluate(headers, query, payload *map[string]interface{}, context *map[string]interface{}, body *[]byte, remoteAddr string) (bool, error) {
 	res := true
 
 	for _, v := range r {
-		rv, err := v.Evaluate(headers, query, payload, body, remoteAddr)
+		rv, err := v.Evaluate(headers, query, payload, context, body, remoteAddr)
 		if err != nil {
 			return false, err
 		}
@@ -705,11 +711,11 @@ func (r AndRule) Evaluate(headers, query, payload *map[string]interface{}, body 
 type OrRule []Rules
 
 // Evaluate OrRule will return true if any of ChildRules evaluate to true
-func (r OrRule) Evaluate(headers, query, payload *map[string]interface{}, body *[]byte, remoteAddr string) (bool, error) {
+func (r OrRule) Evaluate(headers, query, payload *map[string]interface{}, context *map[string]interface{}, body *[]byte, remoteAddr string) (bool, error) {
 	res := false
 
 	for _, v := range r {
-		rv, err := v.Evaluate(headers, query, payload, body, remoteAddr)
+		rv, err := v.Evaluate(headers, query, payload, context, body, remoteAddr)
 		if err != nil {
 			return false, err
 		}
@@ -727,8 +733,8 @@ func (r OrRule) Evaluate(headers, query, payload *map[string]interface{}, body *
 type NotRule Rules
 
 // Evaluate NotRule will return true if and only if ChildRule evaluates to false
-func (r NotRule) Evaluate(headers, query, payload *map[string]interface{}, body *[]byte, remoteAddr string) (bool, error) {
-	rv, err := Rules(r).Evaluate(headers, query, payload, body, remoteAddr)
+func (r NotRule) Evaluate(headers, query, payload *map[string]interface{}, context *map[string]interface{}, body *[]byte, remoteAddr string) (bool, error) {
+	rv, err := Rules(r).Evaluate(headers, query, payload, context, body, remoteAddr)
 	return !rv, err
 }
 
@@ -753,15 +759,16 @@ const (
 )
 
 // Evaluate MatchRule will return based on the type
-func (r MatchRule) Evaluate(headers, query, payload *map[string]interface{}, body *[]byte, remoteAddr string) (bool, error) {
+func (r MatchRule) Evaluate(headers, query, payload *map[string]interface{}, context *map[string]interface{}, body *[]byte, remoteAddr string) (bool, error) {
 	if r.Type == IPWhitelist {
 		return CheckIPWhitelist(remoteAddr, r.IPRange)
 	}
+
 	if r.Type == ScalrSignature {
 		return CheckScalrSignature(*headers, *body, r.Secret, true)
 	}
 
-	if arg, ok := r.Parameter.Get(headers, query, payload); ok {
+	if arg, ok := r.Parameter.Get(headers, query, payload, context); ok {
 		switch r.Type {
 		case MatchValue:
 			return arg == r.Value, nil
