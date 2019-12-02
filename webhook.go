@@ -341,8 +341,8 @@ func handleHook(h *hook.Hook, rid string, headers, query, payload *map[string]in
 	// check the command exists
 	cmdPath, err := exec.LookPath(h.ExecuteCommand)
 	if err != nil {
-        // give a last chance, maybe is a relative path
-        relativeToCwd := filepath.Join(h.CommandWorkingDirectory, h.ExecuteCommand)
+		// give a last chance, maybe is a relative path
+		relativeToCwd := filepath.Join(h.CommandWorkingDirectory, h.ExecuteCommand)
 		// check the command exists
 		cmdPath, err = exec.LookPath(relativeToCwd)
 	}
