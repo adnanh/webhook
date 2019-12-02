@@ -5,6 +5,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha1"
 	"crypto/sha256"
+	"crypto/sha512"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -122,6 +123,27 @@ func CheckPayloadSignature256(payload []byte, secret string, signature string) (
 	signature = strings.TrimPrefix(signature, "sha256=")
 
 	mac := hmac.New(sha256.New, []byte(secret))
+	_, err := mac.Write(payload)
+	if err != nil {
+		return "", err
+	}
+	expectedMAC := hex.EncodeToString(mac.Sum(nil))
+
+	if !hmac.Equal([]byte(signature), []byte(expectedMAC)) {
+		return expectedMAC, &SignatureError{signature}
+	}
+	return expectedMAC, err
+}
+
+// CheckPayloadSignature512 calculates and verifies SHA512 signature of the given payload
+func CheckPayloadSignature512(payload []byte, secret string, signature string) (string, error) {
+	if secret == "" {
+		return "", errors.New("signature validation secret can not be empty")
+	}
+
+	signature = strings.TrimPrefix(signature, "sha512=")
+
+	mac := hmac.New(sha512.New, []byte(secret))
 	_, err := mac.Write(payload)
 	if err != nil {
 		return "", err
@@ -748,6 +770,7 @@ const (
 	MatchRegex      string = "regex"
 	MatchHashSHA1   string = "payload-hash-sha1"
 	MatchHashSHA256 string = "payload-hash-sha256"
+	MatchHashSHA512 string = "payload-hash-sha512"
 	IPWhitelist     string = "ip-whitelist"
 	ScalrSignature  string = "scalr-signature"
 )
@@ -772,6 +795,9 @@ func (r MatchRule) Evaluate(headers, query, payload *map[string]interface{}, bod
 			return err == nil, err
 		case MatchHashSHA256:
 			_, err := CheckPayloadSignature256(*body, r.Secret, arg)
+			return err == nil, err
+		case MatchHashSHA512:
+			_, err := CheckPayloadSignature512(*body, r.Secret, arg)
 			return err == nil, err
 		}
 	}

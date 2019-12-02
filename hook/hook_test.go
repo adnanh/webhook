@@ -94,6 +94,33 @@ func TestCheckPayloadSignature256(t *testing.T) {
 	}
 }
 
+var checkPayloadSignature512Tests = []struct {
+	payload   []byte
+	secret    string
+	signature string
+	mac       string
+	ok        bool
+}{
+	{[]byte(`{"a": "z"}`), "secret", "4ab17cc8ec668ead8bf498f87f8f32848c04d5ca3c9bcfcd3db9363f0deb44e580b329502a7fdff633d4d8fca301cc5c94a55a2fec458c675fb0ff2655898324", "4ab17cc8ec668ead8bf498f87f8f32848c04d5ca3c9bcfcd3db9363f0deb44e580b329502a7fdff633d4d8fca301cc5c94a55a2fec458c675fb0ff2655898324", true},
+	{[]byte(`{"a": "z"}`), "secret", "sha512=4ab17cc8ec668ead8bf498f87f8f32848c04d5ca3c9bcfcd3db9363f0deb44e580b329502a7fdff633d4d8fca301cc5c94a55a2fec458c675fb0ff2655898324", "4ab17cc8ec668ead8bf498f87f8f32848c04d5ca3c9bcfcd3db9363f0deb44e580b329502a7fdff633d4d8fca301cc5c94a55a2fec458c675fb0ff2655898324", true},
+	// failures
+	{[]byte(`{"a": "z"}`), "secret", "74a0081f5b5988f4f3e8b8dd34dadc6291611f2e6260635a7e1535f8e95edb97ff520ba8b152e8ca5760ac42639854f3242e29efc81be73a8bf52d474d31ffea", "4ab17cc8ec668ead8bf498f87f8f32848c04d5ca3c9bcfcd3db9363f0deb44e580b329502a7fdff633d4d8fca301cc5c94a55a2fec458c675fb0ff2655898324", false},
+	{[]byte(`{"a": "z"}`), "", "74a0081f5b5988f4f3e8b8dd34dadc6291611f2e6260635a7e1535f8e95edb97ff520ba8b152e8ca5760ac42639854f3242e29efc81be73a8bf52d474d31ffea", "", false},
+}
+
+func TestCheckPayloadSignature512(t *testing.T) {
+	for _, tt := range checkPayloadSignature512Tests {
+		mac, err := CheckPayloadSignature512(tt.payload, tt.secret, tt.signature)
+		if (err == nil) != tt.ok || mac != tt.mac {
+			t.Errorf("failed to check payload signature {%q, %q, %q}:\nexpected {mac:%#v, ok:%#v},\ngot {mac:%#v, ok:%#v}", tt.payload, tt.secret, tt.signature, tt.mac, tt.ok, mac, (err == nil))
+		}
+
+		if err != nil && tt.mac != "" && strings.Contains(err.Error(), tt.mac) {
+			t.Errorf("error message should not disclose expected mac: %s", err)
+		}
+	}
+}
+
 var checkScalrSignatureTests = []struct {
 	description       string
 	headers           map[string]interface{}
