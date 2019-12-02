@@ -617,6 +617,7 @@ env: HOOK_head_commit.timestamp=2013-03-12T08:14:29-07:00
 	// Check logs
 	{"static params should pass", "static-params-ok", nil, `{}`, false, http.StatusOK, "arg: passed\n", `(?s)command output: arg: passed`},
 	{"command with space logs warning", "warn-on-space", nil, `{}`, false, http.StatusInternalServerError, "Error occurred while executing the hook's command. Please check your logs for more details.", `(?s)unable to locate command.*use 'pass[-]arguments[-]to[-]command' to specify args`},
+	{"unsupported content type error", "github", map[string]string{"Content-Type": "nonexistent/format"}, `{}`, false, http.StatusBadRequest, `Hook rules were not satisfied.`, `(?s)error parsing body payload due to unsupported content type header:`},
 }
 
 // buffer provides a concurrency-safe bytes.Buffer to tests above.
