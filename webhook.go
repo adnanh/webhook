@@ -240,7 +240,8 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 			contentType = matchedHook.IncomingPayloadContentType
 		}
 
-		if strings.Contains(contentType, "json") {
+		switch {
+		case strings.Contains(contentType, "json"):
 			decoder := json.NewDecoder(strings.NewReader(string(body)))
 			decoder.UseNumber()
 
@@ -249,13 +250,15 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				log.Printf("[%s] error parsing JSON payload %+v\n", rid, err)
 			}
-		} else if strings.Contains(contentType, "form") {
+		case strings.Contains(contentType, "x-www-form-urlencoded"):
 			fd, err := url.ParseQuery(string(body))
 			if err != nil {
 				log.Printf("[%s] error parsing form payload %+v\n", rid, err)
 			} else {
 				payload = valuesToMap(fd)
 			}
+		default:
+			log.Printf("[%s] error parsing body payload due to unsupported content type header: %s\n", rid, contentType)
 		}
 
 		// handle hook
@@ -272,7 +275,7 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 			ok, err = matchedHook.TriggerRule.Evaluate(&headers, &query, &payload, &body, r.RemoteAddr)
 			if err != nil {
 				msg := fmt.Sprintf("[%s] error evaluating hook: %s", rid, err)
-				log.Print(msg)
+				log.Println(msg)
 				w.WriteHeader(http.StatusInternalServerError)
 				fmt.Fprint(w, "Error occurred while evaluating hook rules.")
 				return
