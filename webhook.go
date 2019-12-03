@@ -1,9 +1,12 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -12,6 +15,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/adnanh/webhook/hook"
@@ -404,10 +408,46 @@ func handleHook(h *hook.Hook, rid string, headers, query, payload *map[string]in
 
 	log.Printf("[%s] executing %s (%s) with arguments %q and environment %s using %s as cwd\n", rid, h.ExecuteCommand, cmd.Path, cmd.Args, envs, cmd.Dir)
 
-	out, err := cmd.CombinedOutput()
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		log.Fatal(err)
+	}
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		log.Fatal(err)
+	}
+	if err := cmd.Start(); err != nil {
+		log.Fatal(err)
+	}
 
-	log.Printf("[%s] command output: %s\n", rid, out)
+	var out bytes.Buffer
 
+	teeout := io.TeeReader(stdout, &out)
+	teeerr := io.TeeReader(stderr, &out)
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	logOut := func(out io.Reader, rid string) {
+		in := bufio.NewScanner(out)
+
+		for in.Scan() {
+			outln := in.Text()
+			log.Printf("[%s] command output: %s\n", rid, outln)
+		}
+		if err := in.Err(); err != nil {
+			log.Printf("[%s] error occurred: %+v\n", rid, err)
+		}
+
+		wg.Done()
+	}
+
+	go logOut(teeout, rid)
+	go logOut(teeerr, rid)
+
+	wg.Wait()
+
+	err = cmd.Wait()
 	if err != nil {
 		log.Printf("[%s] error occurred: %+v\n", rid, err)
 	}
@@ -424,7 +464,7 @@ func handleHook(h *hook.Hook, rid string, headers, query, payload *map[string]in
 
 	log.Printf("[%s] finished handling %s\n", rid, h.ID)
 
-	return string(out), err
+	return out.String(), err
 }
 
 func writeHttpResponseCode(w http.ResponseWriter, rid string, hookId string, responseCode int) {
