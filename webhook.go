@@ -40,6 +40,7 @@ var (
 	cert               = flag.String("cert", "cert.pem", "path to the HTTPS certificate pem file")
 	key                = flag.String("key", "key.pem", "path to the HTTPS certificate private key pem file")
 	justDisplayVersion = flag.Bool("version", false, "display webhook version and quit")
+	justListCiphers    = flag.Bool("list-cipher-suites", false, "list available TLS cipher suites")
 	tlsMinVersion      = flag.String("tls-min-version", "1.2", "minimum TLS version (1.0, 1.1, 1.2, 1.3)")
 	tlsCipherSuites    = flag.String("cipher-suites", "", "comma-separated list of supported TLS cipher suites")
 
@@ -79,6 +80,14 @@ func main() {
 
 	if *justDisplayVersion {
 		fmt.Println("webhook version " + version)
+		os.Exit(0)
+	}
+
+	if *justListCiphers {
+		err := writeTLSSupportedCipherStrings(os.Stdout, getTLSMinVersion(*tlsMinVersion))
+		if err != nil {
+			log.Fatal(err)
+		}
 		os.Exit(0)
 	}
 

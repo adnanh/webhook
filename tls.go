@@ -2,9 +2,33 @@ package main
 
 import (
 	"crypto/tls"
+	"io"
 	"log"
 	"strings"
 )
+
+func writeTLSSupportedCipherStrings(w io.Writer, min uint16) error {
+	for _, c := range CipherSuites() {
+		var found bool
+
+		for _, v := range c.SupportedVersions {
+			if v >= min {
+				found = true
+			}
+		}
+
+		if !found {
+			continue
+		}
+
+		_, err := w.Write([]byte(c.Name + "\n"))
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
 
 // getTLSMinVersion converts a version string into a TLS version ID.
 func getTLSMinVersion(v string) uint16 {
