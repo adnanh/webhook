@@ -20,6 +20,17 @@ Hooks are defined as JSON objects. Please note that in order to be considered va
 * `pass-file-to-command` - specifies a list of entries that will be serialized as a file. Incoming [data](Referencing-Request-Values.md) will be serialized in a request-temporary-file (otherwise parallel calls of the hook would lead to concurrent overwritings of the file). The filename to be addressed within the subsequent script is provided via an environment variable. Use `envname` to specify the name of the environment variable. If `envname` is not provided `HOOK_` and the name used to reference the request value are used. Defining `command-working-directory` will store the file relative to this location, if not provided, the systems temporary file directory will be used.  If `base64decode` is true, the incoming binary data will be base 64 decoded prior to storing it into the file. By default the corresponding file will be removed after the webhook exited.
  * `trigger-rule` - specifies the rule that will be evaluated in order to determine should the hook be triggered. Check [Hook rules page](Hook-Rules.md) to see the list of valid rules and their usage
  * `trigger-rule-mismatch-http-response-code` - specifies the HTTP status code to be returned when the trigger rule is not satisfied
+ * `pre-hook-command` - specifies the command that will be run before the hook gets invoked.
+   * to the STDIN of this command, webhook will pass a JSON string representation of an object with the following properties:
+     * `hookID` - ID of the hook that got matched
+     * `method` - HTTP(s) method used by the client (i.e. GET, POST, etc...)
+     * `URI` - URI which client requested
+     * `host` - value of the `Host` header sent by the client
+     * `remoteAddress` - client's IP address
+     * `query` - object with query parameters and their respective values
+     * `headers` - object with headers and their respective values
+     * `base64EncodedBody` - base64 encoded request body
+    * Output of this command __MUST__ be valid JSON string which will be parsed by the webhook and accessible using the `context` as source when referencing values. 
 
 ## Examples
 Check out [Hook examples page](Hook-Examples.md) for more complex examples of hooks.

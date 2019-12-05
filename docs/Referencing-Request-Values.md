@@ -1,7 +1,18 @@
 # Referencing request values
-There are three types of request values:
+There are four types of request values:
 
-1. HTTP Request Header values
+1. Context values
+
+   These are the values provided by the `pre-hook-command` output.
+   
+   ```json
+   {
+     "source": "context",
+     "name": "parameter-name"
+   }
+   ``` 
+
+2. HTTP Request Header values
 
     ```json
     {
@@ -10,7 +21,7 @@ There are three types of request values:
     }
     ```
 
-2. HTTP Query parameters
+3. HTTP Query parameters
 
     ```json
     {
@@ -19,7 +30,7 @@ There are three types of request values:
     }
     ```
 
-3. Payload (JSON or form-value encoded)
+4. Payload (JSON or form-value encoded)
     ```json
     {
       "source": "payload",
