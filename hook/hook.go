@@ -14,7 +14,9 @@ import (
 	"log"
 	"math"
 	"net"
+	"net/http"
 	"net/textproto"
+	"net/url"
 	"os"
 	"reflect"
 	"regexp"
@@ -423,11 +425,23 @@ func (h *HooksFiles) Set(value string) error {
 	return nil
 }
 
+// PreHookContext is a structure consisted of request context data that will be passed to the pre-hook command
+type PreHookContext struct {
+	HookID            string      `json:"hookID"`
+	Method            string      `json:"method"`
+	Base64EncodedBody string      `json:"base64EncodedBody"`
+	RemoteAddress     string      `json:"remoteAddress"`
+	URI               string      `json:"URI"`
+	Host              string      `json:"host"`
+	Headers           http.Header `json:"headers"`
+	Query             url.Values  `json:"query"`
+}
+
 // Hook type is a structure containing details for a single hook
 type Hook struct {
 	ID                                  string          `json:"id,omitempty"`
 	ExecuteCommand                      string          `json:"execute-command,omitempty"`
-	ContextProviderCommand              string          `json:"context-provider-command,omitempty"`
+	PreHookCommand                      string          `json:"pre-hook-command,omitempty"`
 	CommandWorkingDirectory             string          `json:"command-working-directory,omitempty"`
 	ResponseMessage                     string          `json:"response-message,omitempty"`
 	ResponseHeaders                     ResponseHeaders `json:"response-headers,omitempty"`

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -16,7 +17,6 @@ import (
 	"time"
 
 	"github.com/adnanh/webhook/hook"
-
 	"github.com/codegangsta/negroni"
 	"github.com/gorilla/mux"
 	"github.com/satori/go.uuid"
@@ -222,7 +222,7 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
-			log.Printf("[%s] error reading the request body. %+v\n", rid, err)
+			log.Printf("[%s] error reading the request body: %+v\n", rid, err)
 		}
 
 		// parse headers
@@ -234,77 +234,60 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 		// parse context
 		var context map[string]interface{}
 
-		if matchedHook.ContextProviderCommand != "" {
+		if matchedHook.PreHookCommand != "" {
 			// check the command exists
-			cmdPath, err := exec.LookPath(matchedHook.ContextProviderCommand)
+			preHookCommandPath, err := exec.LookPath(matchedHook.PreHookCommand)
 			if err != nil {
 				// give a last chance, maybe it's a relative path
-				relativeToCwd := filepath.Join(matchedHook.CommandWorkingDirectory, matchedHook.ContextProviderCommand)
+				preHookCommandPathRelativeToCurrentWorkingDirectory := filepath.Join(matchedHook.CommandWorkingDirectory, matchedHook.PreHookCommand)
 				// check the command exists
-				cmdPath, err = exec.LookPath(relativeToCwd)
+				preHookCommandPath, err = exec.LookPath(preHookCommandPathRelativeToCurrentWorkingDirectory)
 			}
 
 			if err != nil {
-				log.Printf("[%s] unable to locate context provider command: '%s', %+v\n", rid, matchedHook.ContextProviderCommand, err)
-				// check if parameters specified in context-provider-command by mistake
-				if strings.IndexByte(matchedHook.ContextProviderCommand, ' ') != -1 {
-					s := strings.Fields(matchedHook.ContextProviderCommand)[0]
-					log.Printf("[%s] please use a wrapper script to provide arguments to context provider command for '%s'\n", rid, s)
+				log.Printf("[%s] unable to locate pre-hook command: '%s', %+v\n", rid, matchedHook.PreHookCommand, err)
+				// check if parameters specified in pre-hook command by mistake
+				if strings.IndexByte(matchedHook.PreHookCommand, ' ') != -1 {
+					s := strings.Fields(matchedHook.PreHookCommand)[0]
+					log.Printf("[%s] please use a wrapper script to provide arguments to pre-hook command for '%s'\n", rid, s)
 				}
 			} else {
-				contextProviderCommandStdin := struct {
-					HookID        string      `json:"hookID"`
-					Method        string      `json:"method"`
-					Body          string      `json:"body"`
-					RemoteAddress string      `json:"remoteAddress"`
-					URI           string      `json:"URI"`
-					Host          string      `json:"host"`
-					Headers       http.Header `json:"headers"`
-					Query         url.Values  `json:"query"`
-				}{
-					HookID:        matchedHook.ID,
-					Method:        r.Method,
-					Body:          string(body),
-					RemoteAddress: r.RemoteAddr,
-					URI:           r.RequestURI,
-					Host:          r.Host,
-					Headers:       r.Header,
-					Query:         r.URL.Query(),
+				preHookCommandStdin := hook.PreHookContext{
+					HookID:            matchedHook.ID,
+					Method:            r.Method,
+					Base64EncodedBody: base64.StdEncoding.EncodeToString(body),
+					RemoteAddress:     r.RemoteAddr,
+					URI:               r.RequestURI,
+					Host:              r.Host,
+					Headers:           r.Header,
+					Query:             r.URL.Query(),
 				}
 
-				stdinJSON, err := json.Marshal(contextProviderCommandStdin)
-
-				if err != nil {
-					log.Printf("[%s] unable to encode context as JSON string for the context provider command: %+v\n", rid, err)
+				if preHookCommandStdinJSONString, err := json.Marshal(preHookCommandStdin); err != nil {
+					log.Printf("[%s] unable to encode pre-hook context as JSON string for the pre-hook command: %+v\n", rid, err)
 				} else {
-					cmd := exec.Command(cmdPath)
-					cmd.Dir = matchedHook.CommandWorkingDirectory
-					cmd.Env = append(os.Environ())
-					stdin, err := cmd.StdinPipe()
+					preHookCommand := exec.Command(preHookCommandPath)
+					preHookCommand.Dir = matchedHook.CommandWorkingDirectory
+					preHookCommand.Env = append(os.Environ())
 
-					if err != nil {
-						log.Printf("[%s] unable to acquire stdin pipe for the context provider command: %+v\n", rid, err)
+					if preHookCommandStdinPipe, err := preHookCommand.StdinPipe(); err != nil {
+						log.Printf("[%s] unable to acquire stdin pipe for the pre-hook command: %+v\n", rid, err)
 					} else {
-						_, err := io.WriteString(stdin, string(stdinJSON))
-						stdin.Close()
+						_, err := io.WriteString(preHookCommandStdinPipe, string(preHookCommandStdinJSONString))
+						preHookCommandStdinPipe.Close()
 						if err != nil {
-							log.Printf("[%s] unable to write to context provider command stdin: %+v\n", rid, err)
+							log.Printf("[%s] unable to write to pre-hook command stdin: %+v\n", rid, err)
 						} else {
-							log.Printf("[%s] executing context provider command %s (%s) using %s as cwd\n", rid, matchedHook.ContextProviderCommand, cmd.Path, cmd.Dir)
-							out, err := cmd.CombinedOutput()
+							log.Printf("[%s] executing pre-hook command %s (%s) using %s as cwd\n", rid, matchedHook.PreHookCommand, preHookCommand.Path, preHookCommand.Dir)
 
-							if err != nil {
-								log.Printf("[%s] unable to execute context provider command: %+v\n", rid, err)
+							if preHookCommandOutput, err := preHookCommand.CombinedOutput(); err != nil {
+								log.Printf("[%s] unable to execute pre-hook command: %+v\n", rid, err)
 							} else {
-								log.Printf("[%s] got context provider command output: %+v\n", rid, string(out))
+								JSONDecoder := json.NewDecoder(strings.NewReader(string(preHookCommandOutput)))
+								JSONDecoder.UseNumber()
 
-								decoder := json.NewDecoder(strings.NewReader(string(out)))
-								decoder.UseNumber()
-
-								err := decoder.Decode(&context)
-
-								if err != nil {
-									log.Printf("[%s] unable to parse context provider command output: %+v\n", rid, err)
+								if err := JSONDecoder.Decode(&context); err != nil {
+									log.Printf("[%s] unable to parse pre-hook command output: %+v\npre-hook command output was: %+v\n", rid, err, string(preHookCommandOutput))
 								}
 							}
 						}
