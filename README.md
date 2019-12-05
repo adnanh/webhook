@@ -26,7 +26,7 @@ If you don't have time to waste configuring, hosting, debugging and maintaining 
 # Getting started
 ## Installation
 ### Building from source
-To get started, first make sure you've properly set up your [Golang](http://golang.org/doc/install) environment and then run the
+To get started, first make sure you've properly set up your [Go](http://golang.org/doc/install) 1.12 or newer environment and then run
 ```bash
 $ go get github.com/adnanh/webhook
 ```
