@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -18,7 +19,7 @@ import (
 
 	"github.com/codegangsta/negroni"
 	"github.com/gorilla/mux"
-	"github.com/satori/go.uuid"
+	uuid "github.com/satori/go.uuid"
 
 	fsnotify "gopkg.in/fsnotify.v1"
 )
@@ -39,6 +40,9 @@ var (
 	cert               = flag.String("cert", "cert.pem", "path to the HTTPS certificate pem file")
 	key                = flag.String("key", "key.pem", "path to the HTTPS certificate private key pem file")
 	justDisplayVersion = flag.Bool("version", false, "display webhook version and quit")
+	justListCiphers    = flag.Bool("list-cipher-suites", false, "list available TLS cipher suites")
+	tlsMinVersion      = flag.String("tls-min-version", "1.2", "minimum TLS version (1.0, 1.1, 1.2, 1.3)")
+	tlsCipherSuites    = flag.String("cipher-suites", "", "comma-separated list of supported TLS cipher suites")
 
 	responseHeaders hook.ResponseHeaders
 	hooksFiles      hook.HooksFiles
@@ -76,6 +80,14 @@ func main() {
 
 	if *justDisplayVersion {
 		fmt.Println("webhook version " + version)
+		os.Exit(0)
+	}
+
+	if *justListCiphers {
+		err := writeTLSSupportedCipherStrings(os.Stdout, getTLSMinVersion(*tlsMinVersion))
+		if err != nil {
+			log.Fatal(err)
+		}
 		os.Exit(0)
 	}
 
@@ -194,18 +206,28 @@ func main() {
 
 	n.UseHandler(router)
 
-	if *secure {
-		log.Printf("serving hooks on https://%s:%d%s", *ip, *port, hooksURL)
-		log.Fatal(http.ListenAndServeTLS(fmt.Sprintf("%s:%d", *ip, *port), *cert, *key, n))
-	} else {
+	if !*secure {
 		log.Printf("serving hooks on http://%s:%d%s", *ip, *port, hooksURL)
 		log.Fatal(http.ListenAndServe(fmt.Sprintf("%s:%d", *ip, *port), n))
 	}
 
+	svr := &http.Server{
+		Addr:    fmt.Sprintf("%s:%d", *ip, *port),
+		Handler: n,
+		TLSConfig: &tls.Config{
+			CipherSuites:             getTLSCipherSuites(*tlsCipherSuites),
+			CurvePreferences:         []tls.CurveID{tls.CurveP521, tls.CurveP384, tls.CurveP256},
+			MinVersion:               getTLSMinVersion(*tlsMinVersion),
+			PreferServerCipherSuites: true,
+		},
+		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler), 0), // disable http/2
+	}
+
+	log.Printf("serving hooks on https://%s:%d%s", *ip, *port, hooksURL)
+	log.Fatal(svr.ListenAndServeTLS(*cert, *key))
 }
 
 func hookHandler(w http.ResponseWriter, r *http.Request) {
-
 	// generate a request id for logging
 	rid := uuid.NewV4().String()[:6]
 
@@ -246,7 +268,6 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 			decoder.UseNumber()
 
 			err := decoder.Decode(&payload)
-
 			if err != nil {
 				log.Printf("[%s] error parsing JSON payload %+v\n", rid, err)
 			}

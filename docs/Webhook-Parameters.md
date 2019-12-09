@@ -3,6 +3,8 @@
 Usage of webhook:
   -cert string
         path to the HTTPS certificate pem file (default "cert.pem")
+  -cipher-suites string
+          comma-separated list of supported TLS cipher suites
   -header value
         response header to return, specified in format name=value, use multiple times to set multiple headers
   -hooks value
@@ -13,6 +15,8 @@ Usage of webhook:
         ip the webhook should serve hooks on (default "0.0.0.0")
   -key string
         path to the HTTPS certificate private key pem file (default "key.pem")
+  -list-cipher-suites
+          list available TLS cipher suites
   -nopanic
         do not panic if hooks cannot be loaded when webhook is not running in verbose mode
   -port int
@@ -21,6 +25,8 @@ Usage of webhook:
         use HTTPS instead of HTTP
   -template
         parse hooks file as a Go template
+  -tls-min-version string
+        minimum TLS version (1.0, 1.1, 1.2, 1.3) (default "1.2")
   -urlprefix string
         url prefix to use for served hooks (protocol://yourserver:port/PREFIX/:hook-id) (default "hooks")
   -verbose

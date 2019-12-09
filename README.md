@@ -26,7 +26,7 @@ If you don't have time to waste configuring, hosting, debugging and maintaining 
 # Getting started
 ## Installation
 ### Building from source
-To get started, first make sure you've properly set up your [Golang](http://golang.org/doc/install) environment and then run the
+To get started, first make sure you've properly set up your [Go](http://golang.org/doc/install) 1.12 or newer environment and then run
 ```bash
 $ go get github.com/adnanh/webhook
 ```
@@ -82,6 +82,8 @@ However, hook defined like that could pose a security threat to your system, bec
 
 ## Using HTTPS
 [webhook][w] by default serves hooks using http. If you want [webhook][w] to serve secure content using https, you can use the `-secure` flag while starting [webhook][w]. Files containing a certificate and matching private key for the server must be provided using the `-cert /path/to/cert.pem` and `-key /path/to/key.pem` flags. If the certificate is signed by a certificate authority, the cert file should be the concatenation of the server's certificate followed by the CA's certificate.
+
+TLS version and cipher suite selection flags are available from the command line. To list available cipher suites, use the `-list-cipher-suites` flag.  The `-tls-min-version` flag can be used with `-list-cipher-suites`.
 
 ## CORS Headers
 If you want to set CORS headers, you can use the `-header name=value` flag while starting [webhook][w] to set the appropriate CORS headers that will be returned with each response.
