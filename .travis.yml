@@ -10,6 +10,10 @@ os:
   - osx
   - windows
 
+arch:
+  - amd64
+  - arm64
+
 matrix:
   fast_finish: true
   allow_failures:
@@ -17,6 +21,10 @@ matrix:
   exclude:
     - os: windows
       go: tip
+    - os: windows
+      arch: arm64
+    - os: osx
+      arch: arm64
 
 install:
   - go get -d -v -t ./...
