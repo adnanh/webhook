@@ -628,3 +628,17 @@ func TestNotRule(t *testing.T) {
 		}
 	}
 }
+
+func TestCompare(t *testing.T) {
+	for _, tt := range []struct {
+		a, b string
+		ok   bool
+	}{
+		{"abcd", "abcd", true},
+		{"zyxw", "abcd", false},
+	} {
+		if ok := compare(tt.a, tt.b); ok != tt.ok {
+			t.Errorf("compare failed for %q and %q: got %v\n", tt.a, tt.b, ok)
+		}
+	}
+}
