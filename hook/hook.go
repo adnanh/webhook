@@ -6,6 +6,7 @@ import (
 	"crypto/sha1"
 	"crypto/sha256"
 	"crypto/sha512"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -787,7 +788,7 @@ func (r MatchRule) Evaluate(headers, query, payload *map[string]interface{}, bod
 	if arg, ok := r.Parameter.Get(headers, query, payload); ok {
 		switch r.Type {
 		case MatchValue:
-			return arg == r.Value, nil
+			return compare(arg, r.Value), nil
 		case MatchRegex:
 			return regexp.MatchString(r.Regex, arg)
 		case MatchHashSHA1:
@@ -802,6 +803,11 @@ func (r MatchRule) Evaluate(headers, query, payload *map[string]interface{}, bod
 		}
 	}
 	return false, nil
+}
+
+// compare is a helper function for constant time string comparisons.
+func compare(a, b string) bool {
+	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
 }
 
 // getenv provides a template function to retrieve OS environment variables.
