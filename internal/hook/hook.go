@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash"
 	"io/ioutil"
 	"log"
 	"math"
@@ -113,17 +114,40 @@ func ExtractCommaSeparatedValues(source, prefix string) []string {
 	return values
 }
 
-func ExtractSignatures(signature, prefix string) []string {
+// ExtractSignatures will extract all the signatures from the source.
+func ExtractSignatures(source, prefix string) []string {
 	// If there are multiple possible matches, let the comma seperated extractor
 	// do it's work.
-	if strings.Contains(signature, ",") {
-		return ExtractCommaSeparatedValues(signature, prefix)
+	if strings.Contains(source, ",") {
+		return ExtractCommaSeparatedValues(source, prefix)
 	}
 
 	// There were no commas, so just trim the prefix (if it even exists) and
 	// pass it back.
 	return []string{
-		strings.TrimPrefix(signature, prefix),
+		strings.TrimPrefix(source, prefix),
+	}
+}
+
+// ValidateMAC will verify that the expected mac for the given hash will match
+// the one provided.
+func ValidateMAC(payload []byte, mac hash.Hash, signatures []string) (string, error) {
+	// Write the payload to the provided hash.
+	_, err := mac.Write(payload)
+	if err != nil {
+		return "", err
+	}
+
+	expectedMAC := hex.EncodeToString(mac.Sum(nil))
+
+	for _, signature := range signatures {
+		if hmac.Equal([]byte(signature), []byte(expectedMAC)) {
+			return expectedMAC, err
+		}
+	}
+
+	return expectedMAC, &SignatureError{
+		Signatures: signatures,
 	}
 }
 
@@ -133,24 +157,11 @@ func CheckPayloadSignature(payload []byte, secret string, signature string) (str
 		return "", errors.New("signature validation secret can not be empty")
 	}
 
+	// Extract the signatures.
 	signatures := ExtractSignatures(signature, "sha1=")
 
-	mac := hmac.New(sha1.New, []byte(secret))
-	_, err := mac.Write(payload)
-	if err != nil {
-		return "", err
-	}
-	expectedMAC := hex.EncodeToString(mac.Sum(nil))
-
-	for _, signature := range signatures {
-		if hmac.Equal([]byte(signature), []byte(expectedMAC)) {
-			return expectedMAC, err
-		}
-	}
-
-	return expectedMAC, &SignatureError{
-		Signatures: signatures,
-	}
+	// Validate the MAC.
+	return ValidateMAC(payload, hmac.New(sha1.New, []byte(secret)), signatures)
 }
 
 // CheckPayloadSignature256 calculates and verifies SHA256 signature of the given payload
@@ -159,19 +170,11 @@ func CheckPayloadSignature256(payload []byte, secret string, signature string) (
 		return "", errors.New("signature validation secret can not be empty")
 	}
 
+	// Extract the signatures.
 	signatures := ExtractSignatures(signature, "sha256=")
 
-	mac := hmac.New(sha256.New, []byte(secret))
-	_, err := mac.Write(payload)
-	if err != nil {
-		return "", err
-	}
-	expectedMAC := hex.EncodeToString(mac.Sum(nil))
-
-	if !hmac.Equal([]byte(signature), []byte(expectedMAC)) {
-		return expectedMAC, &SignatureError{signature}
-	}
-	return expectedMAC, err
+	// Validate the MAC.
+	return ValidateMAC(payload, hmac.New(sha256.New, []byte(secret)), signatures)
 }
 
 // CheckPayloadSignature512 calculates and verifies SHA512 signature of the given payload
@@ -180,24 +183,11 @@ func CheckPayloadSignature512(payload []byte, secret string, signature string) (
 		return "", errors.New("signature validation secret can not be empty")
 	}
 
-	signature = strings.TrimPrefix(signature, "sha512=")
+	// Extract the signatures.
+	signatures := ExtractSignatures(signature, "sha512=")
 
-	mac := hmac.New(sha512.New, []byte(secret))
-	_, err := mac.Write(payload)
-	if err != nil {
-		return "", err
-	}
-	expectedMAC := hex.EncodeToString(mac.Sum(nil))
-
-	for _, signature := range signatures {
-		if hmac.Equal([]byte(signature), []byte(expectedMAC)) {
-			return expectedMAC, err
-		}
-	}
-
-	return expectedMAC, &SignatureError{
-		Signatures: signatures,
-	}
+	// Validate the MAC.
+	return ValidateMAC(payload, hmac.New(sha512.New, []byte(secret)), signatures)
 }
 
 func CheckScalrSignature(headers map[string]interface{}, body []byte, signingKey string, checkDate bool) (bool, error) {
