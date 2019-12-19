@@ -16,11 +16,9 @@ import (
 	"time"
 
 	"github.com/adnanh/webhook/hook"
-
 	"github.com/codegangsta/negroni"
+	"github.com/gofrs/uuid"
 	"github.com/gorilla/mux"
-	uuid "github.com/satori/go.uuid"
-
 	fsnotify "gopkg.in/fsnotify.v1"
 )
 
@@ -229,7 +227,15 @@ func main() {
 
 func hookHandler(w http.ResponseWriter, r *http.Request) {
 	// generate a request id for logging
-	rid := uuid.NewV4().String()[:6]
+	u, err := uuid.NewV4()
+	if err != nil {
+		log.Printf("internal server error: %s", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprint(w, "Internal server error")
+		return
+	}
+
+	rid := u.String()[:6]
 
 	log.Printf("[%s] incoming HTTP request from %s\n", rid, r.RemoteAddr)
 
