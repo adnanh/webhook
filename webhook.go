@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adnanh/webhook/hook"
+	"github.com/adnanh/webhook/internal/hook"
 	"github.com/codegangsta/negroni"
 	"github.com/gofrs/uuid"
 	"github.com/gorilla/mux"
