@@ -26,7 +26,7 @@ Hooks are defined as JSON objects. Please note that in order to be considered va
      * `method` - HTTP(s) method used by the client (i.e. GET, POST, etc...)
      * `URI` - URI which client requested
      * `host` - value of the `Host` header sent by the client
-     * `remoteAddress` - client's IP address
+     * `remoteAddr` - client's IP address and port in the `IP:PORT` format
      * `query` - object with query parameters and their respective values
      * `headers` - object with headers and their respective values
      * `base64EncodedBody` - base64 encoded request body

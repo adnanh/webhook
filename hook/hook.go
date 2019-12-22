@@ -430,7 +430,7 @@ type PreHookContext struct {
 	HookID            string      `json:"hookID"`
 	Method            string      `json:"method"`
 	Base64EncodedBody string      `json:"base64EncodedBody"`
-	RemoteAddress     string      `json:"remoteAddress"`
+	RemoteAddr        string      `json:"remoteAddr"`
 	URI               string      `json:"URI"`
 	Host              string      `json:"host"`
 	Headers           http.Header `json:"headers"`

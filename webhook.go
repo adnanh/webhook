@@ -256,7 +256,7 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 					HookID:            matchedHook.ID,
 					Method:            r.Method,
 					Base64EncodedBody: base64.StdEncoding.EncodeToString(body),
-					RemoteAddress:     r.RemoteAddr,
+					RemoteAddr:        r.RemoteAddr,
 					URI:               r.RequestURI,
 					Host:              r.Host,
 					Headers:           r.Header,
