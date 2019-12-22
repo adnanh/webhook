@@ -4,7 +4,9 @@ Usage of webhook:
   -cert string
         path to the HTTPS certificate pem file (default "cert.pem")
   -cipher-suites string
-          comma-separated list of supported TLS cipher suites
+        comma-separated list of supported TLS cipher suites
+  -debug
+        show debug output
   -header value
         response header to return, specified in format name=value, use multiple times to set multiple headers
   -hooks value
@@ -16,7 +18,7 @@ Usage of webhook:
   -key string
         path to the HTTPS certificate private key pem file (default "key.pem")
   -list-cipher-suites
-          list available TLS cipher suites
+        list available TLS cipher suites
   -nopanic
         do not panic if hooks cannot be loaded when webhook is not running in verbose mode
   -port int
@@ -33,6 +35,10 @@ Usage of webhook:
         show verbose output
   -version
         display webhook version and quit
+  -x-request-id
+        use X-Request-Id header, if present, as request ID
+  -x-request-id-limit int
+        truncate X-Request-Id header to limit; default no limit
 ```
 
 Use any of the above specified flags to override their default behavior.
