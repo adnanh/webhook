@@ -46,6 +46,7 @@ var (
 	tlsCipherSuites    = flag.String("cipher-suites", "", "comma-separated list of supported TLS cipher suites")
 	useXRequestID      = flag.Bool("x-request-id", false, "use X-Request-Id header, if present, as request ID")
 	xRequestIDLimit    = flag.Int("x-request-id-limit", 0, "truncate X-Request-Id header to limit; default no limit")
+	maxMultipartMem    = flag.Int64("max-multipart-mem", 1<<20, "maximum memory in bytes for parsing multipart form data before disk caching")
 
 	responseHeaders hook.ResponseHeaders
 	hooksFiles      hook.HooksFiles
@@ -230,9 +231,24 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 	if matchedHook := matchLoadedHook(id); matchedHook != nil {
 		log.Printf("[%s] %s got matched\n", rid, id)
 
-		body, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			log.Printf("[%s] error reading the request body. %+v\n", rid, err)
+		var (
+			body []byte
+			err  error
+		)
+
+		// set contentType to IncomingPayloadContentType or header value
+		contentType := r.Header.Get("Content-Type")
+		if len(matchedHook.IncomingPayloadContentType) != 0 {
+			contentType = matchedHook.IncomingPayloadContentType
+		}
+
+		isMultipart := strings.HasPrefix(contentType, "multipart/form-data;")
+
+		if !isMultipart {
+			body, err = ioutil.ReadAll(r.Body)
+			if err != nil {
+				log.Printf("[%s] error reading the request body: %+v\n", rid, err)
+			}
 		}
 
 		// parse headers
@@ -244,21 +260,16 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 		// parse body
 		var payload map[string]interface{}
 
-		// set contentType to IncomingPayloadContentType or header value
-		contentType := r.Header.Get("Content-Type")
-		if len(matchedHook.IncomingPayloadContentType) != 0 {
-			contentType = matchedHook.IncomingPayloadContentType
-		}
-
 		switch {
 		case strings.Contains(contentType, "json"):
-			decoder := json.NewDecoder(strings.NewReader(string(body)))
+			decoder := json.NewDecoder(bytes.NewReader(body))
 			decoder.UseNumber()
 
 			err := decoder.Decode(&payload)
 			if err != nil {
 				log.Printf("[%s] error parsing JSON payload %+v\n", rid, err)
 			}
+
 		case strings.Contains(contentType, "x-www-form-urlencoded"):
 			fd, err := url.ParseQuery(string(body))
 			if err != nil {
@@ -266,11 +277,76 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 			} else {
 				payload = valuesToMap(fd)
 			}
+
 		case strings.Contains(contentType, "xml"):
 			payload, err = mxj.NewMapXmlReader(bytes.NewReader(body))
 			if err != nil {
 				log.Printf("[%s] error parsing XML payload: %+v\n", rid, err)
 			}
+
+		case isMultipart:
+			err = r.ParseMultipartForm(*maxMultipartMem)
+			if err != nil {
+				msg := fmt.Sprintf("[%s] error parsing multipart form: %+v\n", rid, err)
+				log.Println(msg)
+				w.WriteHeader(http.StatusInternalServerError)
+				fmt.Fprint(w, "Error occurred while parsing multipart form.")
+				return
+			}
+
+			for k, v := range r.MultipartForm.File {
+				// Force parsing as JSON regardless of Content-Type.
+				var parseAsJSON bool
+				for _, j := range matchedHook.JSONStringParameters {
+					if j.Source == "payload" && j.Name == k {
+						parseAsJSON = true
+						break
+					}
+				}
+
+				// FIXME(moorereason): we need to support multiple parts
+				// with the same name instead of just processing the first
+				// one. Will need #215 resolved first.
+
+				// MIME encoding can contain duplicate headers, so check them
+				// all.
+				if !parseAsJSON && len(v[0].Header["Content-Type"]) > 0 {
+					for _, j := range v[0].Header["Content-Type"] {
+						if j == "application/json" {
+							parseAsJSON = true
+							break
+						}
+					}
+				}
+
+				if parseAsJSON {
+					log.Printf("[%s] parsing multipart part %q as JSON\n", rid, k)
+
+					f, err := v[0].Open()
+					if err != nil {
+						msg := fmt.Sprintf("[%s] error parsing multipart form part: %+v\n", rid, err)
+						log.Println(msg)
+						w.WriteHeader(http.StatusInternalServerError)
+						fmt.Fprint(w, "Error occurred while parsing multipart form part.")
+						return
+					}
+
+					decoder := json.NewDecoder(f)
+					decoder.UseNumber()
+
+					var part map[string]interface{}
+					err = decoder.Decode(&part)
+					if err != nil {
+						log.Printf("[%s] error parsing JSON payload part: %+v\n", rid, err)
+					}
+
+					if payload == nil {
+						payload = make(map[string]interface{})
+					}
+					payload[k] = part
+				}
+			}
+
 		default:
 			log.Printf("[%s] error parsing body payload due to unsupported content type header: %s\n", rid, contentType)
 		}
