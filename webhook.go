@@ -294,6 +294,17 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
+			for k, v := range r.MultipartForm.Value {
+				log.Printf("[%s] found multipart form value %q", rid, k)
+
+				if payload == nil {
+					payload = make(map[string]interface{})
+				}
+
+				// TODO(moorereason): support duplicate, named values
+				payload[k] = v[0]
+			}
+
 			for k, v := range r.MultipartForm.File {
 				// Force parsing as JSON regardless of Content-Type.
 				var parseAsJSON bool
@@ -304,7 +315,7 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 
-				// FIXME(moorereason): we need to support multiple parts
+				// TODO(moorereason): we need to support multiple parts
 				// with the same name instead of just processing the first
 				// one. Will need #215 resolved first.
 
@@ -320,14 +331,14 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 				}
 
 				if parseAsJSON {
-					log.Printf("[%s] parsing multipart part %q as JSON\n", rid, k)
+					log.Printf("[%s] parsing multipart form file %q as JSON\n", rid, k)
 
 					f, err := v[0].Open()
 					if err != nil {
-						msg := fmt.Sprintf("[%s] error parsing multipart form part: %+v\n", rid, err)
+						msg := fmt.Sprintf("[%s] error parsing multipart form file: %+v\n", rid, err)
 						log.Println(msg)
 						w.WriteHeader(http.StatusInternalServerError)
-						fmt.Fprint(w, "Error occurred while parsing multipart form part.")
+						fmt.Fprint(w, "Error occurred while parsing multipart form file.")
 						return
 					}
 
@@ -337,7 +348,7 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 					var part map[string]interface{}
 					err = decoder.Decode(&part)
 					if err != nil {
-						log.Printf("[%s] error parsing JSON payload part: %+v\n", rid, err)
+						log.Printf("[%s] error parsing JSON payload file: %+v\n", rid, err)
 					}
 
 					if payload == nil {

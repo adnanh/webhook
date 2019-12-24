@@ -479,39 +479,7 @@ Given the following payload:
 
 Example of a [Plex Media Server webhook](https://support.plex.tv/articles/115002267687-webhooks/).
 The Plex Media Server will send two parts: payload and thumb.
-
-```json
-[
-  {
-    "id": "plex",
-    "execute-command": "play-command.sh",
-    "trigger-rule":
-    {
-      "match":
-      {
-        "type": "value",
-        "parameter": {
-          "source": "payload"
-          "name": "payload.event",
-        },
-        "value": "media.play"
-      }
-    }
-  }
-]
-```
-
-Each part of a multipart form data body will have a `Content-Disposition` header.
-An example header:
-
-```
-Content-Disposition: form-data; name="payload"; filename="payload.json"
-```
-
-We key off of the `name` attribute in the `Content-Disposition` value.
-
-If the named part is JSON but has an incorrect `Content-Type`,
-use the `parse-parameters-as-json` setting to force it to be parsed as JSON:
+We only care about the payload part.
 
 ```json
 [
@@ -530,8 +498,8 @@ use the `parse-parameters-as-json` setting to force it to be parsed as JSON:
       {
         "type": "value",
         "parameter": {
-          "source": "payload"
-          "name": "payload.event",
+          "source": "payload",
+          "name": "payload.event"
         },
         "value": "media.play"
       }
@@ -540,3 +508,13 @@ use the `parse-parameters-as-json` setting to force it to be parsed as JSON:
 ]
 
 ```
+
+Each part of a multipart form data body will have a `Content-Disposition` header.
+Some example headers:
+
+```
+Content-Disposition: form-data; name="payload"
+Content-Disposition: form-data; name="thumb"; filename="thumb.jpg"
+```
+
+We key off of the `name` attribute in the `Content-Disposition` value.

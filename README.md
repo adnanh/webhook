@@ -78,27 +78,16 @@ By performing a simple HTTP GET or POST request to that endpoint, your specified
 However, hook defined like that could pose a security threat to your system, because anyone who knows your endpoint, can send a request and execute your command. To prevent that, you can use the `"trigger-rule"` property for your hook, to specify the exact circumstances under which the hook would be triggered. For example, you can use them to add a secret that you must supply as a parameter in order to successfully trigger the hook. Please check out the [Hook rules page](docs/Hook-Rules.md) for detailed list of available rules and their  usage.
 
 ## Multipart Form Data
-
 [webhook][w] provides limited support the parsing of multipart form data.
-Upon receiving a `multipart/form-data` request, [webhook][w] steps through the named parts and parses all parts that match one of the following criteria:
+Multipart form data can contain two types of parts: values and files.
+All form _values_ are automatically added to the `payload` scope.
+Use the `parse-parameters-as-json` settings to parse a given value as JSON.
+All files are ignored unless they match one of the following criteria:
 
-1. The `Content-Type` header is a supported type (only JSON is supported so far).
+1. The `Content-Type` header is `application/json`.
 1. The part is named in the `parse-parameters-as-json` setting.
 
-The named part will be accessible from the `payload` source by referencing the name of the part.
-For example, given a named part of "command", a match rule could look similar to the following:
-
-```json
-{
-  "match": {
-    "type": "value",
-    "parameter": {
-      "source": "payload",
-      "name": "command.event",
-    },
-    "value": "media.play"
-}
-```
+In either case, the given file part will be parsed as JSON and added to the `payload` map.
 
 ## Templates
 [webhook][w] can parse the `hooks.json` input file as a Go template when given the `-template` [CLI parameter](docs/Webhook-Parameters.md). See the [Templates page](docs/Templates.md) for more details on template usage.
