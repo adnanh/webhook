@@ -16,8 +16,8 @@ import (
 	"time"
 
 	"github.com/adnanh/webhook/internal/hook"
-	"github.com/codegangsta/negroni"
-	"github.com/gofrs/uuid"
+	"github.com/adnanh/webhook/internal/middleware"
+	chimiddleware "github.com/go-chi/chi/middleware"
 	"github.com/gorilla/mux"
 	fsnotify "gopkg.in/fsnotify.v1"
 )
@@ -30,6 +30,7 @@ var (
 	ip                 = flag.String("ip", "0.0.0.0", "ip the webhook should serve hooks on")
 	port               = flag.Int("port", 9000, "port the webhook should serve hooks on")
 	verbose            = flag.Bool("verbose", false, "show verbose output")
+	debug              = flag.Bool("debug", false, "show debug output")
 	noPanic            = flag.Bool("nopanic", false, "do not panic if hooks cannot be loaded when webhook is not running in verbose mode")
 	hotReload          = flag.Bool("hotreload", false, "watch hooks file for changes and reload them automatically")
 	hooksURLPrefix     = flag.String("urlprefix", "hooks", "url prefix to use for served hooks (protocol://yourserver:port/PREFIX/:hook-id)")
@@ -41,6 +42,8 @@ var (
 	justListCiphers    = flag.Bool("list-cipher-suites", false, "list available TLS cipher suites")
 	tlsMinVersion      = flag.String("tls-min-version", "1.2", "minimum TLS version (1.0, 1.1, 1.2, 1.3)")
 	tlsCipherSuites    = flag.String("cipher-suites", "", "comma-separated list of supported TLS cipher suites")
+	useXRequestID      = flag.Bool("x-request-id", false, "use X-Request-Id header, if present, as request ID")
+	xRequestIDLimit    = flag.Int("x-request-id-limit", 0, "truncate X-Request-Id header to limit; default no limit")
 
 	responseHeaders hook.ResponseHeaders
 	hooksFiles      hook.HooksFiles
@@ -87,6 +90,10 @@ func main() {
 			log.Fatal(err)
 		}
 		os.Exit(0)
+	}
+
+	if *debug {
+		*verbose = true
 	}
 
 	if len(hooksFiles) == 0 {
@@ -165,60 +172,42 @@ func main() {
 		go watchForFileChange()
 	}
 
-	l := negroni.NewLogger()
+	r := mux.NewRouter()
 
-	l.SetFormat("{{.Status}} | {{.Duration}} | {{.Hostname}} | {{.Method}} {{.Path}} \n")
+	r.Use(middleware.RequestID(
+		middleware.UseXRequestIDHeaderOption(*useXRequestID),
+		middleware.XRequestIDLimitOption(*xRequestIDLimit),
+	))
+	r.Use(middleware.NewLogger())
+	r.Use(chimiddleware.Recoverer)
 
-	standardLogger := log.New(os.Stdout, "[webhook] ", log.Ldate|log.Ltime)
-
-	if !*verbose {
-		standardLogger.SetOutput(ioutil.Discard)
+	if *debug {
+		r.Use(middleware.Dumper(log.Writer()))
 	}
 
-	l.ALogger = standardLogger
+	hooksURL := makeURL(hooksURLPrefix)
 
-	negroniRecovery := &negroni.Recovery{
-		Logger:     l.ALogger,
-		PrintStack: true,
-		StackAll:   false,
-		StackSize:  1024 * 8,
-	}
-
-	n := negroni.New(negroniRecovery, l)
-
-	router := mux.NewRouter()
-
-	var hooksURL string
-
-	if *hooksURLPrefix == "" {
-		hooksURL = "/{id}"
-	} else {
-		hooksURL = "/" + *hooksURLPrefix + "/{id}"
-	}
-
-	router.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
+	r.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
 		fmt.Fprint(w, "OK")
 	})
 
-	router.HandleFunc(hooksURL, hookHandler)
-
-	n.UseHandler(router)
+	r.HandleFunc(hooksURL, hookHandler)
 
 	if !*secure {
 		log.Printf("serving hooks on http://%s:%d%s", *ip, *port, hooksURL)
-		log.Fatal(http.ListenAndServe(fmt.Sprintf("%s:%d", *ip, *port), n))
+		log.Fatal(http.ListenAndServe(fmt.Sprintf("%s:%d", *ip, *port), r))
 	}
 
 	svr := &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", *ip, *port),
-		Handler: n,
+		Handler: r,
 		TLSConfig: &tls.Config{
 			CipherSuites:             getTLSCipherSuites(*tlsCipherSuites),
 			CurvePreferences:         []tls.CurveID{tls.CurveP521, tls.CurveP384, tls.CurveP256},
 			MinVersion:               getTLSMinVersion(*tlsMinVersion),
 			PreferServerCipherSuites: true,
 		},
-		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler), 0), // disable http/2
+		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)), // disable http/2
 	}
 
 	log.Printf("serving hooks on https://%s:%d%s", *ip, *port, hooksURL)
@@ -226,16 +215,7 @@ func main() {
 }
 
 func hookHandler(w http.ResponseWriter, r *http.Request) {
-	// generate a request id for logging
-	u, err := uuid.NewV4()
-	if err != nil {
-		log.Printf("internal server error: %s", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprint(w, "Internal server error")
-		return
-	}
-
-	rid := u.String()[:6]
+	rid := middleware.GetReqID(r.Context())
 
 	log.Printf("[%s] incoming HTTP request from %s\n", rid, r.RemoteAddr)
 
@@ -580,4 +560,12 @@ func valuesToMap(values map[string][]string) map[string]interface{} {
 	}
 
 	return ret
+}
+
+// makeURL builds a hook URL with or without a prefix.
+func makeURL(prefix *string) string {
+	if prefix == nil || *prefix == "" {
+		return "/{id}"
+	}
+	return "/" + *prefix + "/{id}"
 }
