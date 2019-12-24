@@ -60,6 +60,9 @@ There are three types of request values:
 3. XML Payload
 
     Referencing XML payload parameters is much like the JSON examples above, but XML is more complex.
+    Element attributes are prefixed by a hyphen (`-`).
+    Element values are prefixed by a pound (`#`).
+
     Take the following XML payload:
 
     ```xml
@@ -74,7 +77,7 @@ There are three types of request values:
     </app>
     ```
 
-    To access a given `user` tag, you must treat them as an array.
+    To access a given `user` element, you must treat them as an array.
     So `app.users.user.0.name` yields `Jeff`.
 
     Since there's only one `message` tag, it's not treated as an array.
