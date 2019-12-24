@@ -287,12 +287,12 @@ __Not recommended in production due to low security__
 ]
 ```
 
-# JIRA Webhooks
+## JIRA Webhooks
 [Guide by @perfecto25](https://sites.google.com/site/mrxpalmeiras/notes/jira-webhooks)
 
-# Pass File-to-command sample
+## Pass File-to-command sample
 
-## Webhook configuration
+### Webhook configuration
 
 <pre>
 [
@@ -315,7 +315,7 @@ __Not recommended in production due to low security__
 ]
 </pre>
 
-## Sample client usage 
+### Sample client usage 
 
 Store the following file as `testRequest.json`. 
 
@@ -473,4 +473,70 @@ Given the following payload:
     }
   }
 ]
+```
+
+## Multipart Form Data
+
+Example of a [Plex Media Server webhook](https://support.plex.tv/articles/115002267687-webhooks/).
+The Plex Media Server will send two parts: payload and thumb.
+
+```json
+[
+  {
+    "id": "plex",
+    "execute-command": "play-command.sh",
+    "trigger-rule":
+    {
+      "match":
+      {
+        "type": "value",
+        "parameter": {
+          "source": "payload"
+          "name": "payload.event",
+        },
+        "value": "media.play"
+      }
+    }
+  }
+]
+```
+
+Each part of a multipart form data body will have a `Content-Disposition` header.
+An example header:
+
+```
+Content-Disposition: form-data; name="payload"; filename="payload.json"
+```
+
+We key off of the `name` attribute in the `Content-Disposition` value.
+
+If the named part is JSON but has an incorrect `Content-Type`,
+use the `parse-parameters-as-json` setting to force it to be parsed as JSON:
+
+```json
+[
+  {
+    "id": "plex",
+    "execute-command": "play-command.sh",
+    "parse-parameters-as-json": [
+      {
+        "source": "payload",
+        "name": "payload"
+      }
+    ],
+    "trigger-rule":
+    {
+      "match":
+      {
+        "type": "value",
+        "parameter": {
+          "source": "payload"
+          "name": "payload.event",
+        },
+        "value": "media.play"
+      }
+    }
+  }
+]
+
 ```
