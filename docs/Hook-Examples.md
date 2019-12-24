@@ -424,3 +424,53 @@ Travis sends webhooks as `payload=<JSON_STRING>`, so the payload needs to be par
   }
 ]
 ```
+
+## XML Payload
+
+Given the following payload:
+
+```xml
+<app>
+  <users>
+    <user id="1" name="Jeff" />
+    <user id="2" name="Sally" />
+  </users>
+  <messages>
+    <message id="1" from_user="1" to_user="2">Hello!!</message>
+  </messages>
+</app>
+```
+
+```json
+[
+  {
+    "id": "deploy",
+    "execute-command": "/root/my-server/deployment.sh",
+    "command-working-directory": "/root/my-server",
+    "trigger-rule": {
+      "and": [
+        {
+          "match": {
+            "type": "value",
+            "parameter": {
+              "source": "payload",
+              "name": "app.users.user.0.-name"
+            },
+            "value": "Jeff"
+          }
+        },
+        {
+          "match": {
+            "type": "value",
+            "parameter": {
+              "source": "payload",
+              "name": "app.messages.message.#text"
+            },
+            "value": "Hello!!"
+          }
+        },
+      ],
+    }
+  }
+]
+```

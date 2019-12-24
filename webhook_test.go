@@ -109,7 +109,9 @@ func TestWebhook(t *testing.T) {
 				if tt.urlencoded == true {
 					req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 				} else {
-					req.Header.Add("Content-Type", "application/json")
+					if req.Header.Get("Content-Type") == "" {
+						req.Header.Add("Content-Type", "application/json")
+					}
 				}
 
 				client := &http.Client{}
@@ -518,7 +520,24 @@ env: HOOK_head_commit.timestamp=2013-03-12T08:14:29-07:00
 `,
 		``,
 	},
-
+	{
+		"xml",
+		"xml",
+		map[string]string{"Content-Type": "application/xml"},
+		`<app>
+   <users>
+     <user id="1" name="Jeff" />
+     <user id="2" name="Sally" />
+   </users>
+   <messages>
+     <message id="1" from_user="1" to_user="2">Hello!!</message>
+   </messages>
+</app>`,
+		false,
+		http.StatusOK,
+		`success`,
+		``,
+	},
 	{
 		"missing-cmd-arg", // missing head_commit.author.email
 		"github",
