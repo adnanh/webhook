@@ -138,6 +138,36 @@
     }
   },
   {
+    "id": "xml",
+    "execute-command": "{{ .Hookecho }}",
+    "command-working-directory": "/",
+    "response-message": "success",
+    "trigger-rule": {
+      "and": [
+        {
+          "match": {
+            "type": "value",
+            "parameter": {
+              "source": "payload",
+              "name": "app.users.user.0.-name"
+            },
+            "value": "Jeff"
+          }
+        },
+        {
+          "match": {
+            "type": "value",
+            "parameter": {
+              "source": "payload",
+              "name": "app.messages.message.#text"
+            },
+            "value": "Hello!!"
+          }
+        },
+      ],
+    }
+  },
+  {
     "id": "capture-command-output-on-success-not-by-default",
     "pass-arguments-to-command": [
       {

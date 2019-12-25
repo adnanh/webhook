@@ -3,6 +3,7 @@ module github.com/adnanh/webhook
 go 1.13
 
 require (
+	github.com/clbanning/mxj v1.8.4
 	github.com/dustin/go-humanize v1.0.0
 	github.com/fsnotify/fsnotify v1.4.7 // indirect
 	github.com/ghodss/yaml v1.0.0

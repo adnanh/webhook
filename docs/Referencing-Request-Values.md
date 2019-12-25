@@ -57,6 +57,34 @@ There are three types of request values:
 
     If the payload contains a key with the specified name "commits.0.commit.id", then the value of that key has priority over the dot-notation referencing.
 
+3. XML Payload
+
+    Referencing XML payload parameters is much like the JSON examples above, but XML is more complex.
+    Element attributes are prefixed by a hyphen (`-`).
+    Element values are prefixed by a pound (`#`).
+
+    Take the following XML payload:
+
+    ```xml
+    <app>
+      <users>
+        <user id="1" name="Jeff" />
+        <user id="2" name="Sally" />
+      </users>
+      <messages>
+        <message id="1" from_user="1" to_user="2">Hello!!</message>
+      </messages>
+    </app>
+    ```
+
+    To access a given `user` element, you must treat them as an array.
+    So `app.users.user.0.name` yields `Jeff`.
+
+    Since there's only one `message` tag, it's not treated as an array.
+    So `app.messages.message.id` yields `1`.
+
+    To access the text within the `message` tag, you would use: `app.messages.message.#text`.
+
 If you are referencing values for environment, you can use `envname` property to set the name of the environment variable like so
 ```json
 {

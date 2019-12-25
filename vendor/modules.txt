@@ -1,3 +1,5 @@
+# github.com/clbanning/mxj v1.8.4
+github.com/clbanning/mxj
 # github.com/dustin/go-humanize v1.0.0
 github.com/dustin/go-humanize
 # github.com/ghodss/yaml v1.0.0

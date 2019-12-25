@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/tls"
 	"encoding/json"
 	"flag"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/adnanh/webhook/internal/hook"
 	"github.com/adnanh/webhook/internal/middleware"
+	"github.com/clbanning/mxj"
 	chimiddleware "github.com/go-chi/chi/middleware"
 	"github.com/gorilla/mux"
 	fsnotify "gopkg.in/fsnotify.v1"
@@ -263,6 +265,11 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 				log.Printf("[%s] error parsing form payload %+v\n", rid, err)
 			} else {
 				payload = valuesToMap(fd)
+			}
+		case strings.Contains(contentType, "xml"):
+			payload, err = mxj.NewMapXmlReader(bytes.NewReader(body))
+			if err != nil {
+				log.Printf("[%s] error parsing XML payload: %+v\n", rid, err)
 			}
 		default:
 			log.Printf("[%s] error parsing body payload due to unsupported content type header: %s\n", rid, contentType)
