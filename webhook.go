@@ -19,6 +19,8 @@ import (
 
 	"github.com/adnanh/webhook/internal/hook"
 	"github.com/adnanh/webhook/internal/middleware"
+	"github.com/adnanh/webhook/internal/pidfile"
+
 	"github.com/clbanning/mxj"
 	chimiddleware "github.com/go-chi/chi/middleware"
 	"github.com/gorilla/mux"
@@ -52,6 +54,7 @@ var (
 	setGID             = flag.Int("setgid", 0, "set group ID after opening listening port; must be used with setuid")
 	setUID             = flag.Int("setuid", 0, "set user ID after opening listening port; must be used with setgid")
 	httpMethods        = flag.String("http-methods", "", `set default allowed HTTP methods (ie. "POST"); separate methods with comma`)
+	pidPath            = flag.String("pidfile", "", "create PID file at the given path")
 
 	responseHeaders hook.ResponseHeaders
 	hooksFiles      hook.HooksFiles
@@ -60,6 +63,7 @@ var (
 
 	watcher *fsnotify.Watcher
 	signals chan os.Signal
+	pidFile *pidfile.PIDFile
 )
 
 func matchLoadedHook(id string) *hook.Hook {
@@ -159,6 +163,24 @@ func main() {
 
 	if !*verbose {
 		log.SetOutput(ioutil.Discard)
+	}
+
+	// Create pidfile
+	if *pidPath != "" {
+		var err error
+
+		pidFile, err = pidfile.New(*pidPath)
+		if err != nil {
+			log.Fatalf("Error creating pidfile: %v", err)
+		}
+
+		defer func() {
+			// NOTE(moorereason): my testing shows that this doesn't work with
+			// ^C, so we also do a Remove in the signal handler elsewhere.
+			if nerr := pidFile.Remove(); nerr != nil {
+				log.Print(nerr)
+			}
+		}()
 	}
 
 	log.Println("version " + version + " starting")

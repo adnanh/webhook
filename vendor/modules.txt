@@ -13,6 +13,7 @@ github.com/gofrs/uuid
 github.com/gorilla/mux
 # golang.org/x/sys v0.0.0-20190215142949-d0b11bdaac8a
 golang.org/x/sys/unix
+golang.org/x/sys/windows
 # gopkg.in/fsnotify.v1 v1.4.2
 gopkg.in/fsnotify.v1
 # gopkg.in/yaml.v2 v2.0.0-20170812160011-eb3733d160e7

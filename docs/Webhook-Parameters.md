@@ -25,6 +25,8 @@ Usage of webhook:
         send log output to a file; implicitly enables verbose logging
   -nopanic
         do not panic if hooks cannot be loaded when webhook is not running in verbose mode
+  -pidfile string
+        create PID file at the given path
   -port int
         port the webhook should serve hooks on (default 9000)
   -secure
