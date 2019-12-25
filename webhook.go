@@ -269,7 +269,7 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 		case strings.Contains(contentType, "xml"):
 			payload, err = mxj.NewMapXmlReader(bytes.NewReader(body))
 			if err != nil {
-				log.Printf("[%s] error parsing JSON payload %+v\n", rid, err)
+				log.Printf("[%s] error parsing XML payload: %+v\n", rid, err)
 			}
 		default:
 			log.Printf("[%s] error parsing body payload due to unsupported content type header: %s\n", rid, contentType)
