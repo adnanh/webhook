@@ -95,6 +95,21 @@
           name: "app.messages.message.#text"
         value: "Hello!!"
 
+- id: plex
+  trigger-rule:
+    match:
+      type: value
+      parameter:
+        source: payload
+        name: payload.event
+      value: media.play
+  parse-parameters-as-json:
+  - source: payload
+    name: payload
+  execute-command: '{{ .Hookecho }}'
+  response-message: success
+  command-working-directory: /
+
 - id: capture-command-output-on-success-not-by-default
   pass-arguments-to-command:
   - source: string
