@@ -204,15 +204,17 @@ func main() {
 		fmt.Fprint(w, "OK")
 	})
 
+	var allowedMethods []string
+
 	if *httpMethods == "" {
 		r.HandleFunc(hooksURL, hookHandler)
 	} else {
-		allowed := strings.Split(*httpMethods, ",")
-		for i := range allowed {
-			allowed[i] = strings.TrimSpace(allowed[i])
+		allowedMethods = strings.Split(*httpMethods, ",")
+		for i := range allowedMethods {
+			allowedMethods[i] = strings.TrimSpace(allowedMethods[i])
 		}
 
-		r.HandleFunc(hooksURL, hookHandler).Methods(allowed...)
+		r.HandleFunc(hooksURL, hookHandler).Methods(allowedMethods...)
 	}
 
 	addr := fmt.Sprintf("%s:%d", *ip, *port)
@@ -240,7 +242,12 @@ func main() {
 
 	// Serve HTTP
 	if !*secure {
-		log.Printf("serving hooks on http://%s%s", addr, hooksURL)
+		if len(allowedMethods) == 0 {
+			log.Printf("serving hooks on http://%s%s", addr, hooksURL)
+		} else {
+			log.Printf("serving hooks on http://%s%s for %s", addr, hooksURL, strings.Join(allowedMethods, ", "))
+		}
+
 		log.Print(svr.Serve(ln))
 		return
 	}
@@ -254,7 +261,11 @@ func main() {
 	}
 	svr.TLSNextProto = make(map[string]func(*http.Server, *tls.Conn, http.Handler)) // disable http/2
 
-	log.Printf("serving hooks on https://%s%s", addr, hooksURL)
+	if len(allowedMethods) == 0 {
+		log.Printf("serving hooks on https://%s%s", addr, hooksURL)
+	} else {
+		log.Printf("serving hooks on https://%s%s for %s", addr, hooksURL, strings.Join(allowedMethods, ", "))
+	}
 	log.Print(svr.ServeTLS(ln, *cert, *key))
 }
 
