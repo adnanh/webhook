@@ -3,6 +3,7 @@
     "id": "github",
     "execute-command": "{{ .Hookecho }}",
     "command-working-directory": "/",
+    "http-methods": ["POST"],
     "include-command-output-in-response": true,
     "trigger-rule-mismatch-http-response-code": 400,
     "pass-environment-to-command":

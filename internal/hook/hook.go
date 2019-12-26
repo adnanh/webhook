@@ -460,6 +460,7 @@ type Hook struct {
 	TriggerRuleMismatchHttpResponseCode int             `json:"trigger-rule-mismatch-http-response-code,omitempty"`
 	IncomingPayloadContentType          string          `json:"incoming-payload-content-type,omitempty"`
 	SuccessHttpResponseCode             int             `json:"success-http-response-code,omitempty"`
+	HTTPMethods                         []string        `json:"http-methods"`
 }
 
 // ParseJSONParameters decodes specified arguments to JSON objects and replaces the
