@@ -208,6 +208,10 @@ func main() {
 		r.HandleFunc(hooksURL, hookHandler)
 	} else {
 		allowed := strings.Split(*httpMethods, ",")
+		for i := range allowed {
+			allowed[i] = strings.TrimSpace(allowed[i])
+		}
+
 		r.HandleFunc(hooksURL, hookHandler).Methods(allowed...)
 	}
 
@@ -257,7 +261,7 @@ func main() {
 func hookHandler(w http.ResponseWriter, r *http.Request) {
 	rid := middleware.GetReqID(r.Context())
 
-	log.Printf("[%s] incoming HTTP request from %s\n", rid, r.RemoteAddr)
+	log.Printf("[%s] incoming HTTP %s request from %s\n", rid, r.Method, r.RemoteAddr)
 
 	id := mux.Vars(r)["id"]
 
@@ -272,6 +276,10 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 	if len(matchedHook.HTTPMethods) != 0 {
 		var allowed bool
 		for i := range matchedHook.HTTPMethods {
+			// TODO(moorereason): refactor config loading and reloading to
+			// sanitize these methods once at load time.
+			matchedHook.HTTPMethods[i] = strings.ToUpper(strings.TrimSpace(matchedHook.HTTPMethods[i]))
+
 			if matchedHook.HTTPMethods[i] == r.Method {
 				allowed = true
 				break
@@ -280,6 +288,7 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 
 		if !allowed {
 			w.WriteHeader(http.StatusMethodNotAllowed)
+			log.Printf("[%s] HTTP %s method not implemented for hook %q", rid, r.Method, id)
 			return
 		}
 	}

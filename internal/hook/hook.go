@@ -649,8 +649,7 @@ func (h *Hooks) LoadFromFile(path string, asTemplate bool) error {
 		file = buf.Bytes()
 	}
 
-	e = yaml.Unmarshal(file, h)
-	return e
+	return yaml.Unmarshal(file, h)
 }
 
 // Append appends hooks unless the new hooks contain a hook with an ID that already exists

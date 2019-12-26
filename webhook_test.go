@@ -664,9 +664,9 @@ env: HOOK_head_commit.timestamp=2013-03-12T08:14:29-07:00
 	},
 
 	// test with disallowed global HTTP method
-	{"global disallowed method", "bitbucket", []string{"POST"}, "GET", nil, `{}`, "application/json", http.StatusMethodNotAllowed, ``, ``},
+	{"global disallowed method", "bitbucket", []string{"Post "}, "GET", nil, `{}`, "application/json", http.StatusMethodNotAllowed, ``, ``},
 	// test with disallowed HTTP method
-	{"disallowed method", "github", nil, "GET", nil, `{}`, "application/json", http.StatusMethodNotAllowed, ``, ``},
+	{"disallowed method", "github", nil, "Get", nil, `{}`, "application/json", http.StatusMethodNotAllowed, ``, ``},
 	// test with custom return code
 	{"empty payload", "github", nil, "POST", nil, "application/json", `{}`, http.StatusBadRequest, `Hook rules were not satisfied.`, ``},
 	// test with custom invalid http code, should default to 200 OK
