@@ -50,6 +50,7 @@ var (
 	maxMultipartMem    = flag.Int64("max-multipart-mem", 1<<20, "maximum memory in bytes for parsing multipart form data before disk caching")
 	setGID             = flag.Int("setgid", 0, "set group ID after opening listening port; must be used with setuid")
 	setUID             = flag.Int("setuid", 0, "set user ID after opening listening port; must be used with setgid")
+	httpMethods        = flag.String("http-methods", "", "globally restrict allowed HTTP methods; separate methods with comma")
 
 	responseHeaders hook.ResponseHeaders
 	hooksFiles      hook.HooksFiles
@@ -203,7 +204,12 @@ func main() {
 		fmt.Fprint(w, "OK")
 	})
 
-	r.HandleFunc(hooksURL, hookHandler)
+	if *httpMethods == "" {
+		r.HandleFunc(hooksURL, hookHandler)
+	} else {
+		allowed := strings.Split(*httpMethods, ",")
+		r.HandleFunc(hooksURL, hookHandler).Methods(allowed...)
+	}
 
 	addr := fmt.Sprintf("%s:%d", *ip, *port)
 

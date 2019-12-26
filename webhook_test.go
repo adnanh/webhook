@@ -79,6 +79,10 @@ func TestWebhook(t *testing.T) {
 				ip, port := serverAddress(t)
 				args := []string{fmt.Sprintf("-hooks=%s", configPath), fmt.Sprintf("-ip=%s", ip), fmt.Sprintf("-port=%s", port), "-verbose"}
 
+				if len(tt.cliMethods) != 0 {
+					args = append(args, "-http-methods="+strings.Join(tt.cliMethods, ","))
+				}
+
 				// Setup a buffer for capturing webhook logs for later evaluation
 				b := &buffer{}
 
@@ -289,6 +293,7 @@ func webhookEnv() (env []string) {
 var hookHandlerTests = []struct {
 	desc        string
 	id          string
+	cliMethods  []string
 	method      string
 	headers     map[string]string
 	contentType string
@@ -301,6 +306,7 @@ var hookHandlerTests = []struct {
 	{
 		"github",
 		"github",
+		nil,
 		"POST",
 		map[string]string{"X-Hub-Signature": "f68df0375d7b03e3eb29b4cf9f9ec12e08f42ff8"},
 		"application/json",
@@ -457,6 +463,7 @@ env: HOOK_head_commit.timestamp=2013-03-12T08:14:29-07:00
 	{
 		"bitbucket", // bitbucket sends their payload using uriencoded params.
 		"bitbucket",
+		nil,
 		"POST",
 		nil,
 		"application/x-www-form-urlencoded",
@@ -468,6 +475,7 @@ env: HOOK_head_commit.timestamp=2013-03-12T08:14:29-07:00
 	{
 		"gitlab",
 		"gitlab",
+		nil,
 		"POST",
 		map[string]string{"X-Gitlab-Event": "Push Hook"},
 		"application/json",
@@ -521,6 +529,7 @@ env: HOOK_head_commit.timestamp=2013-03-12T08:14:29-07:00
 	{
 		"xml",
 		"xml",
+		nil,
 		"POST",
 		map[string]string{"Content-Type": "application/xml"},
 		"application/xml",
@@ -540,6 +549,7 @@ env: HOOK_head_commit.timestamp=2013-03-12T08:14:29-07:00
 	{
 		"multipart",
 		"plex",
+		nil,
 		"POST",
 		nil,
 		"multipart/form-data; boundary=xxx",
@@ -572,6 +582,7 @@ binary data
 	{
 		"missing-cmd-arg", // missing head_commit.author.email
 		"github",
+		nil,
 		"POST",
 		map[string]string{"X-Hub-Signature": "ab03955b9377f530aa298b1b6d273ae9a47e1e40"},
 		"application/json",
@@ -614,6 +625,7 @@ env: HOOK_head_commit.timestamp=2013-03-12T08:14:29-07:00
 	{
 		"missing-env-arg", // missing head_commit.timestamp
 		"github",
+		nil,
 		"POST",
 		map[string]string{"X-Hub-Signature": "2cf8b878cb6b74a25090a140fa4a474be04b97fa"},
 		"application/json",
@@ -651,27 +663,29 @@ env: HOOK_head_commit.timestamp=2013-03-12T08:14:29-07:00
 		``,
 	},
 
+	// test with disallowed global HTTP method
+	{"global disallowed method", "bitbucket", []string{"POST"}, "GET", nil, `{}`, "application/json", http.StatusMethodNotAllowed, ``, ``},
 	// test with disallowed HTTP method
-	{"disallowed method", "github", "GET", nil, `{}`, "application/json", http.StatusMethodNotAllowed, ``, ``},
+	{"disallowed method", "github", nil, "GET", nil, `{}`, "application/json", http.StatusMethodNotAllowed, ``, ``},
 	// test with custom return code
-	{"empty payload", "github", "POST", nil, "application/json", `{}`, http.StatusBadRequest, `Hook rules were not satisfied.`, ``},
+	{"empty payload", "github", nil, "POST", nil, "application/json", `{}`, http.StatusBadRequest, `Hook rules were not satisfied.`, ``},
 	// test with custom invalid http code, should default to 200 OK
-	{"empty payload", "bitbucket", "POST", nil, "application/json", `{}`, http.StatusOK, `Hook rules were not satisfied.`, ``},
+	{"empty payload", "bitbucket", nil, "POST", nil, "application/json", `{}`, http.StatusOK, `Hook rules were not satisfied.`, ``},
 	// test with no configured http return code, should default to 200 OK
-	{"empty payload", "gitlab", "POST", nil, "application/json", `{}`, http.StatusOK, `Hook rules were not satisfied.`, ``},
+	{"empty payload", "gitlab", nil, "POST", nil, "application/json", `{}`, http.StatusOK, `Hook rules were not satisfied.`, ``},
 
 	// test capturing command output
-	{"don't capture output on success by default", "capture-command-output-on-success-not-by-default", "POST", nil, "application/json", `{}`, http.StatusOK, ``, ``},
-	{"capture output on success with flag set", "capture-command-output-on-success-yes-with-flag", "POST", nil, "application/json", `{}`, http.StatusOK, `arg: exit=0
+	{"don't capture output on success by default", "capture-command-output-on-success-not-by-default", nil, "POST", nil, "application/json", `{}`, http.StatusOK, ``, ``},
+	{"capture output on success with flag set", "capture-command-output-on-success-yes-with-flag", nil, "POST", nil, "application/json", `{}`, http.StatusOK, `arg: exit=0
 `, ``},
-	{"don't capture output on error by default", "capture-command-output-on-error-not-by-default", "POST", nil, "application/json", `{}`, http.StatusInternalServerError, `Error occurred while executing the hook's command. Please check your logs for more details.`, ``},
-	{"capture output on error with extra flag set", "capture-command-output-on-error-yes-with-extra-flag", "POST", nil, "application/json", `{}`, http.StatusInternalServerError, `arg: exit=1
+	{"don't capture output on error by default", "capture-command-output-on-error-not-by-default", nil, "POST", nil, "application/json", `{}`, http.StatusInternalServerError, `Error occurred while executing the hook's command. Please check your logs for more details.`, ``},
+	{"capture output on error with extra flag set", "capture-command-output-on-error-yes-with-extra-flag", nil, "POST", nil, "application/json", `{}`, http.StatusInternalServerError, `arg: exit=1
 `, ``},
 
 	// Check logs
-	{"static params should pass", "static-params-ok", "POST", nil, "application/json", `{}`, http.StatusOK, "arg: passed\n", `(?s)command output: arg: passed`},
-	{"command with space logs warning", "warn-on-space", "POST", nil, "application/json", `{}`, http.StatusInternalServerError, "Error occurred while executing the hook's command. Please check your logs for more details.", `(?s)unable to locate command.*use 'pass[-]arguments[-]to[-]command' to specify args`},
-	{"unsupported content type error", "github", "POST", map[string]string{"Content-Type": "nonexistent/format"}, "application/json", `{}`, http.StatusBadRequest, `Hook rules were not satisfied.`, `(?s)error parsing body payload due to unsupported content type header:`},
+	{"static params should pass", "static-params-ok", nil, "POST", nil, "application/json", `{}`, http.StatusOK, "arg: passed\n", `(?s)command output: arg: passed`},
+	{"command with space logs warning", "warn-on-space", nil, "POST", nil, "application/json", `{}`, http.StatusInternalServerError, "Error occurred while executing the hook's command. Please check your logs for more details.", `(?s)unable to locate command.*use 'pass[-]arguments[-]to[-]command' to specify args`},
+	{"unsupported content type error", "github", nil, "POST", map[string]string{"Content-Type": "nonexistent/format"}, "application/json", `{}`, http.StatusBadRequest, `Hook rules were not satisfied.`, `(?s)error parsing body payload due to unsupported content type header:`},
 }
 
 // buffer provides a concurrency-safe bytes.Buffer to tests above.
