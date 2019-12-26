@@ -44,7 +44,9 @@ Usage of webhook:
 Use any of the above specified flags to override their default behavior.
 
 # Live reloading hooks
-If you are running an OS that supports USR1 signal, you can use it to trigger hooks reload from hooks file, without restarting the webhook instance.
+If you are running an OS that supports the HUP or USR1 signal, you can use it to trigger hooks reload from hooks file, without restarting the webhook instance.
 ```bash
 kill -USR1 webhookpid
+
+kill -HUP webhookpid
 ```
