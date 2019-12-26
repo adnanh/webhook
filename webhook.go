@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -168,7 +169,8 @@ func main() {
 
 			err = watcher.Add(hooksFilePath)
 			if err != nil {
-				log.Fatal("error adding hooks file to the watcher\n", err)
+				log.Print("error adding hooks file to the watcher\n", err)
+				return
 			}
 		}
 
@@ -196,25 +198,37 @@ func main() {
 
 	r.HandleFunc(hooksURL, hookHandler)
 
-	if !*secure {
-		log.Printf("serving hooks on http://%s:%d%s", *ip, *port, hooksURL)
-		log.Fatal(http.ListenAndServe(fmt.Sprintf("%s:%d", *ip, *port), r))
-	}
-
+	// Create common HTTP server settings
 	svr := &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", *ip, *port),
 		Handler: r,
-		TLSConfig: &tls.Config{
-			CipherSuites:             getTLSCipherSuites(*tlsCipherSuites),
-			CurvePreferences:         []tls.CurveID{tls.CurveP521, tls.CurveP384, tls.CurveP256},
-			MinVersion:               getTLSMinVersion(*tlsMinVersion),
-			PreferServerCipherSuites: true,
-		},
-		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)), // disable http/2
 	}
 
+	// Open listener
+	ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", *ip, *port))
+	if err != nil {
+		log.Printf("error listening on port: %s", err)
+		return
+	}
+
+	// Serve HTTP
+	if !*secure {
+		log.Printf("serving hooks on http://%s:%d%s", *ip, *port, hooksURL)
+		log.Print(svr.Serve(ln))
+		return
+	}
+
+	// Server HTTPS
+	svr.TLSConfig = &tls.Config{
+		CipherSuites:             getTLSCipherSuites(*tlsCipherSuites),
+		CurvePreferences:         []tls.CurveID{tls.CurveP521, tls.CurveP384, tls.CurveP256},
+		MinVersion:               getTLSMinVersion(*tlsMinVersion),
+		PreferServerCipherSuites: true,
+	}
+	svr.TLSNextProto = make(map[string]func(*http.Server, *tls.Conn, http.Handler)) // disable http/2
+
 	log.Printf("serving hooks on https://%s:%d%s", *ip, *port, hooksURL)
-	log.Fatal(svr.ListenAndServeTLS(*cert, *key))
+	log.Print(svr.ServeTLS(ln, *cert, *key))
 }
 
 func hookHandler(w http.ResponseWriter, r *http.Request) {
