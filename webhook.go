@@ -48,6 +48,8 @@ var (
 	useXRequestID      = flag.Bool("x-request-id", false, "use X-Request-Id header, if present, as request ID")
 	xRequestIDLimit    = flag.Int("x-request-id-limit", 0, "truncate X-Request-Id header to limit; default no limit")
 	maxMultipartMem    = flag.Int64("max-multipart-mem", 1<<20, "maximum memory in bytes for parsing multipart form data before disk caching")
+	setGID             = flag.Int("setgid", 0, "set group ID after opening listening port; must be used with setuid")
+	setUID             = flag.Int("setuid", 0, "set user ID after opening listening port; must be used with setgid")
 
 	responseHeaders hook.ResponseHeaders
 	hooksFiles      hook.HooksFiles
@@ -94,6 +96,11 @@ func main() {
 			log.Fatal(err)
 		}
 		os.Exit(0)
+	}
+
+	if (*setUID != 0 || *setGID != 0) && (*setUID == 0 || *setGID == 0) {
+		fmt.Println("Error: setuid and setgid options must be used together")
+		os.Exit(1)
 	}
 
 	if *debug {
@@ -198,22 +205,32 @@ func main() {
 
 	r.HandleFunc(hooksURL, hookHandler)
 
+	addr := fmt.Sprintf("%s:%d", *ip, *port)
+
 	// Create common HTTP server settings
 	svr := &http.Server{
-		Addr:    fmt.Sprintf("%s:%d", *ip, *port),
+		Addr:    addr,
 		Handler: r,
 	}
 
 	// Open listener
-	ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", *ip, *port))
+	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		log.Printf("error listening on port: %s", err)
 		return
 	}
 
+	if *setUID != 0 {
+		err := dropPrivileges(*setUID, *setGID)
+		if err != nil {
+			log.Printf("error dropping privileges: %s", err)
+			return
+		}
+	}
+
 	// Serve HTTP
 	if !*secure {
-		log.Printf("serving hooks on http://%s:%d%s", *ip, *port, hooksURL)
+		log.Printf("serving hooks on http://%s%s", addr, hooksURL)
 		log.Print(svr.Serve(ln))
 		return
 	}
@@ -227,7 +244,7 @@ func main() {
 	}
 	svr.TLSNextProto = make(map[string]func(*http.Server, *tls.Conn, http.Handler)) // disable http/2
 
-	log.Printf("serving hooks on https://%s:%d%s", *ip, *port, hooksURL)
+	log.Printf("serving hooks on https://%s%s", addr, hooksURL)
 	log.Print(svr.ServeTLS(ln, *cert, *key))
 }
 

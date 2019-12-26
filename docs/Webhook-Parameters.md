@@ -25,6 +25,10 @@ Usage of webhook:
         port the webhook should serve hooks on (default 9000)
   -secure
         use HTTPS instead of HTTP
+  -setgid int
+        set group ID after opening listening port; must be used with setuid
+  -setuid int
+        set user ID after opening listening port; must be used with setgid
   -template
         parse hooks file as a Go template
   -tls-min-version string
