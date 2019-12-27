@@ -112,6 +112,23 @@ func main() {
 		hooksFiles = append(hooksFiles, "hooks.json")
 	}
 
+	addr := fmt.Sprintf("%s:%d", *ip, *port)
+
+	// Open listener early so we can drop privileges.
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		log.Printf("error listening on port: %s", err)
+		return
+	}
+
+	if *setUID != 0 {
+		err := dropPrivileges(*setUID, *setGID)
+		if err != nil {
+			log.Printf("error dropping privileges: %s", err)
+			return
+		}
+	}
+
 	if *logPath != "" {
 		file, err := os.OpenFile(*logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 		if err != nil {
@@ -217,27 +234,10 @@ func main() {
 
 	r.HandleFunc(hooksURL, hookHandler)
 
-	addr := fmt.Sprintf("%s:%d", *ip, *port)
-
 	// Create common HTTP server settings
 	svr := &http.Server{
 		Addr:    addr,
 		Handler: r,
-	}
-
-	// Open listener
-	ln, err := net.Listen("tcp", addr)
-	if err != nil {
-		log.Printf("error listening on port: %s", err)
-		return
-	}
-
-	if *setUID != 0 {
-		err := dropPrivileges(*setUID, *setGID)
-		if err != nil {
-			log.Printf("error dropping privileges: %s", err)
-			return
-		}
 	}
 
 	// Serve HTTP
