@@ -33,6 +33,7 @@ var (
 	ip                 = flag.String("ip", "0.0.0.0", "ip the webhook should serve hooks on")
 	port               = flag.Int("port", 9000, "port the webhook should serve hooks on")
 	verbose            = flag.Bool("verbose", false, "show verbose output")
+	logPath            = flag.String("logfile", "", "send log output to a file; implicitly enables verbose logging")
 	debug              = flag.Bool("debug", false, "show debug output")
 	noPanic            = flag.Bool("nopanic", false, "do not panic if hooks cannot be loaded when webhook is not running in verbose mode")
 	hotReload          = flag.Bool("hotreload", false, "watch hooks file for changes and reload them automatically")
@@ -103,12 +104,23 @@ func main() {
 		os.Exit(1)
 	}
 
-	if *debug {
+	if *debug || *logPath != "" {
 		*verbose = true
 	}
 
 	if len(hooksFiles) == 0 {
 		hooksFiles = append(hooksFiles, "hooks.json")
+	}
+
+	if *logPath != "" {
+		file, err := os.OpenFile(*logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+		if err != nil {
+			log.Printf("error opening log file %q: %v", *logPath, err)
+
+			return
+		}
+
+		log.SetOutput(file)
 	}
 
 	log.SetPrefix("[webhook] ")
