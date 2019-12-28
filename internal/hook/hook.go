@@ -460,6 +460,7 @@ type Hook struct {
 	TriggerRuleMismatchHttpResponseCode int             `json:"trigger-rule-mismatch-http-response-code,omitempty"`
 	IncomingPayloadContentType          string          `json:"incoming-payload-content-type,omitempty"`
 	SuccessHttpResponseCode             int             `json:"success-http-response-code,omitempty"`
+	HTTPMethods                         []string        `json:"http-methods"`
 }
 
 // ParseJSONParameters decodes specified arguments to JSON objects and replaces the
@@ -648,8 +649,7 @@ func (h *Hooks) LoadFromFile(path string, asTemplate bool) error {
 		file = buf.Bytes()
 	}
 
-	e = yaml.Unmarshal(file, h)
-	return e
+	return yaml.Unmarshal(file, h)
 }
 
 // Append appends hooks unless the new hooks contain a hook with an ID that already exists

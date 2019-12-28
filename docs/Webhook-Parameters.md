@@ -13,6 +13,8 @@ Usage of webhook:
         path to the json file containing defined hooks the webhook should serve, use multiple times to load from different files
   -hotreload
         watch hooks file for changes and reload them automatically
+  -http-methods string
+        globally restrict allowed HTTP methods; separate methods with comma
   -ip string
         ip the webhook should serve hooks on (default "0.0.0.0")
   -key string

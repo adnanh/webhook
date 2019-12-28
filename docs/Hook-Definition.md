@@ -10,6 +10,7 @@ Hooks are defined as JSON objects. Please note that in order to be considered va
  * `response-headers` - specifies the list of headers in format `{"name": "X-Example-Header", "value": "it works"}` that will be returned in HTTP response for the hook
  * `success-http-response-code` - specifies the HTTP status code to be returned upon success
  * `incoming-payload-content-type` - sets the `Content-Type` of the incoming HTTP request (ie. `application/json`); useful when the request lacks a `Content-Type` or sends an erroneous value
+ * `http-methods` - a list of allowed HTTP methods, such as `POST` and `GET`
  * `include-command-output-in-response` - boolean whether webhook should wait for the command to finish and return the raw output as a response to the hook initiator. If the command fails to execute or encounters any errors while executing the response will result in 500 Internal Server Error HTTP status code, otherwise the 200 OK status code will be returned.
  * `include-command-output-in-response-on-error` - boolean whether webhook should include command stdout & stderror as a response in failed executions. It only works if `include-command-output-in-response` is set to `true`.
  * `parse-parameters-as-json` - specifies the list of arguments that contain JSON strings. These parameters will be decoded by webhook and you can access them like regular objects in rules and `pass-arguments-to-command`.
