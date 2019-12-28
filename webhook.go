@@ -293,7 +293,7 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 
 	if !allowedMethod {
 		w.WriteHeader(http.StatusMethodNotAllowed)
-		log.Printf("[%s] HTTP %s method not implemented for hook %q", rid, r.Method, id)
+		log.Printf("[%s] HTTP %s method not allowed for hook %q", rid, r.Method, id)
 
 		return
 	}
