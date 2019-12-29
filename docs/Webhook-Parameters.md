@@ -21,6 +21,8 @@ Usage of webhook:
         path to the HTTPS certificate private key pem file (default "key.pem")
   -list-cipher-suites
         list available TLS cipher suites
+  -logfile string
+        send log output to a file; implicitly enables verbose logging
   -nopanic
         do not panic if hooks cannot be loaded when webhook is not running in verbose mode
   -port int

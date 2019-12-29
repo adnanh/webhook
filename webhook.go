@@ -33,6 +33,7 @@ var (
 	ip                 = flag.String("ip", "0.0.0.0", "ip the webhook should serve hooks on")
 	port               = flag.Int("port", 9000, "port the webhook should serve hooks on")
 	verbose            = flag.Bool("verbose", false, "show verbose output")
+	logPath            = flag.String("logfile", "", "send log output to a file; implicitly enables verbose logging")
 	debug              = flag.Bool("debug", false, "show debug output")
 	noPanic            = flag.Bool("nopanic", false, "do not panic if hooks cannot be loaded when webhook is not running in verbose mode")
 	hotReload          = flag.Bool("hotreload", false, "watch hooks file for changes and reload them automatically")
@@ -94,17 +95,18 @@ func main() {
 	if *justListCiphers {
 		err := writeTLSSupportedCipherStrings(os.Stdout, getTLSMinVersion(*tlsMinVersion))
 		if err != nil {
-			log.Fatal(err)
+			fmt.Println(err)
+			os.Exit(1)
 		}
 		os.Exit(0)
 	}
 
 	if (*setUID != 0 || *setGID != 0) && (*setUID == 0 || *setGID == 0) {
-		fmt.Println("Error: setuid and setgid options must be used together")
+		fmt.Println("error: setuid and setgid options must be used together")
 		os.Exit(1)
 	}
 
-	if *debug {
+	if *debug || *logPath != "" {
 		*verbose = true
 	}
 
@@ -112,8 +114,48 @@ func main() {
 		hooksFiles = append(hooksFiles, "hooks.json")
 	}
 
+	// logQueue is a queue for log messages encountered during startup. We need
+	// to queue the messages so that we can handle any privilege dropping and
+	// log file opening prior to writing our first log message.
+	var logQueue []string
+
+	addr := fmt.Sprintf("%s:%d", *ip, *port)
+
+	// Open listener early so we can drop privileges.
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		logQueue = append(logQueue, fmt.Sprintf("error listening on port: %s", err))
+		// we'll bail out below
+	}
+
+	if *setUID != 0 {
+		err := dropPrivileges(*setUID, *setGID)
+		if err != nil {
+			logQueue = append(logQueue, fmt.Sprintf("error dropping privileges: %s", err))
+			// we'll bail out below
+		}
+	}
+
+	if *logPath != "" {
+		file, err := os.OpenFile(*logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+		if err != nil {
+			logQueue = append(logQueue, fmt.Sprintf("error opening log file %q: %v", *logPath, err))
+			// we'll bail out below
+		} else {
+			log.SetOutput(file)
+		}
+	}
+
 	log.SetPrefix("[webhook] ")
 	log.SetFlags(log.Ldate | log.Ltime)
+
+	if len(logQueue) != 0 {
+		for i := range logQueue {
+			log.Println(logQueue[i])
+		}
+
+		os.Exit(1)
+	}
 
 	if !*verbose {
 		log.SetOutput(ioutil.Discard)
@@ -209,27 +251,10 @@ func main() {
 
 	r.HandleFunc(hooksURL, hookHandler)
 
-	addr := fmt.Sprintf("%s:%d", *ip, *port)
-
 	// Create common HTTP server settings
 	svr := &http.Server{
 		Addr:    addr,
 		Handler: r,
-	}
-
-	// Open listener
-	ln, err := net.Listen("tcp", addr)
-	if err != nil {
-		log.Printf("error listening on port: %s", err)
-		return
-	}
-
-	if *setUID != 0 {
-		err := dropPrivileges(*setUID, *setGID)
-		if err != nil {
-			log.Printf("error dropping privileges: %s", err)
-			return
-		}
 	}
 
 	// Serve HTTP
