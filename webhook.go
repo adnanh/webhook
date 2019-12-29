@@ -94,13 +94,14 @@ func main() {
 	if *justListCiphers {
 		err := writeTLSSupportedCipherStrings(os.Stdout, getTLSMinVersion(*tlsMinVersion))
 		if err != nil {
-			log.Fatal(err)
+			fmt.Println(err)
+			os.Exit(1)
 		}
 		os.Exit(0)
 	}
 
 	if (*setUID != 0 || *setGID != 0) && (*setUID == 0 || *setGID == 0) {
-		fmt.Println("Error: setuid and setgid options must be used together")
+		fmt.Println("error: setuid and setgid options must be used together")
 		os.Exit(1)
 	}
 
@@ -112,36 +113,48 @@ func main() {
 		hooksFiles = append(hooksFiles, "hooks.json")
 	}
 
+	// logQueue is a queue for log messages encountered during startup. We need
+	// to queue the messages so that we can handle any privilege dropping and
+	// log file opening prior to writing our first log message.
+	var logQueue []string
+
 	addr := fmt.Sprintf("%s:%d", *ip, *port)
 
 	// Open listener early so we can drop privileges.
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
-		log.Printf("error listening on port: %s", err)
-		return
+		logQueue = append(logQueue, fmt.Sprintf("error listening on port: %s", err))
+		// we'll bail out below
 	}
 
 	if *setUID != 0 {
 		err := dropPrivileges(*setUID, *setGID)
 		if err != nil {
-			log.Printf("error dropping privileges: %s", err)
-			return
+			logQueue = append(logQueue, fmt.Sprintf("error dropping privileges: %s", err))
+			// we'll bail out below
 		}
 	}
 
 	if *logPath != "" {
 		file, err := os.OpenFile(*logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 		if err != nil {
-			log.Printf("error opening log file %q: %v", *logPath, err)
-
-			return
+			logQueue = append(logQueue, fmt.Sprintf("error opening log file %q: %v", *logPath, err))
+			// we'll bail out below
+		} else {
+			log.SetOutput(file)
 		}
-
-		log.SetOutput(file)
 	}
 
 	log.SetPrefix("[webhook] ")
 	log.SetFlags(log.Ldate | log.Ltime)
+
+	if len(logQueue) != 0 {
+		for i := range logQueue {
+			log.Println(logQueue[i])
+		}
+
+		os.Exit(1)
+	}
 
 	if !*verbose {
 		log.SetOutput(ioutil.Discard)
