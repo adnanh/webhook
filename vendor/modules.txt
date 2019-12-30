@@ -11,7 +11,7 @@ github.com/go-chi/chi/middleware
 github.com/gofrs/uuid
 # github.com/gorilla/mux v1.7.3
 github.com/gorilla/mux
-# golang.org/x/sys v0.0.0-20190215142949-d0b11bdaac8a
+# golang.org/x/sys v0.0.0-20191228213918-04cbcbbfeed8
 golang.org/x/sys/unix
 golang.org/x/sys/windows
 # gopkg.in/fsnotify.v1 v1.4.2

@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"syscall"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 // MkdirAll implementation that is volume path aware for Windows. It can be used
