@@ -46,6 +46,28 @@ const (
 	EnvNamespace string = "HOOK_"
 )
 
+// ParameterNodeError describes an error walking a parameter node.
+type ParameterNodeError struct {
+	key string
+}
+
+func (e *ParameterNodeError) Error() string {
+	if e == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("parameter node not found: %s", e.key)
+}
+
+// IsParameterNodeError returns whether err is of type ParameterNodeError.
+func IsParameterNodeError(err error) bool {
+	switch err.(type) {
+	case *ParameterNodeError:
+		return true
+	default:
+		return false
+	}
+}
+
 // SignatureError describes an invalid payload signature passed to Hook.
 type SignatureError struct {
 	Signature string
@@ -274,9 +296,9 @@ func ReplaceParameter(s string, params interface{}, value interface{}) bool {
 }
 
 // GetParameter extracts interface{} value based on the passed string
-func GetParameter(s string, params interface{}) (interface{}, bool) {
+func GetParameter(s string, params interface{}) (interface{}, error) {
 	if params == nil {
-		return nil, false
+		return nil, errors.New("no parameters")
 	}
 
 	paramsValue := reflect.ValueOf(params)
@@ -290,7 +312,7 @@ func GetParameter(s string, params interface{}) (interface{}, bool) {
 				index, err := strconv.ParseUint(p[0], 10, 64)
 
 				if err != nil || paramsValueSliceLength <= int(index) {
-					return nil, false
+					return nil, &ParameterNodeError{s}
 				}
 
 				return GetParameter(p[1], params.([]interface{})[index])
@@ -299,18 +321,18 @@ func GetParameter(s string, params interface{}) (interface{}, bool) {
 			index, err := strconv.ParseUint(s, 10, 64)
 
 			if err != nil || paramsValueSliceLength <= int(index) {
-				return nil, false
+				return nil, &ParameterNodeError{s}
 			}
 
-			return params.([]interface{})[index], true
+			return params.([]interface{})[index], nil
 		}
 
-		return nil, false
+		return nil, &ParameterNodeError{s}
 
 	case reflect.Map:
 		// Check for raw key
 		if v, ok := params.(map[string]interface{})[s]; ok {
-			return v, true
+			return v, nil
 		}
 
 		// Checked for dotted references
@@ -320,19 +342,21 @@ func GetParameter(s string, params interface{}) (interface{}, bool) {
 				return GetParameter(p[1], pValue)
 			}
 
-			return pValue, true
+			return pValue, nil
 		}
 	}
 
-	return nil, false
+	return nil, &ParameterNodeError{s}
 }
 
 // ExtractParameterAsString extracts value from interface{} as string based on the passed string
-func ExtractParameterAsString(s string, params interface{}) (string, bool) {
-	if pValue, ok := GetParameter(s, params); ok {
-		return fmt.Sprintf("%v", pValue), true
+func ExtractParameterAsString(s string, params interface{}) (string, error) {
+	pValue, err := GetParameter(s, params)
+	if err != nil {
+		return "", err
 	}
-	return "", false
+
+	return fmt.Sprintf("%v", pValue), nil
 }
 
 // Argument type specifies the parameter key name and the source it should
@@ -346,7 +370,7 @@ type Argument struct {
 
 // Get Argument method returns the value for the Argument's key name
 // based on the Argument's source
-func (ha *Argument) Get(headers, query, payload *map[string]interface{}) (string, bool) {
+func (ha *Argument) Get(headers, query, payload *map[string]interface{}) (string, error) {
 	var source *map[string]interface{}
 	key := ha.Name
 
@@ -359,35 +383,35 @@ func (ha *Argument) Get(headers, query, payload *map[string]interface{}) (string
 	case SourcePayload:
 		source = payload
 	case SourceString:
-		return ha.Name, true
+		return ha.Name, nil
 	case SourceEntirePayload:
 		r, err := json.Marshal(payload)
 		if err != nil {
-			return "", false
+			return "", err
 		}
 
-		return string(r), true
+		return string(r), nil
 	case SourceEntireHeaders:
 		r, err := json.Marshal(headers)
 		if err != nil {
-			return "", false
+			return "", err
 		}
 
-		return string(r), true
+		return string(r), nil
 	case SourceEntireQuery:
 		r, err := json.Marshal(query)
 		if err != nil {
-			return "", false
+			return "", err
 		}
 
-		return string(r), true
+		return string(r), nil
 	}
 
 	if source != nil {
 		return ExtractParameterAsString(key, *source)
 	}
 
-	return "", false
+	return "", errors.New("no source for value retrieval")
 }
 
 // Header is a structure containing header name and it's value
@@ -469,7 +493,10 @@ func (h *Hook) ParseJSONParameters(headers, query, payload *map[string]interface
 	errors := make([]error, 0)
 
 	for i := range h.JSONStringParameters {
-		if arg, ok := h.JSONStringParameters[i].Get(headers, query, payload); ok {
+		arg, err := h.JSONStringParameters[i].Get(headers, query, payload)
+		if err != nil {
+			errors = append(errors, &ArgumentError{h.JSONStringParameters[i]})
+		} else {
 			var newArg map[string]interface{}
 
 			decoder := json.NewDecoder(strings.NewReader(string(arg)))
@@ -503,8 +530,6 @@ func (h *Hook) ParseJSONParameters(headers, query, payload *map[string]interface
 			} else {
 				errors = append(errors, &SourceError{h.JSONStringParameters[i]})
 			}
-		} else {
-			errors = append(errors, &ArgumentError{h.JSONStringParameters[i]})
 		}
 	}
 
@@ -524,12 +549,14 @@ func (h *Hook) ExtractCommandArguments(headers, query, payload *map[string]inter
 	args = append(args, h.ExecuteCommand)
 
 	for i := range h.PassArgumentsToCommand {
-		if arg, ok := h.PassArgumentsToCommand[i].Get(headers, query, payload); ok {
-			args = append(args, arg)
-		} else {
+		arg, err := h.PassArgumentsToCommand[i].Get(headers, query, payload)
+		if err != nil {
 			args = append(args, "")
 			errors = append(errors, &ArgumentError{h.PassArgumentsToCommand[i]})
+			continue
 		}
+
+		args = append(args, arg)
 	}
 
 	if len(errors) > 0 {
@@ -546,16 +573,18 @@ func (h *Hook) ExtractCommandArgumentsForEnv(headers, query, payload *map[string
 	args := make([]string, 0)
 	errors := make([]error, 0)
 	for i := range h.PassEnvironmentToCommand {
-		if arg, ok := h.PassEnvironmentToCommand[i].Get(headers, query, payload); ok {
-			if h.PassEnvironmentToCommand[i].EnvName != "" {
-				// first try to use the EnvName if specified
-				args = append(args, h.PassEnvironmentToCommand[i].EnvName+"="+arg)
-			} else {
-				// then fallback on the name
-				args = append(args, EnvNamespace+h.PassEnvironmentToCommand[i].Name+"="+arg)
-			}
-		} else {
+		arg, err := h.PassEnvironmentToCommand[i].Get(headers, query, payload)
+		if err != nil {
 			errors = append(errors, &ArgumentError{h.PassEnvironmentToCommand[i]})
+			continue
+		}
+
+		if h.PassEnvironmentToCommand[i].EnvName != "" {
+			// first try to use the EnvName if specified
+			args = append(args, h.PassEnvironmentToCommand[i].EnvName+"="+arg)
+		} else {
+			// then fallback on the name
+			args = append(args, EnvNamespace+h.PassEnvironmentToCommand[i].Name+"="+arg)
 		}
 	}
 
@@ -580,30 +609,30 @@ func (h *Hook) ExtractCommandArgumentsForFile(headers, query, payload *map[strin
 	args := make([]FileParameter, 0)
 	errors := make([]error, 0)
 	for i := range h.PassFileToCommand {
-		if arg, ok := h.PassFileToCommand[i].Get(headers, query, payload); ok {
-
-			if h.PassFileToCommand[i].EnvName == "" {
-				// if no environment-variable name is set, fall-back on the name
-				log.Printf("no ENVVAR name specified, falling back to [%s]", EnvNamespace+strings.ToUpper(h.PassFileToCommand[i].Name))
-				h.PassFileToCommand[i].EnvName = EnvNamespace + strings.ToUpper(h.PassFileToCommand[i].Name)
-			}
-
-			var fileContent []byte
-			if h.PassFileToCommand[i].Base64Decode {
-				dec, err := base64.StdEncoding.DecodeString(arg)
-				if err != nil {
-					log.Printf("error decoding string [%s]", err)
-				}
-				fileContent = []byte(dec)
-			} else {
-				fileContent = []byte(arg)
-			}
-
-			args = append(args, FileParameter{EnvName: h.PassFileToCommand[i].EnvName, Data: fileContent})
-
-		} else {
+		arg, err := h.PassFileToCommand[i].Get(headers, query, payload)
+		if err != nil {
 			errors = append(errors, &ArgumentError{h.PassFileToCommand[i]})
+			continue
 		}
+
+		if h.PassFileToCommand[i].EnvName == "" {
+			// if no environment-variable name is set, fall-back on the name
+			log.Printf("no ENVVAR name specified, falling back to [%s]", EnvNamespace+strings.ToUpper(h.PassFileToCommand[i].Name))
+			h.PassFileToCommand[i].EnvName = EnvNamespace + strings.ToUpper(h.PassFileToCommand[i].Name)
+		}
+
+		var fileContent []byte
+		if h.PassFileToCommand[i].Base64Decode {
+			dec, err := base64.StdEncoding.DecodeString(arg)
+			if err != nil {
+				log.Printf("error decoding string [%s]", err)
+			}
+			fileContent = []byte(dec)
+		} else {
+			fileContent = []byte(arg)
+		}
+
+		args = append(args, FileParameter{EnvName: h.PassFileToCommand[i].EnvName, Data: fileContent})
 	}
 
 	if len(errors) > 0 {
@@ -785,7 +814,8 @@ func (r MatchRule) Evaluate(headers, query, payload *map[string]interface{}, bod
 		return CheckScalrSignature(*headers, *body, r.Secret, true)
 	}
 
-	if arg, ok := r.Parameter.Get(headers, query, payload); ok {
+	arg, err := r.Parameter.Get(headers, query, payload)
+	if err == nil {
 		switch r.Type {
 		case MatchValue:
 			return compare(arg, r.Value), nil
@@ -802,7 +832,7 @@ func (r MatchRule) Evaluate(headers, query, payload *map[string]interface{}, bod
 			return err == nil, err
 		}
 	}
-	return false, nil
+	return false, err
 }
 
 // compare is a helper function for constant time string comparisons.
