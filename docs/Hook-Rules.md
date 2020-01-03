@@ -186,13 +186,6 @@ For the regex syntax, check out <http://golang.org/pkg/regexp/syntax/>
 }
 ```
 
-Note that if multiple signatures were passed via a comma separated string, each
-will be tried unless a match is found. For example:
-
-```
-X-Hub-Signature: sha1=the-first-signature,sha1=the-second-signature
-```
-
 ### 4. Match payload-hash-sha256
 ```json
 {
@@ -209,13 +202,6 @@ X-Hub-Signature: sha1=the-first-signature,sha1=the-second-signature
 }
 ```
 
-Note that if multiple signatures were passed via a comma separated string, each
-will be tried unless a match is found. For example:
-
-```
-X-Hub-Signature: sha256=the-first-signature,sha256=the-second-signature
-```
-
 ### 5. Match payload-hash-sha512
 ```json
 {
@@ -230,13 +216,6 @@ X-Hub-Signature: sha256=the-first-signature,sha256=the-second-signature
     }
   }
 }
-```
-
-Note that if multiple signatures were passed via a comma separated string, each
-will be tried unless a match is found. For example:
-
-```
-X-Hub-Signature: sha512=the-first-signature,sha512=the-second-signature
 ```
 
 ### 6. Match Whitelisted IP range
