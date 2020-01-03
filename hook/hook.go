@@ -648,8 +648,35 @@ func (h *Hooks) LoadFromFile(path string, asTemplate bool) error {
 		file = buf.Bytes()
 	}
 
-	e = yaml.Unmarshal(file, h)
+	f, err := h.ReplaceEnv(string(file))
+	if err != nil {
+		return err
+	}
+
+	e = yaml.Unmarshal([]byte(f), h)
 	return e
+}
+
+// ReplaceEnv replace env
+func (h *Hooks) ReplaceEnv(str string) (string, error) {
+	expr := `\${[A-Za-z_]*}`
+	r, err := regexp.Compile(expr)
+	if err != nil {
+		return "", fmt.Errorf("regexp.Compile error: %w", err)
+	}
+	if r == nil {
+		return "", fmt.Errorf("r is nil")
+	}
+	all := r.FindAll([]byte(str), -1)
+	for _, v := range all {
+		envStr := string(v)
+		env := os.Getenv(envStr[2 : len(envStr)-1])
+		if env == "" {
+			return "", errors.New("get env failed:" + envStr)
+		}
+		str = strings.ReplaceAll(str, envStr, env)
+	}
+	return str, nil
 }
 
 // Append appends hooks unless the new hooks contain a hook with an ID that already exists

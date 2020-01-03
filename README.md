@@ -60,6 +60,16 @@ Our `hooks.json` file will now look like this:
   }
 ]
 ```
+添加对环境变量的支持
+```json
+[
+  {
+    "id": "redeploy-webhook",
+    "execute-command": "${PATH}/redeploy.sh",
+    "command-working-directory": "/var/webhook"
+  }
+]
+```
 
 You can now run [webhook][w] using
 ```bash
