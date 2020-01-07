@@ -48,8 +48,11 @@ var checkPayloadSignatureTests = []struct {
 }{
 	{[]byte(`{"a": "z"}`), "secret", "b17e04cbb22afa8ffbff8796fc1894ed27badd9e", "b17e04cbb22afa8ffbff8796fc1894ed27badd9e", true},
 	{[]byte(`{"a": "z"}`), "secret", "sha1=b17e04cbb22afa8ffbff8796fc1894ed27badd9e", "b17e04cbb22afa8ffbff8796fc1894ed27badd9e", true},
+	{[]byte(`{"a": "z"}`), "secret", "sha1=XXXe04cbb22afa8ffbff8796fc1894ed27badd9e,sha1=b17e04cbb22afa8ffbff8796fc1894ed27badd9e", "b17e04cbb22afa8ffbff8796fc1894ed27badd9e", true},
 	// failures
 	{[]byte(`{"a": "z"}`), "secret", "XXXe04cbb22afa8ffbff8796fc1894ed27badd9e", "b17e04cbb22afa8ffbff8796fc1894ed27badd9e", false},
+	{[]byte(`{"a": "z"}`), "secret", "sha1=XXXe04cbb22afa8ffbff8796fc1894ed27badd9e", "b17e04cbb22afa8ffbff8796fc1894ed27badd9e", false},
+	{[]byte(`{"a": "z"}`), "secret", "sha1=XXXe04cbb22afa8ffbff8796fc1894ed27badd9e,sha1=XXXe04cbb22afa8ffbff8796fc1894ed27badd9e", "b17e04cbb22afa8ffbff8796fc1894ed27badd9e", false},
 	{[]byte(`{"a": "z"}`), "secreX", "b17e04cbb22afa8ffbff8796fc1894ed27badd9e", "900225703e9342328db7307692736e2f7cc7b36e", false},
 	{[]byte(`{"a": "z"}`), "", "b17e04cbb22afa8ffbff8796fc1894ed27badd9e", "", false},
 }
@@ -76,8 +79,11 @@ var checkPayloadSignature256Tests = []struct {
 }{
 	{[]byte(`{"a": "z"}`), "secret", "f417af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89", "f417af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89", true},
 	{[]byte(`{"a": "z"}`), "secret", "sha256=f417af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89", "f417af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89", true},
+	{[]byte(`{"a": "z"}`), "secret", "sha256=XXX7af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89,sha256=f417af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89", "f417af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89", true},
 	// failures
 	{[]byte(`{"a": "z"}`), "secret", "XXX7af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89", "f417af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89", false},
+	{[]byte(`{"a": "z"}`), "secret", "sha256=XXX7af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89", "f417af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89", false},
+	{[]byte(`{"a": "z"}`), "secret", "sha256=XXX7af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89,sha256=XXX7af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89", "f417af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89", false},
 	{[]byte(`{"a": "z"}`), "", "XXX7af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89", "", false},
 }
 
