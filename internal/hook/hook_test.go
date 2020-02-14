@@ -28,9 +28,9 @@ func TestGetParameter(t *testing.T) {
 		{"z.b", map[string]interface{}{"a": map[string]interface{}{"z": 2}}, nil, false},
 		{"a.2", map[string]interface{}{"a": []interface{}{"a", "b"}}, nil, false},
 	} {
-		res, ok := GetParameter(test.key, test.val)
-		if ok != test.ok {
-			t.Errorf("unexpected result given {%q, %q}: %t\n", test.key, test.val, ok)
+		res, err := GetParameter(test.key, test.val)
+		if (err == nil) != test.ok {
+			t.Errorf("unexpected result given {%q, %q}: %s\n", test.key, test.val, err)
 		}
 
 		if !reflect.DeepEqual(res, test.expect) {
@@ -231,9 +231,9 @@ var extractParameterTests = []struct {
 
 func TestExtractParameter(t *testing.T) {
 	for _, tt := range extractParameterTests {
-		value, ok := ExtractParameterAsString(tt.s, tt.params)
-		if ok != tt.ok || value != tt.value {
-			t.Errorf("failed to extract parameter %q:\nexpected {value:%#v, ok:%#v},\ngot {value:%#v, ok:%#v}", tt.s, tt.value, tt.ok, value, ok)
+		value, err := ExtractParameterAsString(tt.s, tt.params)
+		if (err == nil) != tt.ok || value != tt.value {
+			t.Errorf("failed to extract parameter %q:\nexpected {value:%#v, ok:%#v},\ngot {value:%#v, err:%s}", tt.s, tt.value, tt.ok, value, err)
 		}
 	}
 }
@@ -258,9 +258,9 @@ var argumentGetTests = []struct {
 func TestArgumentGet(t *testing.T) {
 	for _, tt := range argumentGetTests {
 		a := Argument{tt.source, tt.name, "", false}
-		value, ok := a.Get(tt.headers, tt.query, tt.payload)
-		if ok != tt.ok || value != tt.value {
-			t.Errorf("failed to get {%q, %q}:\nexpected {value:%#v, ok:%#v},\ngot {value:%#v, ok:%#v}", tt.source, tt.name, tt.value, tt.ok, value, ok)
+		value, err := a.Get(tt.headers, tt.query, tt.payload)
+		if (err == nil) != tt.ok || value != tt.value {
+			t.Errorf("failed to get {%q, %q}:\nexpected {value:%#v, ok:%#v},\ngot {value:%#v, err:%s}", tt.source, tt.name, tt.value, tt.ok, value, err)
 		}
 	}
 }
@@ -458,7 +458,7 @@ var matchRuleTests = []struct {
 	// failures
 	{"value", "", "", "X", "", Argument{"header", "a", "", false}, &map[string]interface{}{"A": "z"}, nil, nil, []byte{}, "", false, false},
 	{"regex", "^X", "", "", "", Argument{"header", "a", "", false}, &map[string]interface{}{"A": "z"}, nil, nil, []byte{}, "", false, false},
-	{"value", "", "2", "X", "", Argument{"header", "a", "", false}, &map[string]interface{}{"Y": "z"}, nil, nil, []byte{}, "", false, false}, // reference invalid header
+	{"value", "", "2", "X", "", Argument{"header", "a", "", false}, &map[string]interface{}{"Y": "z"}, nil, nil, []byte{}, "", false, true}, // reference invalid header
 	// errors
 	{"regex", "*", "", "", "", Argument{"header", "a", "", false}, &map[string]interface{}{"A": "z"}, nil, nil, []byte{}, "", false, true},                   // invalid regex
 	{"payload-hash-sha1", "", "secret", "", "", Argument{"header", "a", "", false}, &map[string]interface{}{"A": ""}, nil, nil, []byte{}, "", false, true},   // invalid hmac
@@ -483,7 +483,7 @@ func TestMatchRule(t *testing.T) {
 		r := MatchRule{tt.typ, tt.regex, tt.secret, tt.value, tt.param, tt.ipRange}
 		ok, err := r.Evaluate(tt.headers, tt.query, tt.payload, &tt.body, tt.remoteAddr)
 		if ok != tt.ok || (err != nil) != tt.err {
-			t.Errorf("%d failed to match %#v:\nexpected ok: %#v, err: %v\ngot ok: %#v, err: %v", i, r, tt.ok, tt.err, ok, (err != nil))
+			t.Errorf("%d failed to match %#v:\nexpected ok: %#v, err: %v\ngot ok: %#v, err: %v", i, r, tt.ok, tt.err, ok, err)
 		}
 	}
 }
@@ -546,7 +546,7 @@ var andRuleTests = []struct {
 		"invalid rule",
 		AndRule{{Match: &MatchRule{"value", "", "", "X", Argument{"header", "a", "", false}, ""}}},
 		&map[string]interface{}{"Y": "z"}, nil, nil, nil,
-		false, false,
+		false, true,
 	},
 }
 
@@ -601,7 +601,7 @@ var orRuleTests = []struct {
 			{Match: &MatchRule{"value", "", "", "z", Argument{"header", "a", "", false}, ""}},
 		},
 		&map[string]interface{}{"Y": "Z"}, nil, nil, []byte{},
-		false, false,
+		false, true,
 	},
 }
 
