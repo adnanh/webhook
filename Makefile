@@ -31,7 +31,7 @@ test: deps
 	go test ./...
 
 deps:
-	go get -d -v -t ./...
+	go mod vendor
 
 clean:
 	rm -rf build
