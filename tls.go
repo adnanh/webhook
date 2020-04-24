@@ -8,7 +8,7 @@ import (
 )
 
 func writeTLSSupportedCipherStrings(w io.Writer, min uint16) error {
-	for _, c := range CipherSuites() {
+	for _, c := range tls.CipherSuites() {
 		var found bool
 
 		for _, v := range c.SupportedVersions {
@@ -50,7 +50,7 @@ func getTLSMinVersion(v string) uint16 {
 // getTLSCipherSuites converts a comma separated list of cipher suites into a
 // slice of TLS cipher suite IDs.
 func getTLSCipherSuites(v string) []uint16 {
-	supported := CipherSuites()
+	supported := tls.CipherSuites()
 
 	if v == "" {
 		suites := make([]uint16, len(supported))
