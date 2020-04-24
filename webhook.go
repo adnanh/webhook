@@ -569,12 +569,12 @@ func handleHook(h *hook.Hook, rid string, headers, query, payload *map[string]in
 	}
 
 	if err != nil {
-		log.Printf("unable to locate command: '%s'", h.ExecuteCommand)
+		log.Printf("[%s] error locating command: '%s'", rid, h.ExecuteCommand)
 
 		// check if parameters specified in execute-command by mistake
 		if strings.IndexByte(h.ExecuteCommand, ' ') != -1 {
 			s := strings.Fields(h.ExecuteCommand)[0]
-			log.Printf("use 'pass-arguments-to-command' to specify args for '%s'", s)
+			log.Printf("[%s] use 'pass-arguments-to-command' to specify args for '%s'", rid, s)
 		}
 
 		return "", err
