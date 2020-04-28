@@ -186,7 +186,60 @@ For the regex syntax, check out <http://golang.org/pkg/regexp/syntax/>
 }
 ```
 
-### 4. Match Whitelisted IP range
+Note that if multiple signatures were passed via a comma separated string, each
+will be tried unless a match is found. For example:
+
+```
+X-Hub-Signature: sha1=the-first-signature,sha1=the-second-signature
+```
+
+### 4. Match payload-hash-sha256
+```json
+{
+  "match":
+  {
+    "type": "payload-hash-sha256",
+    "secret": "yoursecret",
+    "parameter":
+    {
+      "source": "header",
+      "name": "X-Signature"
+    }
+  }
+}
+```
+
+Note that if multiple signatures were passed via a comma separated string, each
+will be tried unless a match is found. For example:
+
+```
+X-Hub-Signature: sha256=the-first-signature,sha256=the-second-signature
+```
+
+### 5. Match payload-hash-sha512
+```json
+{
+  "match":
+  {
+    "type": "payload-hash-sha512",
+    "secret": "yoursecret",
+    "parameter":
+    {
+      "source": "header",
+      "name": "X-Signature"
+    }
+  }
+}
+```
+
+Note that if multiple signatures were passed via a comma separated string, each
+will be tried unless a match is found. For example:
+
+```
+X-Hub-Signature: sha512=the-first-signature,sha512=the-second-signature
+```
+
+### 6. Match Whitelisted IP range
 
 The IP can be IPv4- or IPv6-formatted, using [CIDR notation](https://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing#CIDR_blocks).  To match a single IP address only, use `/32`.
 
@@ -200,7 +253,7 @@ The IP can be IPv4- or IPv6-formatted, using [CIDR notation](https://en.wikipedi
 }
 ```
 
-### 5. Match scalr-signature
+### 7. Match scalr-signature
 
 The trigger rule checks the scalr signature and also checks that the request was signed less than 5 minutes before it was received. 
 A unqiue signing key is generated for each webhook endpoint URL you register in Scalr.

@@ -287,12 +287,12 @@ __Not recommended in production due to low security__
 ]
 ```
 
-# JIRA Webhooks
+## JIRA Webhooks
 [Guide by @perfecto25](https://sites.google.com/site/mrxpalmeiras/notes/jira-webhooks)
 
-# Pass File-to-command sample
+## Pass File-to-command sample
 
-## Webhook configuration
+### Webhook configuration
 
 <pre>
 [
@@ -315,7 +315,7 @@ __Not recommended in production due to low security__
 ]
 </pre>
 
-## Sample client usage 
+### Sample client usage 
 
 Store the following file as `testRequest.json`. 
 
@@ -424,3 +424,97 @@ Travis sends webhooks as `payload=<JSON_STRING>`, so the payload needs to be par
   }
 ]
 ```
+
+## XML Payload
+
+Given the following payload:
+
+```xml
+<app>
+  <users>
+    <user id="1" name="Jeff" />
+    <user id="2" name="Sally" />
+  </users>
+  <messages>
+    <message id="1" from_user="1" to_user="2">Hello!!</message>
+  </messages>
+</app>
+```
+
+```json
+[
+  {
+    "id": "deploy",
+    "execute-command": "/root/my-server/deployment.sh",
+    "command-working-directory": "/root/my-server",
+    "trigger-rule": {
+      "and": [
+        {
+          "match": {
+            "type": "value",
+            "parameter": {
+              "source": "payload",
+              "name": "app.users.user.0.-name"
+            },
+            "value": "Jeff"
+          }
+        },
+        {
+          "match": {
+            "type": "value",
+            "parameter": {
+              "source": "payload",
+              "name": "app.messages.message.#text"
+            },
+            "value": "Hello!!"
+          }
+        },
+      ],
+    }
+  }
+]
+```
+
+## Multipart Form Data
+
+Example of a [Plex Media Server webhook](https://support.plex.tv/articles/115002267687-webhooks/).
+The Plex Media Server will send two parts: payload and thumb.
+We only care about the payload part.
+
+```json
+[
+  {
+    "id": "plex",
+    "execute-command": "play-command.sh",
+    "parse-parameters-as-json": [
+      {
+        "source": "payload",
+        "name": "payload"
+      }
+    ],
+    "trigger-rule":
+    {
+      "match":
+      {
+        "type": "value",
+        "parameter": {
+          "source": "payload",
+          "name": "payload.event"
+        },
+        "value": "media.play"
+      }
+    }
+  }
+]
+
+```
+
+Each part of a multipart form data body will have a `Content-Disposition` header.
+Some example headers:
+
+```
+Content-Disposition: form-data; name="payload"
+Content-Disposition: form-data; name="thumb"; filename="thumb.jpg"
+```
+
+We key off of the `name` attribute in the `Content-Disposition` value.

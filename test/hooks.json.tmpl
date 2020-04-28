@@ -3,6 +3,7 @@
     "id": "github",
     "execute-command": "{{ .Hookecho }}",
     "command-working-directory": "/",
+    "http-methods": ["Post "],
     "include-command-output-in-response": true,
     "trigger-rule-mismatch-http-response-code": 400,
     "pass-environment-to-command":
@@ -134,6 +135,60 @@
           "source": "payload",
           "name": "ref"
         }
+      }
+    }
+  },
+  {
+    "id": "xml",
+    "execute-command": "{{ .Hookecho }}",
+    "command-working-directory": "/",
+    "response-message": "success",
+    "trigger-rule": {
+      "and": [
+        {
+          "match": {
+            "type": "value",
+            "parameter": {
+              "source": "payload",
+              "name": "app.users.user.0.-name"
+            },
+            "value": "Jeff"
+          }
+        },
+        {
+          "match": {
+            "type": "value",
+            "parameter": {
+              "source": "payload",
+              "name": "app.messages.message.#text"
+            },
+            "value": "Hello!!"
+          }
+        },
+      ],
+    }
+  },
+  {
+    "id": "plex",
+    "execute-command": "{{ .Hookecho }}",
+    "command-working-directory": "/",
+    "response-message": "success",
+    "parse-parameters-as-json": [
+      {
+        "source": "payload",
+        "name": "payload"
+      }
+    ],
+    "trigger-rule":
+    {
+      "match":
+      {
+        "type": "value",
+        "parameter": {
+          "source": "payload",
+          "name": "payload.event"
+        },
+        "value": "media.play"
       }
     }
   },

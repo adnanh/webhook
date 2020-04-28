@@ -1,0 +1,20 @@
+# github.com/clbanning/mxj v1.8.4
+github.com/clbanning/mxj
+# github.com/dustin/go-humanize v1.0.0
+github.com/dustin/go-humanize
+# github.com/ghodss/yaml v1.0.0
+github.com/ghodss/yaml
+# github.com/go-chi/chi v4.0.2+incompatible
+github.com/go-chi/chi
+github.com/go-chi/chi/middleware
+# github.com/gofrs/uuid v3.2.0+incompatible
+github.com/gofrs/uuid
+# github.com/gorilla/mux v1.7.3
+github.com/gorilla/mux
+# golang.org/x/sys v0.0.0-20191228213918-04cbcbbfeed8
+golang.org/x/sys/unix
+golang.org/x/sys/windows
+# gopkg.in/fsnotify.v1 v1.4.2
+gopkg.in/fsnotify.v1
+# gopkg.in/yaml.v2 v2.0.0-20170812160011-eb3733d160e7
+gopkg.in/yaml.v2

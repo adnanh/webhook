@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"flag"
@@ -8,6 +10,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -16,22 +19,26 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adnanh/webhook/hook"
-	"github.com/codegangsta/negroni"
-	"github.com/gorilla/mux"
-	"github.com/satori/go.uuid"
+	"github.com/adnanh/webhook/internal/hook"
+	"github.com/adnanh/webhook/internal/middleware"
+	"github.com/adnanh/webhook/internal/pidfile"
 
+	"github.com/clbanning/mxj"
+	chimiddleware "github.com/go-chi/chi/middleware"
+	"github.com/gorilla/mux"
 	fsnotify "gopkg.in/fsnotify.v1"
 )
 
 const (
-	version = "2.6.10"
+	version = "2.6.11"
 )
 
 var (
 	ip                 = flag.String("ip", "0.0.0.0", "ip the webhook should serve hooks on")
 	port               = flag.Int("port", 9000, "port the webhook should serve hooks on")
 	verbose            = flag.Bool("verbose", false, "show verbose output")
+	logPath            = flag.String("logfile", "", "send log output to a file; implicitly enables verbose logging")
+	debug              = flag.Bool("debug", false, "show debug output")
 	noPanic            = flag.Bool("nopanic", false, "do not panic if hooks cannot be loaded when webhook is not running in verbose mode")
 	hotReload          = flag.Bool("hotreload", false, "watch hooks file for changes and reload them automatically")
 	hooksURLPrefix     = flag.String("urlprefix", "hooks", "url prefix to use for served hooks (protocol://yourserver:port/PREFIX/:hook-id)")
@@ -40,6 +47,16 @@ var (
 	cert               = flag.String("cert", "cert.pem", "path to the HTTPS certificate pem file")
 	key                = flag.String("key", "key.pem", "path to the HTTPS certificate private key pem file")
 	justDisplayVersion = flag.Bool("version", false, "display webhook version and quit")
+	justListCiphers    = flag.Bool("list-cipher-suites", false, "list available TLS cipher suites")
+	tlsMinVersion      = flag.String("tls-min-version", "1.2", "minimum TLS version (1.0, 1.1, 1.2, 1.3)")
+	tlsCipherSuites    = flag.String("cipher-suites", "", "comma-separated list of supported TLS cipher suites")
+	useXRequestID      = flag.Bool("x-request-id", false, "use X-Request-Id header, if present, as request ID")
+	xRequestIDLimit    = flag.Int("x-request-id-limit", 0, "truncate X-Request-Id header to limit; default no limit")
+	maxMultipartMem    = flag.Int64("max-multipart-mem", 1<<20, "maximum memory in bytes for parsing multipart form data before disk caching")
+	setGID             = flag.Int("setgid", 0, "set group ID after opening listening port; must be used with setuid")
+	setUID             = flag.Int("setuid", 0, "set user ID after opening listening port; must be used with setgid")
+	httpMethods        = flag.String("http-methods", "", `set default allowed HTTP methods (ie. "POST"); separate methods with comma`)
+	pidPath            = flag.String("pidfile", "", "create PID file at the given path")
 
 	responseHeaders hook.ResponseHeaders
 	hooksFiles      hook.HooksFiles
@@ -48,6 +65,7 @@ var (
 
 	watcher *fsnotify.Watcher
 	signals chan os.Signal
+	pidFile *pidfile.PIDFile
 )
 
 func matchLoadedHook(id string) *hook.Hook {
@@ -80,15 +98,91 @@ func main() {
 		os.Exit(0)
 	}
 
+	if *justListCiphers {
+		err := writeTLSSupportedCipherStrings(os.Stdout, getTLSMinVersion(*tlsMinVersion))
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
+
+	if (*setUID != 0 || *setGID != 0) && (*setUID == 0 || *setGID == 0) {
+		fmt.Println("error: setuid and setgid options must be used together")
+		os.Exit(1)
+	}
+
+	if *debug || *logPath != "" {
+		*verbose = true
+	}
+
 	if len(hooksFiles) == 0 {
 		hooksFiles = append(hooksFiles, "hooks.json")
+	}
+
+	// logQueue is a queue for log messages encountered during startup. We need
+	// to queue the messages so that we can handle any privilege dropping and
+	// log file opening prior to writing our first log message.
+	var logQueue []string
+
+	addr := fmt.Sprintf("%s:%d", *ip, *port)
+
+	// Open listener early so we can drop privileges.
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		logQueue = append(logQueue, fmt.Sprintf("error listening on port: %s", err))
+		// we'll bail out below
+	}
+
+	if *setUID != 0 {
+		err := dropPrivileges(*setUID, *setGID)
+		if err != nil {
+			logQueue = append(logQueue, fmt.Sprintf("error dropping privileges: %s", err))
+			// we'll bail out below
+		}
+	}
+
+	if *logPath != "" {
+		file, err := os.OpenFile(*logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+		if err != nil {
+			logQueue = append(logQueue, fmt.Sprintf("error opening log file %q: %v", *logPath, err))
+			// we'll bail out below
+		} else {
+			log.SetOutput(file)
+		}
 	}
 
 	log.SetPrefix("[webhook] ")
 	log.SetFlags(log.Ldate | log.Ltime)
 
+	if len(logQueue) != 0 {
+		for i := range logQueue {
+			log.Println(logQueue[i])
+		}
+
+		os.Exit(1)
+	}
+
 	if !*verbose {
 		log.SetOutput(ioutil.Discard)
+	}
+
+	// Create pidfile
+	if *pidPath != "" {
+		var err error
+
+		pidFile, err = pidfile.New(*pidPath)
+		if err != nil {
+			log.Fatalf("Error creating pidfile: %v", err)
+		}
+
+		defer func() {
+			// NOTE(moorereason): my testing shows that this doesn't work with
+			// ^C, so we also do a Remove in the signal handler elsewhere.
+			if nerr := pidFile.Remove(); nerr != nil {
+				log.Print(nerr)
+			}
+		}()
 	}
 
 	log.Println("version " + version + " starting")
@@ -149,252 +243,383 @@ func main() {
 
 			err = watcher.Add(hooksFilePath)
 			if err != nil {
-				log.Fatal("error adding hooks file to the watcher\n", err)
+				log.Print("error adding hooks file to the watcher\n", err)
+				return
 			}
 		}
 
 		go watchForFileChange()
 	}
 
-	l := negroni.NewLogger()
+	r := mux.NewRouter()
 
-	l.SetFormat("{{.Status}} | {{.Duration}} | {{.Hostname}} | {{.Method}} {{.Path}} \n")
+	r.Use(middleware.RequestID(
+		middleware.UseXRequestIDHeaderOption(*useXRequestID),
+		middleware.XRequestIDLimitOption(*xRequestIDLimit),
+	))
+	r.Use(middleware.NewLogger())
+	r.Use(chimiddleware.Recoverer)
 
-	standardLogger := log.New(os.Stdout, "[webhook] ", log.Ldate|log.Ltime)
-
-	if !*verbose {
-		standardLogger.SetOutput(ioutil.Discard)
+	if *debug {
+		r.Use(middleware.Dumper(log.Writer()))
 	}
 
-	l.ALogger = standardLogger
+	// Clean up input
+	*httpMethods = strings.ToUpper(strings.ReplaceAll(*httpMethods, " ", ""))
 
-	negroniRecovery := &negroni.Recovery{
-		Logger:     l.ALogger,
-		PrintStack: true,
-		StackAll:   false,
-		StackSize:  1024 * 8,
-	}
+	hooksURL := makeURL(hooksURLPrefix)
 
-	n := negroni.New(negroniRecovery, l)
-
-	router := mux.NewRouter()
-
-	var hooksURL string
-
-	if *hooksURLPrefix == "" {
-		hooksURL = "/{id}"
-	} else {
-		hooksURL = "/" + *hooksURLPrefix + "/{id}"
-	}
-
-	router.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
+	r.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
 		fmt.Fprint(w, "OK")
 	})
 
-	router.HandleFunc(hooksURL, hookHandler)
+	r.HandleFunc(hooksURL, hookHandler)
 
-	n.UseHandler(router)
-
-	if *secure {
-		log.Printf("serving hooks on https://%s:%d%s", *ip, *port, hooksURL)
-		log.Fatal(http.ListenAndServeTLS(fmt.Sprintf("%s:%d", *ip, *port), *cert, *key, n))
-	} else {
-		log.Printf("serving hooks on http://%s:%d%s", *ip, *port, hooksURL)
-		log.Fatal(http.ListenAndServe(fmt.Sprintf("%s:%d", *ip, *port), n))
+	// Create common HTTP server settings
+	svr := &http.Server{
+		Addr:    addr,
+		Handler: r,
 	}
 
+	// Serve HTTP
+	if !*secure {
+		log.Printf("serving hooks on http://%s%s", addr, hooksURL)
+		log.Print(svr.Serve(ln))
+
+		return
+	}
+
+	// Server HTTPS
+	svr.TLSConfig = &tls.Config{
+		CipherSuites:             getTLSCipherSuites(*tlsCipherSuites),
+		CurvePreferences:         []tls.CurveID{tls.CurveP521, tls.CurveP384, tls.CurveP256},
+		MinVersion:               getTLSMinVersion(*tlsMinVersion),
+		PreferServerCipherSuites: true,
+	}
+	svr.TLSNextProto = make(map[string]func(*http.Server, *tls.Conn, http.Handler)) // disable http/2
+
+	log.Printf("serving hooks on https://%s%s", addr, hooksURL)
+	log.Print(svr.ServeTLS(ln, *cert, *key))
 }
 
 func hookHandler(w http.ResponseWriter, r *http.Request) {
-	// generate a request id for logging
-	rid := uuid.NewV4().String()[:6]
+	rid := middleware.GetReqID(r.Context())
 
-	log.Printf("[%s] incoming HTTP request from %s\n", rid, r.RemoteAddr)
+	log.Printf("[%s] incoming HTTP %s request from %s\n", rid, r.Method, r.RemoteAddr)
+
+	id := mux.Vars(r)["id"]
+
+	matchedHook := matchLoadedHook(id)
+	if matchedHook == nil {
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprint(w, "Hook not found.")
+		return
+	}
+
+	// Check for allowed methods
+	var allowedMethod bool
+
+	switch {
+	case len(matchedHook.HTTPMethods) != 0:
+		for i := range matchedHook.HTTPMethods {
+			// TODO(moorereason): refactor config loading and reloading to
+			// sanitize these methods once at load time.
+			if r.Method == strings.ToUpper(strings.TrimSpace(matchedHook.HTTPMethods[i])) {
+				allowedMethod = true
+				break
+			}
+		}
+	case *httpMethods != "":
+		for _, v := range strings.Split(*httpMethods, ",") {
+			if r.Method == v {
+				allowedMethod = true
+				break
+			}
+		}
+	default:
+		allowedMethod = true
+	}
+
+	if !allowedMethod {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		log.Printf("[%s] HTTP %s method not allowed for hook %q", rid, r.Method, id)
+
+		return
+	}
+
+	log.Printf("[%s] %s got matched\n", rid, id)
 
 	for _, responseHeader := range responseHeaders {
 		w.Header().Set(responseHeader.Name, responseHeader.Value)
 	}
 
-	id := mux.Vars(r)["id"]
+	var (
+		body []byte
+		err  error
+	)
 
-	if matchedHook := matchLoadedHook(id); matchedHook != nil {
-		log.Printf("[%s] %s got matched\n", rid, id)
+	// set contentType to IncomingPayloadContentType or header value
+	contentType := r.Header.Get("Content-Type")
+	if len(matchedHook.IncomingPayloadContentType) != 0 {
+		contentType = matchedHook.IncomingPayloadContentType
+	}
 
-		body, err := ioutil.ReadAll(r.Body)
+	isMultipart := strings.HasPrefix(contentType, "multipart/form-data;")
+
+	if !isMultipart {
+		body, err = ioutil.ReadAll(r.Body)
 		if err != nil {
 			log.Printf("[%s] error reading the request body: %+v\n", rid, err)
 		}
+	}
 
-		// parse headers
-		headers := valuesToMap(r.Header)
+	// parse headers
+	headers := valuesToMap(r.Header)
 
-		// parse query variables
-		query := valuesToMap(r.URL.Query())
+	// parse query variables
+	query := valuesToMap(r.URL.Query())
 
-		// parse context
-		var context map[string]interface{}
+	// parse body
+	var payload map[string]interface{}
+	// parse context
+	var context map[string]interface{}
 
-		if matchedHook.PreHookCommand != "" {
+	if matchedHook.PreHookCommand != "" {
+		// check the command exists
+		preHookCommandPath, err := exec.LookPath(matchedHook.PreHookCommand)
+		if err != nil {
+			// give a last chance, maybe it's a relative path
+			preHookCommandPathRelativeToCurrentWorkingDirectory := filepath.Join(matchedHook.CommandWorkingDirectory, matchedHook.PreHookCommand)
 			// check the command exists
-			preHookCommandPath, err := exec.LookPath(matchedHook.PreHookCommand)
-			if err != nil {
-				// give a last chance, maybe it's a relative path
-				preHookCommandPathRelativeToCurrentWorkingDirectory := filepath.Join(matchedHook.CommandWorkingDirectory, matchedHook.PreHookCommand)
-				// check the command exists
-				preHookCommandPath, err = exec.LookPath(preHookCommandPathRelativeToCurrentWorkingDirectory)
+			preHookCommandPath, err = exec.LookPath(preHookCommandPathRelativeToCurrentWorkingDirectory)
+		}
+
+		if err != nil {
+			log.Printf("[%s] unable to locate pre-hook command: '%s', %+v\n", rid, matchedHook.PreHookCommand, err)
+			// check if parameters specified in pre-hook command by mistake
+			if strings.IndexByte(matchedHook.PreHookCommand, ' ') != -1 {
+				s := strings.Fields(matchedHook.PreHookCommand)[0]
+				log.Printf("[%s] please use a wrapper script to provide arguments to pre-hook command for '%s'\n", rid, s)
+			}
+		} else {
+			preHookCommandStdin := hook.PreHookContext{
+				HookID:            matchedHook.ID,
+				Method:            r.Method,
+				Base64EncodedBody: base64.StdEncoding.EncodeToString(body),
+				RemoteAddr:        r.RemoteAddr,
+				URI:               r.RequestURI,
+				Host:              r.Host,
+				Headers:           r.Header,
+				Query:             r.URL.Query(),
 			}
 
-			if err != nil {
-				log.Printf("[%s] unable to locate pre-hook command: '%s', %+v\n", rid, matchedHook.PreHookCommand, err)
-				// check if parameters specified in pre-hook command by mistake
-				if strings.IndexByte(matchedHook.PreHookCommand, ' ') != -1 {
-					s := strings.Fields(matchedHook.PreHookCommand)[0]
-					log.Printf("[%s] please use a wrapper script to provide arguments to pre-hook command for '%s'\n", rid, s)
-				}
+			if preHookCommandStdinJSONString, err := json.Marshal(preHookCommandStdin); err != nil {
+				log.Printf("[%s] unable to encode pre-hook context as JSON string for the pre-hook command: %+v\n", rid, err)
 			} else {
-				preHookCommandStdin := hook.PreHookContext{
-					HookID:            matchedHook.ID,
-					Method:            r.Method,
-					Base64EncodedBody: base64.StdEncoding.EncodeToString(body),
-					RemoteAddr:        r.RemoteAddr,
-					URI:               r.RequestURI,
-					Host:              r.Host,
-					Headers:           r.Header,
-					Query:             r.URL.Query(),
-				}
+				preHookCommand := exec.Command(preHookCommandPath)
+				preHookCommand.Dir = matchedHook.CommandWorkingDirectory
+				preHookCommand.Env = append(os.Environ())
 
-				if preHookCommandStdinJSONString, err := json.Marshal(preHookCommandStdin); err != nil {
-					log.Printf("[%s] unable to encode pre-hook context as JSON string for the pre-hook command: %+v\n", rid, err)
+				if preHookCommandStdinPipe, err := preHookCommand.StdinPipe(); err != nil {
+					log.Printf("[%s] unable to acquire stdin pipe for the pre-hook command: %+v\n", rid, err)
 				} else {
-					preHookCommand := exec.Command(preHookCommandPath)
-					preHookCommand.Dir = matchedHook.CommandWorkingDirectory
-					preHookCommand.Env = append(os.Environ())
-
-					if preHookCommandStdinPipe, err := preHookCommand.StdinPipe(); err != nil {
-						log.Printf("[%s] unable to acquire stdin pipe for the pre-hook command: %+v\n", rid, err)
+					_, err := io.WriteString(preHookCommandStdinPipe, string(preHookCommandStdinJSONString))
+					preHookCommandStdinPipe.Close()
+					if err != nil {
+						log.Printf("[%s] unable to write to pre-hook command stdin: %+v\n", rid, err)
 					} else {
-						_, err := io.WriteString(preHookCommandStdinPipe, string(preHookCommandStdinJSONString))
-						preHookCommandStdinPipe.Close()
-						if err != nil {
-							log.Printf("[%s] unable to write to pre-hook command stdin: %+v\n", rid, err)
+						log.Printf("[%s] executing pre-hook command %s (%s) using %s as cwd\n", rid, matchedHook.PreHookCommand, preHookCommand.Path, preHookCommand.Dir)
+
+						if preHookCommandOutput, err := preHookCommand.CombinedOutput(); err != nil {
+							log.Printf("[%s] unable to execute pre-hook command: %+v\n", rid, err)
 						} else {
-							log.Printf("[%s] executing pre-hook command %s (%s) using %s as cwd\n", rid, matchedHook.PreHookCommand, preHookCommand.Path, preHookCommand.Dir)
+							JSONDecoder := json.NewDecoder(strings.NewReader(string(preHookCommandOutput)))
+							JSONDecoder.UseNumber()
 
-							if preHookCommandOutput, err := preHookCommand.CombinedOutput(); err != nil {
-								log.Printf("[%s] unable to execute pre-hook command: %+v\n", rid, err)
-							} else {
-								JSONDecoder := json.NewDecoder(strings.NewReader(string(preHookCommandOutput)))
-								JSONDecoder.UseNumber()
-
-								if err := JSONDecoder.Decode(&context); err != nil {
-									log.Printf("[%s] unable to parse pre-hook command output: %+v\npre-hook command output was: %+v\n", rid, err, string(preHookCommandOutput))
-								}
+							if err := JSONDecoder.Decode(&context); err != nil {
+								log.Printf("[%s] unable to parse pre-hook command output: %+v\npre-hook command output was: %+v\n", rid, err, string(preHookCommandOutput))
 							}
 						}
 					}
 				}
 			}
 		}
+	}
 
-		// set contentType to IncomingPayloadContentType or header value
-		contentType := r.Header.Get("Content-Type")
-		if len(matchedHook.IncomingPayloadContentType) != 0 {
-			contentType = matchedHook.IncomingPayloadContentType
+	switch {
+	case strings.Contains(contentType, "json"):
+		decoder := json.NewDecoder(bytes.NewReader(body))
+		decoder.UseNumber()
+
+		err := decoder.Decode(&payload)
+		if err != nil {
+			log.Printf("[%s] error parsing JSON payload %+v\n", rid, err)
 		}
 
-		// parse body
-		var payload map[string]interface{}
-
-		if strings.Contains(contentType, "json") {
-			decoder := json.NewDecoder(strings.NewReader(string(body)))
-			decoder.UseNumber()
-
-			err := decoder.Decode(&payload)
-
-			if err != nil {
-				log.Printf("[%s] error parsing JSON payload %+v\n", rid, err)
-			}
-		} else if strings.Contains(contentType, "form") {
-			fd, err := url.ParseQuery(string(body))
-			if err != nil {
-				log.Printf("[%s] error parsing form payload %+v\n", rid, err)
-			} else {
-				payload = valuesToMap(fd)
-			}
-		}
-
-		// handle hook
-		errors := matchedHook.ParseJSONParameters(&headers, &query, &payload, &context)
-		for _, err := range errors {
-			log.Printf("[%s] error parsing JSON parameters: %s\n", rid, err)
-		}
-
-		var ok bool
-
-		if matchedHook.TriggerRule == nil {
-			ok = true
+	case strings.Contains(contentType, "x-www-form-urlencoded"):
+		fd, err := url.ParseQuery(string(body))
+		if err != nil {
+			log.Printf("[%s] error parsing form payload %+v\n", rid, err)
 		} else {
-			ok, err = matchedHook.TriggerRule.Evaluate(&headers, &query, &payload, &context, &body, r.RemoteAddr)
-			if err != nil {
+			payload = valuesToMap(fd)
+		}
+
+	case strings.Contains(contentType, "xml"):
+		payload, err = mxj.NewMapXmlReader(bytes.NewReader(body))
+		if err != nil {
+			log.Printf("[%s] error parsing XML payload: %+v\n", rid, err)
+		}
+
+	case isMultipart:
+		err = r.ParseMultipartForm(*maxMultipartMem)
+		if err != nil {
+			msg := fmt.Sprintf("[%s] error parsing multipart form: %+v\n", rid, err)
+			log.Println(msg)
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprint(w, "Error occurred while parsing multipart form.")
+			return
+		}
+
+		for k, v := range r.MultipartForm.Value {
+			log.Printf("[%s] found multipart form value %q", rid, k)
+
+			if payload == nil {
+				payload = make(map[string]interface{})
+			}
+
+			// TODO(moorereason): support duplicate, named values
+			payload[k] = v[0]
+		}
+
+		for k, v := range r.MultipartForm.File {
+			// Force parsing as JSON regardless of Content-Type.
+			var parseAsJSON bool
+			for _, j := range matchedHook.JSONStringParameters {
+				if j.Source == "payload" && j.Name == k {
+					parseAsJSON = true
+					break
+				}
+			}
+
+			// TODO(moorereason): we need to support multiple parts
+			// with the same name instead of just processing the first
+			// one. Will need #215 resolved first.
+
+			// MIME encoding can contain duplicate headers, so check them
+			// all.
+			if !parseAsJSON && len(v[0].Header["Content-Type"]) > 0 {
+				for _, j := range v[0].Header["Content-Type"] {
+					if j == "application/json" {
+						parseAsJSON = true
+						break
+					}
+				}
+			}
+
+			if parseAsJSON {
+				log.Printf("[%s] parsing multipart form file %q as JSON\n", rid, k)
+
+				f, err := v[0].Open()
+				if err != nil {
+					msg := fmt.Sprintf("[%s] error parsing multipart form file: %+v\n", rid, err)
+					log.Println(msg)
+					w.WriteHeader(http.StatusInternalServerError)
+					fmt.Fprint(w, "Error occurred while parsing multipart form file.")
+					return
+				}
+
+				decoder := json.NewDecoder(f)
+				decoder.UseNumber()
+
+				var part map[string]interface{}
+				err = decoder.Decode(&part)
+				if err != nil {
+					log.Printf("[%s] error parsing JSON payload file: %+v\n", rid, err)
+				}
+
+				if payload == nil {
+					payload = make(map[string]interface{})
+				}
+				payload[k] = part
+			}
+		}
+
+	default:
+		log.Printf("[%s] error parsing body payload due to unsupported content type header: %s\n", rid, contentType)
+	}
+
+	// handle hook
+	errors := matchedHook.ParseJSONParameters(&headers, &query, &payload, &context)
+	for _, err := range errors {
+		log.Printf("[%s] error parsing JSON parameters: %s\n", rid, err)
+	}
+
+	var ok bool
+
+	if matchedHook.TriggerRule == nil {
+		ok = true
+	} else {
+		ok, err = matchedHook.TriggerRule.Evaluate(&headers, &query, &payload, &context, &body, r.RemoteAddr)
+		if err != nil {
+			if !hook.IsParameterNodeError(err) {
 				msg := fmt.Sprintf("[%s] error evaluating hook: %s", rid, err)
-				log.Print(msg)
+				log.Println(msg)
 				w.WriteHeader(http.StatusInternalServerError)
 				fmt.Fprint(w, "Error occurred while evaluating hook rules.")
 				return
 			}
+
+			log.Printf("[%s] %v", rid, err)
+		}
+	}
+
+	if ok {
+		log.Printf("[%s] %s hook triggered successfully\n", rid, matchedHook.ID)
+
+		for _, responseHeader := range matchedHook.ResponseHeaders {
+			w.Header().Set(responseHeader.Name, responseHeader.Value)
 		}
 
-		if ok {
-			log.Printf("[%s] %s hook triggered successfully\n", rid, matchedHook.ID)
+		if matchedHook.CaptureCommandOutput {
+			response, err := handleHook(matchedHook, rid, &headers, &query, &payload, &context, &body)
 
-			for _, responseHeader := range matchedHook.ResponseHeaders {
-				w.Header().Set(responseHeader.Name, responseHeader.Value)
-			}
-
-			if matchedHook.CaptureCommandOutput {
-				response, err := handleHook(matchedHook, rid, &headers, &query, &payload, &context, &body)
-
-				if err != nil {
-					w.WriteHeader(http.StatusInternalServerError)
-					if matchedHook.CaptureCommandOutputOnError {
-						fmt.Fprint(w, response)
-					} else {
-						w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-						fmt.Fprint(w, "Error occurred while executing the hook's command. Please check your logs for more details.")
-					}
-				} else {
-					// Check if a success return code is configured for the hook
-					if matchedHook.SuccessHttpResponseCode != 0 {
-						writeHttpResponseCode(w, rid, matchedHook.ID, matchedHook.SuccessHttpResponseCode)
-					}
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				if matchedHook.CaptureCommandOutputOnError {
 					fmt.Fprint(w, response)
+				} else {
+					w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+					fmt.Fprint(w, "Error occurred while executing the hook's command. Please check your logs for more details.")
 				}
 			} else {
-				go handleHook(matchedHook, rid, &headers, &query, &payload, &context, &body)
-
 				// Check if a success return code is configured for the hook
 				if matchedHook.SuccessHttpResponseCode != 0 {
 					writeHttpResponseCode(w, rid, matchedHook.ID, matchedHook.SuccessHttpResponseCode)
 				}
-
-				fmt.Fprint(w, matchedHook.ResponseMessage)
+				fmt.Fprint(w, response)
 			}
-			return
+		} else {
+			go handleHook(matchedHook, rid, &headers, &query, &payload, &context, &body)
+
+			// Check if a success return code is configured for the hook
+			if matchedHook.SuccessHttpResponseCode != 0 {
+				writeHttpResponseCode(w, rid, matchedHook.ID, matchedHook.SuccessHttpResponseCode)
+			}
+
+			fmt.Fprint(w, matchedHook.ResponseMessage)
 		}
-
-		// Check if a return code is configured for the hook
-		if matchedHook.TriggerRuleMismatchHttpResponseCode != 0 {
-			writeHttpResponseCode(w, rid, matchedHook.ID, matchedHook.TriggerRuleMismatchHttpResponseCode)
-		}
-
-		// if none of the hooks got triggered
-		log.Printf("[%s] %s got matched, but didn't get triggered because the trigger rules were not satisfied\n", rid, matchedHook.ID)
-
-		fmt.Fprint(w, "Hook rules were not satisfied.")
-	} else {
-		w.WriteHeader(http.StatusNotFound)
-		fmt.Fprint(w, "Hook not found.")
+		return
 	}
+
+	// Check if a return code is configured for the hook
+	if matchedHook.TriggerRuleMismatchHttpResponseCode != 0 {
+		writeHttpResponseCode(w, rid, matchedHook.ID, matchedHook.TriggerRuleMismatchHttpResponseCode)
+	}
+
+	// if none of the hooks got triggered
+	log.Printf("[%s] %s got matched, but didn't get triggered because the trigger rules were not satisfied\n", rid, matchedHook.ID)
+
+	fmt.Fprint(w, "Hook rules were not satisfied.")
 }
 
 func handleHook(h *hook.Hook, rid string, headers, query, payload *map[string]interface{}, context *map[string]interface{}, body *[]byte) (string, error) {
@@ -615,4 +840,12 @@ func valuesToMap(values map[string][]string) map[string]interface{} {
 	}
 
 	return ret
+}
+
+// makeURL builds a hook URL with or without a prefix.
+func makeURL(prefix *string) string {
+	if prefix == nil || *prefix == "" {
+		return "/{id}"
+	}
+	return "/" + *prefix + "/{id}"
 }
