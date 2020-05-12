@@ -171,7 +171,7 @@ func buildHookecho(t *testing.T) (binPath string, cleanupFn func()) {
 	return binPath, func() { os.RemoveAll(tmp) }
 }
 
-func genConfig(t *testing.T, bin string, hookTemplate string) (configPath string, cleanupFn func()) {
+func genConfig(t *testing.T, bin, hookTemplate string) (configPath string, cleanupFn func()) {
 	tmpl := template.Must(template.ParseFiles(hookTemplate))
 
 	tmp, err := ioutil.TempDir("", "webhook-config-")
@@ -684,7 +684,7 @@ env: HOOK_head_commit.timestamp=2013-03-12T08:14:29-07:00
 
 	// Check logs
 	{"static params should pass", "static-params-ok", nil, "POST", nil, "application/json", `{}`, http.StatusOK, "arg: passed\n", `(?s)command output: arg: passed`},
-	{"command with space logs warning", "warn-on-space", nil, "POST", nil, "application/json", `{}`, http.StatusInternalServerError, "Error occurred while executing the hook's command. Please check your logs for more details.", `(?s)unable to locate command.*use 'pass[-]arguments[-]to[-]command' to specify args`},
+	{"command with space logs warning", "warn-on-space", nil, "POST", nil, "application/json", `{}`, http.StatusInternalServerError, "Error occurred while executing the hook's command. Please check your logs for more details.", `(?s)error locating command.*use 'pass[-]arguments[-]to[-]command' to specify args`},
 	{"unsupported content type error", "github", nil, "POST", map[string]string{"Content-Type": "nonexistent/format"}, "application/json", `{}`, http.StatusBadRequest, `Hook rules were not satisfied.`, `(?s)error parsing body payload due to unsupported content type header:`},
 }
 
