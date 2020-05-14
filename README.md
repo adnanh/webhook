@@ -28,9 +28,9 @@ If you don't have time to waste configuring, hosting, debugging and maintaining 
 ### Building from source
 To get started, first make sure you've properly set up your [Go](http://golang.org/doc/install) 1.12 or newer environment and then run
 ```bash
-$ go get github.com/adnanh/webhook
+$ go build github.com/adnanh/webhook
 ```
-to get the latest version of the [webhook][w].
+to build the latest version of the [webhook][w].
 
 ### Using package manager
 #### Snap store
