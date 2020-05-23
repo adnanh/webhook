@@ -259,5 +259,29 @@
         "name": "passed"
       }
     ],
+  },
+  {
+    "id": "empty-payload-signature",
+    "execute-command": "{{ .Hookecho }}",
+    "command-working-directory": "/",
+    "include-command-output-in-response": true,
+    "trigger-rule":
+    {
+      "and":
+      [
+        {
+          "match":
+          {
+            "type": "payload-hash-sha1",
+            "secret": "mysecret",
+            "parameter":
+            {
+              "source": "header",
+              "name": "X-Hub-Signature"
+            }
+          }
+        }
+      ]
+    }
   }
 ]

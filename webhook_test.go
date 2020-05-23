@@ -77,7 +77,7 @@ func TestWebhook(t *testing.T) {
 		for _, tt := range hookHandlerTests {
 			t.Run(tt.desc+"@"+hookTmpl, func(t *testing.T) {
 				ip, port := serverAddress(t)
-				args := []string{fmt.Sprintf("-hooks=%s", configPath), fmt.Sprintf("-ip=%s", ip), fmt.Sprintf("-port=%s", port), "-verbose"}
+				args := []string{fmt.Sprintf("-hooks=%s", configPath), fmt.Sprintf("-ip=%s", ip), fmt.Sprintf("-port=%s", port), "-debug"}
 
 				if len(tt.cliMethods) != 0 {
 					args = append(args, "-http-methods="+strings.Join(tt.cliMethods, ","))
@@ -111,6 +111,7 @@ func TestWebhook(t *testing.T) {
 				var res *http.Response
 
 				req.Header.Add("Content-Type", tt.contentType)
+				req.ContentLength = int64(len(tt.body))
 
 				client := &http.Client{}
 				res, err = client.Do(req)
@@ -660,6 +661,19 @@ env: HOOK_head_commit.timestamp=2013-03-12T08:14:29-07:00
 		http.StatusOK,
 		`arg: 1481a2de7b2a7d02428ad93446ab166be7793fbb lolwut@noway.biz
 `,
+		``,
+	},
+
+	{
+		"empty-payload-signature", // allow empty payload signature validation
+		"empty-payload-signature",
+		nil,
+		"POST",
+		map[string]string{"X-Hub-Signature": "33f9d709782f62b8b4a0178586c65ab098a39fe2"},
+		"application/json",
+		``,
+		http.StatusOK,
+		``,
 		``,
 	},
 

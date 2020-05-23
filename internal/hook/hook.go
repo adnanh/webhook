@@ -73,6 +73,8 @@ func IsParameterNodeError(err error) bool {
 type SignatureError struct {
 	Signature  string
 	Signatures []string
+
+	emptyPayload bool
 }
 
 func (e *SignatureError) Error() string {
@@ -80,11 +82,16 @@ func (e *SignatureError) Error() string {
 		return "<nil>"
 	}
 
-	if e.Signatures != nil {
-		return fmt.Sprintf("invalid payload signatures %s", e.Signatures)
+	var empty string
+	if e.emptyPayload {
+		empty = " on empty payload"
 	}
 
-	return fmt.Sprintf("invalid payload signature %s", e.Signature)
+	if e.Signatures != nil {
+		return fmt.Sprintf("invalid payload signatures %s%s", e.Signatures, empty)
+	}
+
+	return fmt.Sprintf("invalid payload signature %s%s", e.Signature, empty)
 }
 
 // ArgumentError describes an invalid argument passed to Hook.
@@ -160,21 +167,24 @@ func ValidateMAC(payload []byte, mac hash.Hash, signatures []string) (string, er
 		return "", err
 	}
 
-	expectedMAC := hex.EncodeToString(mac.Sum(nil))
+	actualMAC := hex.EncodeToString(mac.Sum(nil))
 
 	for _, signature := range signatures {
-		if hmac.Equal([]byte(signature), []byte(expectedMAC)) {
-			return expectedMAC, err
+		if hmac.Equal([]byte(signature), []byte(actualMAC)) {
+			return actualMAC, err
 		}
 	}
 
-	return expectedMAC, &SignatureError{
-		Signatures: signatures,
+	e := &SignatureError{Signatures: signatures}
+	if len(payload) == 0 {
+		e.emptyPayload = true
 	}
+
+	return actualMAC, e
 }
 
 // CheckPayloadSignature calculates and verifies SHA1 signature of the given payload
-func CheckPayloadSignature(payload []byte, secret string, signature string) (string, error) {
+func CheckPayloadSignature(payload []byte, secret, signature string) (string, error) {
 	if secret == "" {
 		return "", errors.New("signature validation secret can not be empty")
 	}
@@ -187,7 +197,7 @@ func CheckPayloadSignature(payload []byte, secret string, signature string) (str
 }
 
 // CheckPayloadSignature256 calculates and verifies SHA256 signature of the given payload
-func CheckPayloadSignature256(payload []byte, secret string, signature string) (string, error) {
+func CheckPayloadSignature256(payload []byte, secret, signature string) (string, error) {
 	if secret == "" {
 		return "", errors.New("signature validation secret can not be empty")
 	}
@@ -200,7 +210,7 @@ func CheckPayloadSignature256(payload []byte, secret string, signature string) (
 }
 
 // CheckPayloadSignature512 calculates and verifies SHA512 signature of the given payload
-func CheckPayloadSignature512(payload []byte, secret string, signature string) (string, error) {
+func CheckPayloadSignature512(payload []byte, secret, signature string) (string, error) {
 	if secret == "" {
 		return "", errors.New("signature validation secret can not be empty")
 	}
@@ -254,7 +264,7 @@ func CheckScalrSignature(headers map[string]interface{}, body []byte, signingKey
 
 // CheckIPWhitelist makes sure the provided remote address (of the form IP:port) falls within the provided IP range
 // (in CIDR form or a single IP address).
-func CheckIPWhitelist(remoteAddr string, ipRange string) (bool, error) {
+func CheckIPWhitelist(remoteAddr, ipRange string) (bool, error) {
 	// Extract IP address from remote address.
 
 	// IPv6 addresses will likely be surrounded by [].
@@ -293,7 +303,7 @@ func CheckIPWhitelist(remoteAddr string, ipRange string) (bool, error) {
 // ReplaceParameter replaces parameter value with the passed value in the passed map
 // (please note you should pass pointer to the map, because we're modifying it)
 // based on the passed string
-func ReplaceParameter(s string, params interface{}, value interface{}) bool {
+func ReplaceParameter(s string, params, value interface{}) bool {
 	if params == nil {
 		return false
 	}
