@@ -50,7 +50,7 @@ func (l *LogEntry) Write(status, bytes int, elapsed time.Duration) {
 	log.Print(l.buf.String())
 }
 
-/// Panic prints the call stack for a panic.
+// Panic prints the call stack for a panic.
 func (l *LogEntry) Panic(v interface{}, stack []byte) {
 	e := l.NewLogEntry(l.req).(*LogEntry)
 	fmt.Fprintf(e.buf, "panic: %#v", v)
