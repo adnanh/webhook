@@ -39,13 +39,13 @@ type LogEntry struct {
 }
 
 // Write constructs and writes the final log entry.
-func (l *LogEntry) Write(status, bytes int, elapsed time.Duration) {
+func (l *LogEntry) Write(status, totalBytes int, elapsed time.Duration) {
 	rid := GetReqID(l.req.Context())
 	if rid != "" {
 		fmt.Fprintf(l.buf, "[%s] ", rid)
 	}
 
-	fmt.Fprintf(l.buf, "%03d | %s | %s | ", status, humanize.IBytes(uint64(bytes)), elapsed)
+	fmt.Fprintf(l.buf, "%03d | %s | %s | ", status, humanize.IBytes(uint64(totalBytes)), elapsed)
 	l.buf.WriteString(l.req.Host + " | " + l.req.Method + " " + l.req.RequestURI)
 	log.Print(l.buf.String())
 }
