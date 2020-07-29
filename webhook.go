@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/adnanh/webhook/internal/hook"
 	"github.com/adnanh/webhook/internal/middleware"
@@ -141,7 +142,7 @@ func main() {
 	}
 
 	if *logPath != "" {
-		file, err := os.OpenFile(*logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+		file, err := os.OpenFile(*logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o666)
 		if err != nil {
 			logQueue = append(logQueue, fmt.Sprintf("error opening log file %q: %v", *logPath, err))
 			// we'll bail out below
@@ -385,9 +386,29 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 		decoder := json.NewDecoder(bytes.NewReader(body))
 		decoder.UseNumber()
 
-		err := decoder.Decode(&payload)
-		if err != nil {
-			log.Printf("[%s] error parsing JSON payload %+v\n", rid, err)
+		var firstChar byte
+		for i := 0; i < len(body); i++ {
+			if unicode.IsSpace(rune(body[i])) {
+				continue
+			}
+			firstChar = body[i]
+			break
+		}
+
+		if firstChar == byte('[') {
+			var arrayPayload interface{}
+			err := decoder.Decode(&arrayPayload)
+			if err != nil {
+				log.Printf("[%s] error parsing JSON array payload %+v\n", rid, err)
+			}
+
+			payload = make(map[string]interface{}, 1)
+			payload["root"] = arrayPayload
+		} else {
+			err := decoder.Decode(&payload)
+			if err != nil {
+				log.Printf("[%s] error parsing JSON payload %+v\n", rid, err)
+			}
 		}
 
 	case strings.Contains(contentType, "x-www-form-urlencoded"):
@@ -648,7 +669,7 @@ func handleHook(h *hook.Hook, rid string, headers, query, payload *map[string]in
 	return string(out), err
 }
 
-func writeHttpResponseCode(w http.ResponseWriter, rid string, hookId string, responseCode int) {
+func writeHttpResponseCode(w http.ResponseWriter, rid, hookId string, responseCode int) {
 	// Check if the given return code is supported by the http package
 	// by testing if there is a StatusText for this code.
 	if len(http.StatusText(responseCode)) > 0 {

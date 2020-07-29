@@ -425,6 +425,57 @@ Travis sends webhooks as `payload=<JSON_STRING>`, so the payload needs to be par
 ]
 ```
 
+## JSON Array Payload
+
+If the JSON payload is an array instead of an object, `webhook` will process the payload and place it into a "root" object.
+Therefore, references to payload values must begin with `root.`.
+
+For example, given the following payload (taken from the Sendgrid Event Webhook documentation):
+```json
+[
+  {
+    "email": "example@test.com",
+    "timestamp": 1513299569,
+    "smtp-id": "<14c5d75ce93.dfd.64b469@ismtpd-555>",
+    "event": "processed",
+    "category": "cat facts",
+    "sg_event_id": "sg_event_id",
+    "sg_message_id": "sg_message_id"
+  },
+  {
+    "email": "example@test.com",
+    "timestamp": 1513299569,
+    "smtp-id": "<14c5d75ce93.dfd.64b469@ismtpd-555>",
+    "event": "deferred",
+    "category": "cat facts",
+    "sg_event_id": "sg_event_id",
+    "sg_message_id": "sg_message_id",
+    "response": "400 try again later",
+    "attempt": "5"
+  }
+]
+```
+
+A reference to the second item in the array would look like this:
+```json
+[
+  {
+    "id": "sendgrid",
+    "execute-command": "{{ .Hookecho }}",
+    "trigger-rule": {
+      "match": {
+        "type": "value",
+        "parameter": {
+          "source": "payload",
+          "name": "root.1.event"
+        },
+        "value": "deferred"
+      }
+    }
+  }
+]
+```
+
 ## XML Payload
 
 Given the following payload:
