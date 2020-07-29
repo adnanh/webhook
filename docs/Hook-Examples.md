@@ -1,6 +1,22 @@
 # Hook examples
 This page is still work in progress. Feel free to contribute!
 
+### Table of Contents
+
+* [Incoming Github webhook](#incoming-github-webhook)
+* [Incoming Bitbucket webhook](#incoming-bitbucket-webhook)
+* [Incoming Gitlab webhook](#incoming-gitlab-webhook)
+* [Incoming Gogs webhook](#incoming-gogs-webhook)
+* [Incoming Gitea webhook](#incoming-gitea-webhook)
+* [Slack slash command](#slack-slash-command)
+* [A simple webhook with a secret key in GET query](#a-simple-webhook-with-a-secret-key-in-get-query)
+* [JIRA Webhooks](#jira-webhooks)
+* [Pass File-to-command sample](#pass-file-to-command-sample)
+* [Incoming Scalr Webhook](#incoming-scalr-webhook)
+* [Travis CI webhook](#travis-ci-webhook)
+* [XML Payload](#xml-payload)
+* [Multipart Form Data](#multipart-form-data)
+
 ## Incoming Github webhook
 ```json
 [
