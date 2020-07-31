@@ -392,14 +392,27 @@ func GetParameter(s string, params interface{}) (interface{}, error) {
 	return nil, &ParameterNodeError{s}
 }
 
-// ExtractParameterAsString extracts value from interface{} as string based on the passed string
+// ExtractParameterAsString extracts value from interface{} as string based on
+// the passed string.  Complex data types are rendered as JSON instead of the Go
+// Stringer format.
 func ExtractParameterAsString(s string, params interface{}) (string, error) {
 	pValue, err := GetParameter(s, params)
 	if err != nil {
 		return "", err
 	}
 
-	return fmt.Sprintf("%v", pValue), nil
+	switch v := reflect.ValueOf(pValue); v.Kind() {
+	case reflect.Array, reflect.Map, reflect.Slice:
+		r, err := json.Marshal(pValue)
+		if err != nil {
+			return "", err
+		}
+
+		return string(r), nil
+
+	default:
+		return fmt.Sprintf("%v", pValue), nil
+	}
 }
 
 // Argument type specifies the parameter key name and the source it should
