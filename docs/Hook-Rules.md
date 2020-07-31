@@ -1,5 +1,20 @@
 # Hook rules
 
+### Table of Contents
+
+* [And](#and)
+* [Or](#or)
+* [Not](#not)
+* [Multi-level](#multi-level)
+* [Match](#match)
+  * [Match value](#match-value)
+  * [Match regex](#match-regex)
+  * [Match payload-hash-sha1](#match-payload-hash-sha1)
+  * [Match payload-hash-sha256](#match-payload-hash-sha256)
+  * [Match payload-hash-sha512](#match-payload-hash-sha512)
+  * [Match Whitelisted IP range](#match-whitelisted-ip-range)
+  * [Match scalr-signature](#match-scalr-signature)
+
 ## And
 *And rule* will evaluate to _true_, if and only if all of the sub rules evaluate to _true_.
 ```json
