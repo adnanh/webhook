@@ -223,6 +223,9 @@ var extractParameterTests = []struct {
 	{"a.b.0", map[string]interface{}{"a": map[string]interface{}{"b": []interface{}{"x", "y", "z"}}}, "x", true},
 	{"a.1.b", map[string]interface{}{"a": []interface{}{map[string]interface{}{"b": "y"}, map[string]interface{}{"b": "z"}}}, "z", true},
 	{"a.1.b.c", map[string]interface{}{"a": []interface{}{map[string]interface{}{"b": map[string]interface{}{"c": "y"}}, map[string]interface{}{"b": map[string]interface{}{"c": "z"}}}}, "z", true},
+	{"b", map[string]interface{}{"b": map[string]interface{}{"z": 1}}, `{"z":1}`, true},
+	{"c", map[string]interface{}{"c": []interface{}{"y", "z"}}, `["y","z"]`, true},
+	{"d", map[string]interface{}{"d": [2]interface{}{"y", "z"}}, `["y","z"]`, true},
 	// failures
 	{"check_nil", nil, "", false},
 	{"a.X", map[string]interface{}{"a": map[string]interface{}{"b": "z"}}, "", false},                                                      // non-existent parameter reference
@@ -239,7 +242,7 @@ func TestExtractParameter(t *testing.T) {
 	for _, tt := range extractParameterTests {
 		value, err := ExtractParameterAsString(tt.s, tt.params)
 		if (err == nil) != tt.ok || value != tt.value {
-			t.Errorf("failed to extract parameter %q:\nexpected {value:%#v, ok:%#v},\ngot {value:%#v, err:%s}", tt.s, tt.value, tt.ok, value, err)
+			t.Errorf("failed to extract parameter %q:\nexpected {value:%#v, ok:%#v},\ngot {value:%#v, err:%v}", tt.s, tt.value, tt.ok, value, err)
 		}
 	}
 }
@@ -266,7 +269,7 @@ func TestArgumentGet(t *testing.T) {
 		a := Argument{tt.source, tt.name, "", false}
 		value, err := a.Get(tt.headers, tt.query, tt.payload)
 		if (err == nil) != tt.ok || value != tt.value {
-			t.Errorf("failed to get {%q, %q}:\nexpected {value:%#v, ok:%#v},\ngot {value:%#v, err:%s}", tt.source, tt.name, tt.value, tt.ok, value, err)
+			t.Errorf("failed to get {%q, %q}:\nexpected {value:%#v, ok:%#v},\ngot {value:%#v, err:%v}", tt.source, tt.name, tt.value, tt.ok, value, err)
 		}
 	}
 }
