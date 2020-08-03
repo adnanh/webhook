@@ -548,6 +548,28 @@ env: HOOK_head_commit.timestamp=2013-03-12T08:14:29-07:00
 		``,
 	},
 	{
+		"payload-json-array",
+		"sendgrid",
+		nil,
+		"POST",
+		nil,
+		"application/json",
+		`[
+  {
+    "email": "example@test.com",
+    "timestamp": 1513299569,
+    "smtp-id": "<14c5d75ce93.dfd.64b469@ismtpd-555>",
+    "event": "processed",
+    "category": "cat facts",
+    "sg_event_id": "sg_event_id",
+    "sg_message_id": "sg_message_id"
+  }
+]`,
+		http.StatusOK,
+		`success`,
+		``,
+	},
+	{
 		"multipart",
 		"plex",
 		nil,
