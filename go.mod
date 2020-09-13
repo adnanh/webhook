@@ -3,6 +3,7 @@ module github.com/adnanh/webhook
 go 1.13
 
 require (
+	github.com/99designs/httpsignatures-go v0.0.0-20170731043157-88528bf4ca7e
 	github.com/clbanning/mxj v1.8.4
 	github.com/dustin/go-humanize v1.0.0
 	github.com/fsnotify/fsnotify v1.4.7 // indirect

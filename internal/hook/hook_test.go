@@ -181,6 +181,104 @@ func TestCheckScalrSignature(t *testing.T) {
 	}
 }
 
+
+var checkHmacSHA256SignatureTests = []struct {
+	description				string
+	headers						map[string]interface{}
+	payload						[]byte
+	secret						string
+	expectedSignature	string
+	ok								bool
+}{
+	{
+    "Valid Signature",
+    map[string]interface{}{
+      "Date": "Thu, 10 Sep 2020 19:09:14 GMT",
+      "Digest": "SHA-256=HQ0wDM4daEmV1R+8SD2bTXu5TPUn/EhMdNyfQL3G3sU=",
+      "Signature": `keyId="hmac-key",algorithm="hmac-sha256",signature="JD2+OsbOqw8DBil5n0a8XVIzvMYXLODcnzJ+R7aieT4=",headers="date digest"`,
+    },
+    []byte(`"x", "y"`),
+    "600a2774d248847509ba27482330d513", "", true,
+  },
+	{
+    "Wrong Signature",
+    map[string]interface{}{
+      "Date": "Thu, 10 Sep 2020 19:09:14 GMT",
+      "Digest": "SHA-256=HQ0wDM4daEmV1R+8SD2bTXu5TPUn/EhMdNyfQL3G3sU=",
+      "Signature": `keyId="hmac-key",algorithm="hmac-sha256",signature="JD2+OsbOqw8DBil5n0a8XVIzvMYXLODcnzJ+R7aieT4",headers="date digest"`,
+    },
+    []byte(`"x", "y"`),
+    "600a2774d248847509ba27482330d513", "Invalid Signature", false,
+  },
+	{
+	"Wrong Signature format upstream error",
+    map[string]interface{}{
+      "Date": "Thu, 10 Sep 2020 19:09:14 GMT",
+      "Digest": "SHA-256=HQ0wDM4daEmV1R+8SD2bTXu5TPUn/EhMdNyfQL3G3sU=",
+      "Signature": `algorithm="hmac-sha256",signature="JD2+OsbOqw8DBil5n0a8XVIzvMYXLODcnzJ+R7aieT4",headers="date digest"`,
+    },
+    []byte(`"x", "y"`),
+    "600a2774d248847509ba27482330d513", "httpsignature error", false,
+  },
+	{
+    "Missing Date header",
+    map[string]interface{}{
+      "Digest": "SHA-256=HQ0wDM4daEmV1R+8SD2bTXu5TPUn/EhMdNyfQL3G3sU=",
+      "Signature": `keyId="hmac-key",algorithm="hmac-sha256",signature="JD2+OsbOqw8DBil5n0a8XVIzvMYXLODcnzJ+R7aieT4=",headers="date digest"`,
+    },
+    []byte(`"x", "y"`), "600a2774d248847509ba27482330d513", "Missing Date header", false,
+  },
+	{
+    "Missing Digest header",
+    map[string]interface{}{
+      "Date": "Thu, 10 Sep 2020 19:09:14 GMT",
+      "Signature": `keyId="hmac-key",algorithm="hmac-sha256",signature="JD2+OsbOqw8DBil5n0a8XVIzvMYXLODcnzJ+R7aieT4=",headers="date digest"`,
+    },
+    []byte(`"x", "y"`), "600a2774d248847509ba27482330d513", "Missing Digest header", false,
+  },
+	{
+    "Missing Secret",
+    map[string]interface{}{
+      "Date": "Thu, 10 Sep 2020 19:09:14 GMT",
+      "Digest": "SHA-256=HQ0wDM4daEmV1R+8SD2bTXu5TPUn/EhMdNyfQL3G3sU=",
+      "Signature": `keyId="hmac-key",algorithm="hmac-sha256",signature="JD2+OsbOqw8DBil5n0a8XVIzvMYXLODcnzJ+R7aieT4=",headers="date digest"`,
+    },
+    []byte(`"x", "y"`), "", "Secret key is required and cannot be empty", false,
+	},
+	{
+    "Incorrect Secret",
+    map[string]interface{}{
+      "Date": "Thu, 10 Sep 2020 19:09:14 GMT",
+      "Digest": "SHA-256=HQ0wDM4daEmV1R+8SD2bTXu5TPUn/EhMdNyfQL3G3sU=",
+      "Signature": `keyId="hmac-key",algorithm="hmac-sha256",signature="JD2+OsbOqw8DBil5n0a8XVIzvMYXLODcnzJ+R7aieT4=",headers="date digest"`,
+    },
+    []byte(`"x", "y"`), "600a2774d248847509ba27482330d51", "Invalid Signature", false,
+  },
+	{
+    "Incorrect Digest",
+    map[string]interface{}{
+      "Date": "Thu, 10 Sep 2020 19:09:14 GMT",
+      "Digest": "SHA-256=HQ0wDM4daEmV1R+8SD2bTXu5TPUn/EhMdNyfQL3G3sU",
+      "Signature": `keyId="hmac-key",algorithm="hmac-sha256",signature="JD2+OsbOqw8DBil5n0a8XVIzvMYXLODcnzJ+R7aieT4=",headers="date digest"`,
+    },
+    []byte(`"x", "y"`), "600a2774d248847509ba27482330d513", "Invalid Signature", false,
+  },
+}
+
+func TestCheckHmacSHA256Signature(t *testing.T) {
+  for _, testCase := range checkHmacSHA256SignatureTests{
+    valid, err := CheckHmacSHA256(testCase.headers, testCase.payload, testCase.secret)
+    if valid != testCase.ok {
+      t.Errorf("failed to check hmac256 signature for test case: %s\nexpected ok:%#v, got ok:%#v}",
+        testCase.description, testCase.ok, valid)
+    }
+
+    if err != nil && err.Error() != testCase.expectedSignature {
+      t.Errorf("unexpected error message: %s on test case %s", err, testCase.description)
+    }
+  }
+}
+
 var checkIPWhitelistTests = []struct {
 	addr    string
 	ipRange string

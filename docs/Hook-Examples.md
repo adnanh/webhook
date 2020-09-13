@@ -257,6 +257,56 @@ Values in the request body can be accessed in the command or to the match rule b
 ]
 ```
 
+## Icoming Drone.io hook
+```json
+[
+  {
+    "id": "redeploy-webhook",
+    "execute-command": "/home/adnan/deploy-go-webhook.sh",
+    "command-working-directory": "/home/adnan/go",
+    "response-message": "Executing deploy script",
+		"trigger-rule":
+    {
+      "and": [
+        {
+          "match":
+          {
+            "type": "value",
+            "value": "build",
+            "parameter": {
+              "source": "header",
+              "name": "X-Drone-Event"
+            }
+          }
+        },
+        {
+          "match":
+          {
+            "type": "value",
+            "value": "success",
+            "parameter": {
+              "source": "payload",
+              "name": "build.status"
+            }
+          }
+        },
+        {
+          "match":
+          {
+            "type": "payload-hmac-sha256",
+            "secret": "600a2774d248847509ba27482330d513",
+            "parameter": {
+              "source": "header",
+              "name": "Signature"
+            }
+          }
+        }
+      ]
+    }
+  }
+]
+```
+
 ## A simple webhook with a secret key in GET query
 
 __Not recommended in production due to low security__
