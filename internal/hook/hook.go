@@ -883,6 +883,9 @@ type MatchRule struct {
 const (
 	MatchValue      string = "value"
 	MatchRegex      string = "regex"
+	MatchHMACSHA1   string = "payload-hmac-sha1"
+	MatchHMACSHA256 string = "payload-hmac-sha256"
+	MatchHMACSHA512 string = "payload-hmac-sha512"
 	MatchHashSHA1   string = "payload-hash-sha1"
 	MatchHashSHA256 string = "payload-hash-sha256"
 	MatchHashSHA512 string = "payload-hash-sha512"
@@ -907,12 +910,21 @@ func (r MatchRule) Evaluate(req *Request) (bool, error) {
 		case MatchRegex:
 			return regexp.MatchString(r.Regex, arg)
 		case MatchHashSHA1:
+			log.Print(`warn: use of deprecated option payload-hash-sha1; use payload-hmac-sha1 instead`)
+			fallthrough
+		case MatchHMACSHA1:
 			_, err := CheckPayloadSignature(req.Body, r.Secret, arg)
 			return err == nil, err
 		case MatchHashSHA256:
+			log.Print(`warn: use of deprecated option payload-hash-sha256: use payload-hmac-sha256 instead`)
+			fallthrough
+		case MatchHMACSHA256:
 			_, err := CheckPayloadSignature256(req.Body, r.Secret, arg)
 			return err == nil, err
 		case MatchHashSHA512:
+			log.Print(`warn: use of deprecated option payload-hash-sha512: use payload-hmac-sha512 instead`)
+			fallthrough
+		case MatchHMACSHA512:
 			_, err := CheckPayloadSignature512(req.Body, r.Secret, arg)
 			return err == nil, err
 		}

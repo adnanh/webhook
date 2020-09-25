@@ -6,7 +6,7 @@ In additional to the [built-in Go template functions and features][tt], `webhook
 
 ## Example Usage
 
-In the example `hooks.json` file below, the `payload-hash-sha1` matching rule looks up the secret hash from the environment using the `getenv` template function.
+In the example `hooks.json` file below, the `payload-hmac-sha1` matching rule looks up the HMAC secret from the environment using the `getenv` template function.
 Additionally, the result is piped through the built-in Go template function `js` to ensure that the result is a well-formed Javascript/JSON string.
 
 ```
@@ -44,7 +44,7 @@ Additionally, the result is piped through the built-in Go template function `js`
         {
           "match":
           {
-            "type": "payload-hash-sha1",
+            "type": "payload-hmac-sha1",
             "secret": "{{ getenv "XXXTEST_SECRET" | js }}",
             "parameter":
             {

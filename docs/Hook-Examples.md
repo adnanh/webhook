@@ -46,7 +46,7 @@ This page is still work in progress. Feel free to contribute!
         {
           "match":
           {
-            "type": "payload-hash-sha1",
+            "type": "payload-hmac-sha1",
             "secret": "mysecret",
             "parameter":
             {
@@ -166,7 +166,7 @@ Values in the request body can be accessed in the command or to the match rule b
         {
           "match":
           {
-            "type": "payload-hash-sha256",
+            "type": "payload-hmac-sha256",
             "secret": "mysecret",
             "parameter":
             {
