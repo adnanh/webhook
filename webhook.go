@@ -581,16 +581,16 @@ func handleHook(h *hook.Hook, rid string, headers, query, payload *map[string]in
 	var errors []error
 
 	// check the command exists
-	cmdPath, err := exec.LookPath(h.ExecuteCommand)
-	if err != nil {
-		// give a last chance, maybe is a relative path
-		relativeToCwd := filepath.Join(h.CommandWorkingDirectory, h.ExecuteCommand)
-		// check the command exists
-		cmdPath, err = exec.LookPath(relativeToCwd)
+	var lookpath string
+	if filepath.IsAbs(h.ExecuteCommand) || h.CommandWorkingDirectory == "" {
+		lookpath = h.ExecuteCommand
+	} else {
+		lookpath = filepath.Join(h.CommandWorkingDirectory, h.ExecuteCommand)
 	}
 
+	cmdPath, err := exec.LookPath(lookpath)
 	if err != nil {
-		log.Printf("[%s] error locating command: '%s'", rid, h.ExecuteCommand)
+		log.Printf("[%s] error in %s", rid, err)
 
 		// check if parameters specified in execute-command by mistake
 		if strings.IndexByte(h.ExecuteCommand, ' ') != -1 {
