@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net"
@@ -66,6 +67,19 @@ var (
 	signals chan os.Signal
 	pidFile *pidfile.PIDFile
 )
+
+type flushWriter struct {
+	f http.Flusher
+	w io.Writer
+}
+
+func (fw *flushWriter) Write(p []byte) (n int, err error) {
+	n, err = fw.w.Write(p)
+	if fw.f != nil {
+		fw.f.Flush()
+	}
+	return
+}
 
 func matchLoadedHook(id string) *hook.Hook {
 	for _, hooks := range loadedHooksFromFiles {
@@ -535,8 +549,10 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set(responseHeader.Name, responseHeader.Value)
 		}
 
-		if matchedHook.CaptureCommandOutput {
-			response, err := handleHook(matchedHook, rid, &headers, &query, &payload, &body)
+		if matchedHook.StreamCommandOutput {
+			handleHook(matchedHook, rid, &headers, &query, &payload, &body, w)
+		} else if matchedHook.CaptureCommandOutput {
+			response, err := handleHook(matchedHook, rid, &headers, &query, &payload, &body, nil)
 
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
@@ -554,7 +570,7 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 				fmt.Fprint(w, response)
 			}
 		} else {
-			go handleHook(matchedHook, rid, &headers, &query, &payload, &body)
+			go handleHook(matchedHook, rid, &headers, &query, &payload, &body, nil)
 
 			// Check if a success return code is configured for the hook
 			if matchedHook.SuccessHttpResponseCode != 0 {
@@ -577,7 +593,7 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, "Hook rules were not satisfied.")
 }
 
-func handleHook(h *hook.Hook, rid string, headers, query, payload *map[string]interface{}, body *[]byte) (string, error) {
+func handleHook(h *hook.Hook, rid string, headers, query, payload *map[string]interface{}, body *[]byte, w http.ResponseWriter) (string, error) {
 	var errors []error
 
 	// check the command exists
@@ -646,12 +662,31 @@ func handleHook(h *hook.Hook, rid string, headers, query, payload *map[string]in
 
 	log.Printf("[%s] executing %s (%s) with arguments %q and environment %s using %s as cwd\n", rid, h.ExecuteCommand, cmd.Path, cmd.Args, envs, cmd.Dir)
 
-	out, err := cmd.CombinedOutput()
+	var out []byte
 
-	log.Printf("[%s] command output: %s\n", rid, out)
+	if w != nil {
+		log.Printf("[%s] command output will be streamed to response", rid)
 
-	if err != nil {
-		log.Printf("[%s] error occurred: %+v\n", rid, err)
+		// Implementation from https://play.golang.org/p/PpbPyXbtEs
+		// as described in https://stackoverflow.com/questions/19292113/not-buffered-http-responsewritter-in-golang
+		fw := flushWriter{w: w}
+		if f, ok := w.(http.Flusher); ok {
+			fw.f = f
+		}
+		cmd.Stderr = &fw
+		cmd.Stdout = &fw
+
+		if err := cmd.Run(); err != nil {
+			log.Printf("[%s] error occurred: %+v\n", rid, err)
+		}
+	} else {
+		out, err = cmd.CombinedOutput()
+
+		log.Printf("[%s] command output: %s\n", rid, out)
+
+		if err != nil {
+			log.Printf("[%s] error occurred: %+v\n", rid, err)
+		}
 	}
 
 	for i := range files {
