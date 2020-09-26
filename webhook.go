@@ -302,10 +302,14 @@ func main() {
 }
 
 func hookHandler(w http.ResponseWriter, r *http.Request) {
-	rid := middleware.GetReqID(r.Context())
+	req := &hook.Request{
+		ID:         middleware.GetReqID(r.Context()),
+		RawRequest: r,
+	}
 
-	log.Printf("[%s] incoming HTTP %s request from %s\n", rid, r.Method, r.RemoteAddr)
+	log.Printf("[%s] incoming HTTP %s request from %s\n", req.ID, r.Method, r.RemoteAddr)
 
+	// TODO: rename this to avoid confusion with Request.ID
 	id := mux.Vars(r)["id"]
 
 	matchedHook := matchLoadedHook(id)
@@ -341,57 +345,54 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 
 	if !allowedMethod {
 		w.WriteHeader(http.StatusMethodNotAllowed)
-		log.Printf("[%s] HTTP %s method not allowed for hook %q", rid, r.Method, id)
+		log.Printf("[%s] HTTP %s method not allowed for hook %q", req.ID, r.Method, id)
 
 		return
 	}
 
-	log.Printf("[%s] %s got matched\n", rid, id)
+	log.Printf("[%s] %s got matched\n", req.ID, id)
 
 	for _, responseHeader := range responseHeaders {
 		w.Header().Set(responseHeader.Name, responseHeader.Value)
 	}
 
-	var (
-		body []byte
-		err  error
-	)
+	var err error
 
 	// set contentType to IncomingPayloadContentType or header value
-	contentType := r.Header.Get("Content-Type")
+	req.ContentType = r.Header.Get("Content-Type")
 	if len(matchedHook.IncomingPayloadContentType) != 0 {
-		contentType = matchedHook.IncomingPayloadContentType
+		req.ContentType = matchedHook.IncomingPayloadContentType
 	}
 
-	isMultipart := strings.HasPrefix(contentType, "multipart/form-data;")
+	isMultipart := strings.HasPrefix(req.ContentType, "multipart/form-data;")
 
 	if !isMultipart {
-		body, err = ioutil.ReadAll(r.Body)
+		req.Body, err = ioutil.ReadAll(r.Body)
 		if err != nil {
-			log.Printf("[%s] error reading the request body: %+v\n", rid, err)
+			log.Printf("[%s] error reading the request body: %+v\n", req.ID, err)
 		}
 	}
 
 	// parse headers
-	headers := valuesToMap(r.Header)
+	req.Headers = valuesToMap(r.Header)
 
 	// parse query variables
-	query := valuesToMap(r.URL.Query())
+	req.Query = valuesToMap(r.URL.Query())
 
 	// parse body
-	var payload map[string]interface{}
+	// var payload map[string]interface{}
 
 	switch {
-	case strings.Contains(contentType, "json"):
-		decoder := json.NewDecoder(bytes.NewReader(body))
+	case strings.Contains(req.ContentType, "json"):
+		decoder := json.NewDecoder(bytes.NewReader(req.Body))
 		decoder.UseNumber()
 
 		var firstChar byte
-		for i := 0; i < len(body); i++ {
-			if unicode.IsSpace(rune(body[i])) {
+		for i := 0; i < len(req.Body); i++ {
+			if unicode.IsSpace(rune(req.Body[i])) {
 				continue
 			}
-			firstChar = body[i]
+			firstChar = req.Body[i]
 			break
 		}
 
@@ -399,36 +400,36 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 			var arrayPayload interface{}
 			err := decoder.Decode(&arrayPayload)
 			if err != nil {
-				log.Printf("[%s] error parsing JSON array payload %+v\n", rid, err)
+				log.Printf("[%s] error parsing JSON array payload %+v\n", req.ID, err)
 			}
 
-			payload = make(map[string]interface{}, 1)
-			payload["root"] = arrayPayload
+			req.Payload = make(map[string]interface{}, 1)
+			req.Payload["root"] = arrayPayload
 		} else {
-			err := decoder.Decode(&payload)
+			err := decoder.Decode(&req.Payload)
 			if err != nil {
-				log.Printf("[%s] error parsing JSON payload %+v\n", rid, err)
+				log.Printf("[%s] error parsing JSON payload %+v\n", req.ID, err)
 			}
 		}
 
-	case strings.Contains(contentType, "x-www-form-urlencoded"):
-		fd, err := url.ParseQuery(string(body))
+	case strings.Contains(req.ContentType, "x-www-form-urlencoded"):
+		fd, err := url.ParseQuery(string(req.Body))
 		if err != nil {
-			log.Printf("[%s] error parsing form payload %+v\n", rid, err)
+			log.Printf("[%s] error parsing form payload %+v\n", req.ID, err)
 		} else {
-			payload = valuesToMap(fd)
+			req.Payload = valuesToMap(fd)
 		}
 
-	case strings.Contains(contentType, "xml"):
-		payload, err = mxj.NewMapXmlReader(bytes.NewReader(body))
+	case strings.Contains(req.ContentType, "xml"):
+		req.Payload, err = mxj.NewMapXmlReader(bytes.NewReader(req.Body))
 		if err != nil {
-			log.Printf("[%s] error parsing XML payload: %+v\n", rid, err)
+			log.Printf("[%s] error parsing XML payload: %+v\n", req.ID, err)
 		}
 
 	case isMultipart:
 		err = r.ParseMultipartForm(*maxMultipartMem)
 		if err != nil {
-			msg := fmt.Sprintf("[%s] error parsing multipart form: %+v\n", rid, err)
+			msg := fmt.Sprintf("[%s] error parsing multipart form: %+v\n", req.ID, err)
 			log.Println(msg)
 			w.WriteHeader(http.StatusInternalServerError)
 			fmt.Fprint(w, "Error occurred while parsing multipart form.")
@@ -436,14 +437,14 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		for k, v := range r.MultipartForm.Value {
-			log.Printf("[%s] found multipart form value %q", rid, k)
+			log.Printf("[%s] found multipart form value %q", req.ID, k)
 
-			if payload == nil {
-				payload = make(map[string]interface{})
+			if req.Payload == nil {
+				req.Payload = make(map[string]interface{})
 			}
 
 			// TODO(moorereason): support duplicate, named values
-			payload[k] = v[0]
+			req.Payload[k] = v[0]
 		}
 
 		for k, v := range r.MultipartForm.File {
@@ -472,11 +473,11 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			if parseAsJSON {
-				log.Printf("[%s] parsing multipart form file %q as JSON\n", rid, k)
+				log.Printf("[%s] parsing multipart form file %q as JSON\n", req.ID, k)
 
 				f, err := v[0].Open()
 				if err != nil {
-					msg := fmt.Sprintf("[%s] error parsing multipart form file: %+v\n", rid, err)
+					msg := fmt.Sprintf("[%s] error parsing multipart form file: %+v\n", req.ID, err)
 					log.Println(msg)
 					w.WriteHeader(http.StatusInternalServerError)
 					fmt.Fprint(w, "Error occurred while parsing multipart form file.")
@@ -489,24 +490,24 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 				var part map[string]interface{}
 				err = decoder.Decode(&part)
 				if err != nil {
-					log.Printf("[%s] error parsing JSON payload file: %+v\n", rid, err)
+					log.Printf("[%s] error parsing JSON payload file: %+v\n", req.ID, err)
 				}
 
-				if payload == nil {
-					payload = make(map[string]interface{})
+				if req.Payload == nil {
+					req.Payload = make(map[string]interface{})
 				}
-				payload[k] = part
+				req.Payload[k] = part
 			}
 		}
 
 	default:
-		log.Printf("[%s] error parsing body payload due to unsupported content type header: %s\n", rid, contentType)
+		log.Printf("[%s] error parsing body payload due to unsupported content type header: %s\n", req.ID, req.ContentType)
 	}
 
 	// handle hook
-	errors := matchedHook.ParseJSONParameters(&headers, &query, &payload)
+	errors := matchedHook.ParseJSONParameters(req)
 	for _, err := range errors {
-		log.Printf("[%s] error parsing JSON parameters: %s\n", rid, err)
+		log.Printf("[%s] error parsing JSON parameters: %s\n", req.ID, err)
 	}
 
 	var ok bool
@@ -514,29 +515,29 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 	if matchedHook.TriggerRule == nil {
 		ok = true
 	} else {
-		ok, err = matchedHook.TriggerRule.Evaluate(&headers, &query, &payload, &body, r.RemoteAddr)
+		ok, err = matchedHook.TriggerRule.Evaluate(req)
 		if err != nil {
 			if !hook.IsParameterNodeError(err) {
-				msg := fmt.Sprintf("[%s] error evaluating hook: %s", rid, err)
+				msg := fmt.Sprintf("[%s] error evaluating hook: %s", req.ID, err)
 				log.Println(msg)
 				w.WriteHeader(http.StatusInternalServerError)
 				fmt.Fprint(w, "Error occurred while evaluating hook rules.")
 				return
 			}
 
-			log.Printf("[%s] %v", rid, err)
+			log.Printf("[%s] %v", req.ID, err)
 		}
 	}
 
 	if ok {
-		log.Printf("[%s] %s hook triggered successfully\n", rid, matchedHook.ID)
+		log.Printf("[%s] %s hook triggered successfully\n", req.ID, matchedHook.ID)
 
 		for _, responseHeader := range matchedHook.ResponseHeaders {
 			w.Header().Set(responseHeader.Name, responseHeader.Value)
 		}
 
 		if matchedHook.CaptureCommandOutput {
-			response, err := handleHook(matchedHook, rid, &headers, &query, &payload, &body)
+			response, err := handleHook(matchedHook, req)
 
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
@@ -549,16 +550,16 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 			} else {
 				// Check if a success return code is configured for the hook
 				if matchedHook.SuccessHttpResponseCode != 0 {
-					writeHttpResponseCode(w, rid, matchedHook.ID, matchedHook.SuccessHttpResponseCode)
+					writeHttpResponseCode(w, req.ID, matchedHook.ID, matchedHook.SuccessHttpResponseCode)
 				}
 				fmt.Fprint(w, response)
 			}
 		} else {
-			go handleHook(matchedHook, rid, &headers, &query, &payload, &body)
+			go handleHook(matchedHook, req)
 
 			// Check if a success return code is configured for the hook
 			if matchedHook.SuccessHttpResponseCode != 0 {
-				writeHttpResponseCode(w, rid, matchedHook.ID, matchedHook.SuccessHttpResponseCode)
+				writeHttpResponseCode(w, req.ID, matchedHook.ID, matchedHook.SuccessHttpResponseCode)
 			}
 
 			fmt.Fprint(w, matchedHook.ResponseMessage)
@@ -568,16 +569,16 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Check if a return code is configured for the hook
 	if matchedHook.TriggerRuleMismatchHttpResponseCode != 0 {
-		writeHttpResponseCode(w, rid, matchedHook.ID, matchedHook.TriggerRuleMismatchHttpResponseCode)
+		writeHttpResponseCode(w, req.ID, matchedHook.ID, matchedHook.TriggerRuleMismatchHttpResponseCode)
 	}
 
 	// if none of the hooks got triggered
-	log.Printf("[%s] %s got matched, but didn't get triggered because the trigger rules were not satisfied\n", rid, matchedHook.ID)
+	log.Printf("[%s] %s got matched, but didn't get triggered because the trigger rules were not satisfied\n", req.ID, matchedHook.ID)
 
 	fmt.Fprint(w, "Hook rules were not satisfied.")
 }
 
-func handleHook(h *hook.Hook, rid string, headers, query, payload *map[string]interface{}, body *[]byte) (string, error) {
+func handleHook(h *hook.Hook, r *hook.Request) (string, error) {
 	var errors []error
 
 	// check the command exists
@@ -590,12 +591,12 @@ func handleHook(h *hook.Hook, rid string, headers, query, payload *map[string]in
 
 	cmdPath, err := exec.LookPath(lookpath)
 	if err != nil {
-		log.Printf("[%s] error in %s", rid, err)
+		log.Printf("[%s] error in %s", r.ID, err)
 
 		// check if parameters specified in execute-command by mistake
 		if strings.IndexByte(h.ExecuteCommand, ' ') != -1 {
 			s := strings.Fields(h.ExecuteCommand)[0]
-			log.Printf("[%s] use 'pass-arguments-to-command' to specify args for '%s'", rid, s)
+			log.Printf("[%s] use 'pass-arguments-to-command' to specify args for '%s'", r.ID, s)
 		}
 
 		return "", err
@@ -604,37 +605,37 @@ func handleHook(h *hook.Hook, rid string, headers, query, payload *map[string]in
 	cmd := exec.Command(cmdPath)
 	cmd.Dir = h.CommandWorkingDirectory
 
-	cmd.Args, errors = h.ExtractCommandArguments(headers, query, payload)
+	cmd.Args, errors = h.ExtractCommandArguments(r)
 	for _, err := range errors {
-		log.Printf("[%s] error extracting command arguments: %s\n", rid, err)
+		log.Printf("[%s] error extracting command arguments: %s\n", r.ID, err)
 	}
 
 	var envs []string
-	envs, errors = h.ExtractCommandArgumentsForEnv(headers, query, payload)
+	envs, errors = h.ExtractCommandArgumentsForEnv(r)
 
 	for _, err := range errors {
-		log.Printf("[%s] error extracting command arguments for environment: %s\n", rid, err)
+		log.Printf("[%s] error extracting command arguments for environment: %s\n", r.ID, err)
 	}
 
-	files, errors := h.ExtractCommandArgumentsForFile(headers, query, payload)
+	files, errors := h.ExtractCommandArgumentsForFile(r)
 
 	for _, err := range errors {
-		log.Printf("[%s] error extracting command arguments for file: %s\n", rid, err)
+		log.Printf("[%s] error extracting command arguments for file: %s\n", r.ID, err)
 	}
 
 	for i := range files {
 		tmpfile, err := ioutil.TempFile(h.CommandWorkingDirectory, files[i].EnvName)
 		if err != nil {
-			log.Printf("[%s] error creating temp file [%s]", rid, err)
+			log.Printf("[%s] error creating temp file [%s]", r.ID, err)
 			continue
 		}
-		log.Printf("[%s] writing env %s file %s", rid, files[i].EnvName, tmpfile.Name())
+		log.Printf("[%s] writing env %s file %s", r.ID, files[i].EnvName, tmpfile.Name())
 		if _, err := tmpfile.Write(files[i].Data); err != nil {
-			log.Printf("[%s] error writing file %s [%s]", rid, tmpfile.Name(), err)
+			log.Printf("[%s] error writing file %s [%s]", r.ID, tmpfile.Name(), err)
 			continue
 		}
 		if err := tmpfile.Close(); err != nil {
-			log.Printf("[%s] error closing file %s [%s]", rid, tmpfile.Name(), err)
+			log.Printf("[%s] error closing file %s [%s]", r.ID, tmpfile.Name(), err)
 			continue
 		}
 
@@ -644,27 +645,27 @@ func handleHook(h *hook.Hook, rid string, headers, query, payload *map[string]in
 
 	cmd.Env = append(os.Environ(), envs...)
 
-	log.Printf("[%s] executing %s (%s) with arguments %q and environment %s using %s as cwd\n", rid, h.ExecuteCommand, cmd.Path, cmd.Args, envs, cmd.Dir)
+	log.Printf("[%s] executing %s (%s) with arguments %q and environment %s using %s as cwd\n", r.ID, h.ExecuteCommand, cmd.Path, cmd.Args, envs, cmd.Dir)
 
 	out, err := cmd.CombinedOutput()
 
-	log.Printf("[%s] command output: %s\n", rid, out)
+	log.Printf("[%s] command output: %s\n", r.ID, out)
 
 	if err != nil {
-		log.Printf("[%s] error occurred: %+v\n", rid, err)
+		log.Printf("[%s] error occurred: %+v\n", r.ID, err)
 	}
 
 	for i := range files {
 		if files[i].File != nil {
-			log.Printf("[%s] removing file %s\n", rid, files[i].File.Name())
+			log.Printf("[%s] removing file %s\n", r.ID, files[i].File.Name())
 			err := os.Remove(files[i].File.Name())
 			if err != nil {
-				log.Printf("[%s] error removing file %s [%s]", rid, files[i].File.Name(), err)
+				log.Printf("[%s] error removing file %s [%s]", r.ID, files[i].File.Name(), err)
 			}
 		}
 	}
 
-	log.Printf("[%s] finished handling %s\n", rid, h.ID)
+	log.Printf("[%s] finished handling %s\n", r.ID, h.ID)
 
 	return string(out), err
 }

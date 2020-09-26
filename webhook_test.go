@@ -53,7 +53,11 @@ func TestStaticParams(t *testing.T) {
 	b := &bytes.Buffer{}
 	log.SetOutput(b)
 
-	_, err = handleHook(spHook, "test", &spHeaders, &map[string]interface{}{}, &map[string]interface{}{}, &[]byte{})
+	r := &hook.Request{
+		ID:      "test",
+		Headers: spHeaders,
+	}
+	_, err = handleHook(spHook, r)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v\n", err)
 	}
