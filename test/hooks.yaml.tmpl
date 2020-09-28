@@ -8,7 +8,7 @@
           source: header
           name: X-Hub-Signature
         secret: mysecret
-        type: payload-hash-sha1
+        type: payload-hmac-sha1
     - match:
         parameter:
           source: payload
@@ -174,4 +174,4 @@
           source: header
           name: X-Hub-Signature
         secret: mysecret
-        type: payload-hash-sha1
+        type: payload-hmac-sha1
