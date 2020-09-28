@@ -7,9 +7,11 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/adnanh/webhook/internal/service"
 )
 
-func setupSignals() {
+func setupSignals(svc *service.Service) {
 	log.Printf("setting up os signal watcher\n")
 
 	signals = make(chan os.Signal, 1)
@@ -18,10 +20,10 @@ func setupSignals() {
 	signal.Notify(signals, syscall.SIGTERM)
 	signal.Notify(signals, os.Interrupt)
 
-	go watchForSignals()
+	go watchForSignals(svc)
 }
 
-func watchForSignals() {
+func watchForSignals(svc *service.Service) {
 	log.Println("os signal watcher ready")
 
 	for {
@@ -37,11 +39,9 @@ func watchForSignals() {
 
 		case os.Interrupt, syscall.SIGTERM:
 			log.Printf("caught %s signal; exiting\n", sig)
-			if pidFile != nil {
-				err := pidFile.Remove()
-				if err != nil {
-					log.Print(err)
-				}
+			err := svc.DeletePIDFile()
+			if err != nil {
+				log.Print(err)
 			}
 			os.Exit(0)
 
