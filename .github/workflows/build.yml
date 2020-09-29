@@ -10,17 +10,11 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - name: Setup Go
-        uses: actions/setup-go@v2
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
         with:
           go-version: ${{ matrix.go-version }}
         id: go
-
-      - name: Checkout code
-        uses: actions/checkout@v2
-
-      - name: Download dependencies
-        run: go mod download
 
       - name: Build
         run: go build -v
