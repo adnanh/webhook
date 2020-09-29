@@ -1,5 +1,9 @@
-# Hook examples
-This page is still work in progress. Feel free to contribute!
+# Hook Examples
+
+Hooks are defined in a hooks configuration file in either JSON or YAML format,
+although the examples on this page all use the JSON format.
+
+🌱 This page is still a work in progress. Feel free to contribute!
 
 ### Table of Contents
 

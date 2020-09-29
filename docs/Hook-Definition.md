@@ -1,5 +1,6 @@
 # Hook definition
-Hooks are defined as JSON objects. Please note that in order to be considered valid, a hook object must contain the `id` and `execute-command` properties. All other properties are considered optional.
+
+Hooks are defined as objects in the JSON or YAML hooks configuration file. Please note that in order to be considered valid, a hook object must contain the `id` and `execute-command` properties. All other properties are considered optional.
 
 ## Properties (keys)
 
