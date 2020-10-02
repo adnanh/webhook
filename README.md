@@ -1,4 +1,4 @@
-# What is webhook?
+# What is webhook? ![build-status][badge]
 
  <img src="https://github.com/adnanh/webhook/raw/development/docs/logo/logo-128x128.png" alt="Webhook" align="left" />
  
@@ -211,3 +211,4 @@ THE SOFTWARE.
 
 [w]: https://github.com/adnanh/webhook
 [wc]: https://github.com/adnanh/webhook-contrib
+[badge]: https://github.com/adnanh/webhook/workflows/build/badge.svg
