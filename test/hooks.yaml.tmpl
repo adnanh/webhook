@@ -8,7 +8,7 @@
           source: header
           name: X-Hub-Signature
         secret: mysecret
-        type: payload-hash-sha1
+        type: payload-hmac-sha1
     - match:
         parameter:
           source: payload
@@ -97,6 +97,18 @@
           name: "app.messages.message.#text"
         value: "Hello!!"
 
+- id: sendgrid
+  execute-command: '{{ .Hookecho }}'
+  command-working-directory: /
+  response-message: success
+  trigger-rule:
+    match:
+      type: value
+      parameter:
+        source: payload
+        name: root.0.event
+      value: processed
+
 - id: plex
   trigger-rule:
     match:
@@ -150,3 +162,16 @@
 - id: warn-on-space
   execute-command: '{{ .Hookecho }} foo'
   include-command-output-in-response: true
+
+- id: empty-payload-signature
+  include-command-output-in-response: true
+  execute-command: '{{ .Hookecho }}'
+  command-working-directory: /
+  trigger-rule:
+    and:
+    - match:
+        parameter:
+          source: header
+          name: X-Hub-Signature
+        secret: mysecret
+        type: payload-hmac-sha1

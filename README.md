@@ -1,4 +1,4 @@
-# What is webhook?
+# What is webhook? ![build-status][badge]
 
  <img src="https://github.com/adnanh/webhook/raw/development/docs/logo/logo-128x128.png" alt="Webhook" align="left" />
  
@@ -26,11 +26,11 @@ If you don't have time to waste configuring, hosting, debugging and maintaining 
 # Getting started
 ## Installation
 ### Building from source
-To get started, first make sure you've properly set up your [Go](http://golang.org/doc/install) 1.12 or newer environment and then run
+To get started, first make sure you've properly set up your [Go](http://golang.org/doc/install) 1.14 or newer environment and then run
 ```bash
-$ go get github.com/adnanh/webhook
+$ go build github.com/adnanh/webhook
 ```
-to get the latest version of the [webhook][w].
+to build the latest version of the [webhook][w].
 
 ### Using package manager
 #### Snap store
@@ -46,7 +46,9 @@ If you are using Debian linux ("stretch" or later), you can install webhook usin
 Prebuilt binaries for different architectures are available at [GitHub Releases](https://github.com/adnanh/webhook/releases).
 
 ## Configuration
-Next step is to define some hooks you want [webhook][w] to serve. Begin by creating an empty file named `hooks.json`. This file will contain an array of hooks the [webhook][w] will serve. Check [Hook definition page](docs/Hook-Definition.md) to see the detailed description of what properties a hook can contain, and how to use them.
+Next step is to define some hooks you want [webhook][w] to serve.
+[webhook][w] supports JSON or YAML configuration files, but we'll focus primarily on JSON in the following example.
+Begin by creating an empty file named `hooks.json`. This file will contain an array of hooks the [webhook][w] will serve. Check [Hook definition page](docs/Hook-Definition.md) to see the detailed description of what properties a hook can contain, and how to use them.
 
 Let's define a simple hook named `redeploy-webhook` that will run a redeploy script located in `/var/scripts/redeploy.sh`. Make sure that your bash script has `#!/bin/sh` shebang on top.
 
@@ -59,6 +61,13 @@ Our `hooks.json` file will now look like this:
     "command-working-directory": "/var/webhook"
   }
 ]
+```
+
+**NOTE:** If you prefer YAML, the equivalent `hooks.yaml` file would be:
+```yaml
+- id: redeploy-webhook
+  execute-command: "/var/scripts/redeploy.sh"
+  command-working-directory: "/var/webhook"
 ```
 
 You can now run [webhook][w] using
@@ -90,7 +99,7 @@ All files are ignored unless they match one of the following criteria:
 In either case, the given file part will be parsed as JSON and added to the `payload` map.
 
 ## Templates
-[webhook][w] can parse the `hooks.json` input file as a Go template when given the `-template` [CLI parameter](docs/Webhook-Parameters.md). See the [Templates page](docs/Templates.md) for more details on template usage.
+[webhook][w] can parse the hooks configuration file as a Go template when given the `-template` [CLI parameter](docs/Webhook-Parameters.md). See the [Templates page](docs/Templates.md) for more details on template usage.
 
 ## Using HTTPS
 [webhook][w] by default serves hooks using http. If you want [webhook][w] to serve secure content using https, you can use the `-secure` flag while starting [webhook][w]. Files containing a certificate and matching private key for the server must be provided using the `-cert /path/to/cert.pem` and `-key /path/to/key.pem` flags. If the certificate is signed by a certificate authority, the cert file should be the concatenation of the server's certificate followed by the CA's certificate.
@@ -202,3 +211,4 @@ THE SOFTWARE.
 
 [w]: https://github.com/adnanh/webhook
 [wc]: https://github.com/adnanh/webhook-contrib
+[badge]: https://github.com/adnanh/webhook/workflows/build/badge.svg

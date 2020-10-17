@@ -53,7 +53,11 @@ func TestStaticParams(t *testing.T) {
 	b := &bytes.Buffer{}
 	log.SetOutput(b)
 
-	_, err = handleHook(spHook, "test", &spHeaders, &map[string]interface{}{}, &map[string]interface{}{}, &map[string]interface{}{}, &[]byte{})
+	r := &hook.Request{
+		ID:      "test",
+		Headers: spHeaders,
+	}
+	_, err = handleHook(spHook, r)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v\n", err)
 	}
@@ -77,7 +81,7 @@ func TestWebhook(t *testing.T) {
 		for _, tt := range hookHandlerTests {
 			t.Run(tt.desc+"@"+hookTmpl, func(t *testing.T) {
 				ip, port := serverAddress(t)
-				args := []string{fmt.Sprintf("-hooks=%s", configPath), fmt.Sprintf("-ip=%s", ip), fmt.Sprintf("-port=%s", port), "-verbose"}
+				args := []string{fmt.Sprintf("-hooks=%s", configPath), fmt.Sprintf("-ip=%s", ip), fmt.Sprintf("-port=%s", port), "-debug"}
 
 				if len(tt.cliMethods) != 0 {
 					args = append(args, "-http-methods="+strings.Join(tt.cliMethods, ","))
@@ -111,6 +115,7 @@ func TestWebhook(t *testing.T) {
 				var res *http.Response
 
 				req.Header.Add("Content-Type", tt.contentType)
+				req.ContentLength = int64(len(tt.body))
 
 				client := &http.Client{}
 				res, err = client.Do(req)
@@ -171,7 +176,7 @@ func buildHookecho(t *testing.T) (binPath string, cleanupFn func()) {
 	return binPath, func() { os.RemoveAll(tmp) }
 }
 
-func genConfig(t *testing.T, bin string, hookTemplate string) (configPath string, cleanupFn func()) {
+func genConfig(t *testing.T, bin, hookTemplate string) (configPath string, cleanupFn func()) {
 	tmpl := template.Must(template.ParseFiles(hookTemplate))
 
 	tmp, err := ioutil.TempDir("", "webhook-config-")
@@ -547,6 +552,28 @@ env: HOOK_head_commit.timestamp=2013-03-12T08:14:29-07:00
 		``,
 	},
 	{
+		"payload-json-array",
+		"sendgrid",
+		nil,
+		"POST",
+		nil,
+		"application/json",
+		`[
+  {
+    "email": "example@test.com",
+    "timestamp": 1513299569,
+    "smtp-id": "<14c5d75ce93.dfd.64b469@ismtpd-555>",
+    "event": "processed",
+    "category": "cat facts",
+    "sg_event_id": "sg_event_id",
+    "sg_message_id": "sg_message_id"
+  }
+]`,
+		http.StatusOK,
+		`success`,
+		``,
+	},
+	{
 		"multipart",
 		"plex",
 		nil,
@@ -663,6 +690,19 @@ env: HOOK_head_commit.timestamp=2013-03-12T08:14:29-07:00
 		``,
 	},
 
+	{
+		"empty-payload-signature", // allow empty payload signature validation
+		"empty-payload-signature",
+		nil,
+		"POST",
+		map[string]string{"X-Hub-Signature": "33f9d709782f62b8b4a0178586c65ab098a39fe2"},
+		"application/json",
+		``,
+		http.StatusOK,
+		``,
+		``,
+	},
+
 	// test with disallowed global HTTP method
 	{"global disallowed method", "bitbucket", []string{"Post "}, "GET", nil, `{}`, "application/json", http.StatusMethodNotAllowed, ``, ``},
 	// test with disallowed HTTP method
@@ -684,7 +724,7 @@ env: HOOK_head_commit.timestamp=2013-03-12T08:14:29-07:00
 
 	// Check logs
 	{"static params should pass", "static-params-ok", nil, "POST", nil, "application/json", `{}`, http.StatusOK, "arg: passed\n", `(?s)command output: arg: passed`},
-	{"command with space logs warning", "warn-on-space", nil, "POST", nil, "application/json", `{}`, http.StatusInternalServerError, "Error occurred while executing the hook's command. Please check your logs for more details.", `(?s)unable to locate command.*use 'pass[-]arguments[-]to[-]command' to specify args`},
+	{"command with space logs warning", "warn-on-space", nil, "POST", nil, "application/json", `{}`, http.StatusInternalServerError, "Error occurred while executing the hook's command. Please check your logs for more details.", `(?s)error in exec:.*use 'pass[-]arguments[-]to[-]command' to specify args`},
 	{"unsupported content type error", "github", nil, "POST", map[string]string{"Content-Type": "nonexistent/format"}, "application/json", `{}`, http.StatusBadRequest, `Hook rules were not satisfied.`, `(?s)error parsing body payload due to unsupported content type header:`},
 }
 

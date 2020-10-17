@@ -1,12 +1,12 @@
 # Templates in Webhook
 
-[`webhook`][w] can parse the `hooks.json` input file as a Go template when given the `-template` [CLI parameter](Webhook-Parameters.md).
+[`webhook`][w] can parse a hooks configuration file as a Go template when given the `-template` [CLI parameter](Webhook-Parameters.md).
 
-In additional to the [built-in Go template functions and features][tt], `webhook` provides a `getenv` template function for inserting environment variables into a `hooks.json` file.
+In additional to the [built-in Go template functions and features][tt], `webhook` provides a `getenv` template function for inserting environment variables into a templated configuration file.
 
 ## Example Usage
 
-In the example `hooks.json` file below, the `payload-hash-sha1` matching rule looks up the secret hash from the environment using the `getenv` template function.
+In the example JSON template file below (YAML is also supported), the `payload-hmac-sha1` matching rule looks up the HMAC secret from the environment using the `getenv` template function.
 Additionally, the result is piped through the built-in Go template function `js` to ensure that the result is a well-formed Javascript/JSON string.
 
 ```
@@ -44,7 +44,7 @@ Additionally, the result is piped through the built-in Go template function `js`
         {
           "match":
           {
-            "type": "payload-hash-sha1",
+            "type": "payload-hmac-sha1",
             "secret": "{{ getenv "XXXTEST_SECRET" | js }}",
             "parameter":
             {

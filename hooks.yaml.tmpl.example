@@ -15,7 +15,7 @@
   trigger-rule:
     and:
     - match:
-        type: payload-hash-sha1
+        type: payload-hmac-sha1
         secret: "{{ getenv "XXXTEST_SECRET" | js }}"
         parameter:
           source: header

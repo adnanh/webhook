@@ -8,13 +8,11 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
+	"net/http/httputil"
 	"sort"
 	"strings"
-
-	"github.com/gorilla/mux"
 )
 
 // responseDupper tees the response to a buffer and a response writer.
@@ -34,70 +32,53 @@ func Dumper(w io.Writer) func(http.Handler) http.Handler {
 			// Request ID
 			rid := r.Context().Value(RequestIDKey)
 
-			// Request URL
-			buf.WriteString(fmt.Sprintf("> [%s] %s %s", rid, r.Method, r.URL.String()))
+			// Dump request
 
-			// Request Headers
-			keys := make([]string, len(r.Header))
-			i := 0
-			for k := range r.Header {
-				keys[i] = k
-				i++
-			}
-			sort.Strings(keys)
-			for _, k := range keys {
-				buf.WriteString(fmt.Sprintf("\n> [%s] %s: %s", rid, k, strings.Join(r.Header[k], ", ")))
-			}
-
-			// Request parameters
-			params := mux.Vars(r)
-			keys = make([]string, len(params))
-			i = 0
-			for k := range params {
-				keys[i] = k
-				i++
-			}
-			sort.Strings(keys)
-			for _, k := range keys {
-				buf.WriteString(fmt.Sprintf("\n> [%s] %s: %s", rid, k, strings.Join(r.Header[k], ", ")))
-			}
-
-			// Request body
-			b, err := ioutil.ReadAll(r.Body)
+			bd, err := httputil.DumpRequest(r, true)
 			if err != nil {
-				b = []byte("failed to read body: " + err.Error())
+				buf.WriteString(fmt.Sprintf("[%s] Error dumping request for debugging: %s\n", rid, err))
 			}
-			if len(b) > 0 {
-				buf.WriteByte('\n')
-				lines := strings.Split(string(b), "\n")
-				for _, line := range lines {
-					buf.WriteString(fmt.Sprintf("> [%s] %s\n", rid, line))
-				}
+
+			sc := bufio.NewScanner(bytes.NewBuffer(bd))
+			sc.Split(bufio.ScanLines)
+			for sc.Scan() {
+				buf.WriteString(fmt.Sprintf("> [%s] ", rid))
+				buf.WriteString(sc.Text() + "\n")
 			}
-			r.Body = ioutil.NopCloser(bytes.NewBuffer(b))
+
+			w.Write(buf.Bytes())
+			buf.Reset()
+
+			// Dump Response
 
 			dupper := &responseDupper{ResponseWriter: rw, Buffer: &bytes.Buffer{}}
 			h.ServeHTTP(dupper, r)
 
-			buf.WriteString(fmt.Sprintf("\n< [%s] %s", rid, http.StatusText(dupper.Status)))
-			keys = make([]string, len(dupper.Header()))
-			i = 0
+			// Response Status
+			buf.WriteString(fmt.Sprintf("< [%s] %d %s\n", rid, dupper.Status, http.StatusText(dupper.Status)))
+
+			// Response Headers
+			keys := make([]string, len(dupper.Header()))
+			i := 0
 			for k := range dupper.Header() {
 				keys[i] = k
 				i++
 			}
 			sort.Strings(keys)
 			for _, k := range keys {
-				buf.WriteString(fmt.Sprintf("\n< [%s] %s: %s", rid, k, strings.Join(dupper.Header()[k], ", ")))
+				buf.WriteString(fmt.Sprintf("< [%s] %s: %s\n", rid, k, strings.Join(dupper.Header()[k], ", ")))
 			}
+
+			// Response Body
 			if dupper.Buffer.Len() > 0 {
-				buf.WriteByte('\n')
-				lines := strings.Split(dupper.Buffer.String(), "\n")
-				for _, line := range lines {
-					buf.WriteString(fmt.Sprintf("< [%s] %s\n", rid, line))
+				buf.WriteString(fmt.Sprintf("< [%s]\n", rid))
+				sc = bufio.NewScanner(dupper.Buffer)
+				sc.Split(bufio.ScanLines)
+				for sc.Scan() {
+					buf.WriteString(fmt.Sprintf("< [%s] ", rid))
+					buf.WriteString(sc.Text() + "\n")
 				}
 			}
-			buf.WriteByte('\n')
 			w.Write(buf.Bytes())
 		})
 	}

@@ -31,7 +31,7 @@
         {
           "match":
           {
-            "type": "payload-hash-sha1",
+            "type": "payload-hmac-sha1",
             "secret": "mysecret",
             "parameter":
             {
@@ -169,6 +169,22 @@
     }
   },
   {
+    "id": "sendgrid",
+    "execute-command": "{{ .Hookecho }}",
+    "command-working-directory": "/",
+    "response-message": "success",
+    "trigger-rule": {
+      "match": {
+        "type": "value",
+        "parameter": {
+          "source": "payload",
+          "name": "root.0.event"
+        },
+        "value": "processed"
+      }
+    }
+  },
+  {
     "id": "plex",
     "execute-command": "{{ .Hookecho }}",
     "command-working-directory": "/",
@@ -259,5 +275,29 @@
         "name": "passed"
       }
     ],
+  },
+  {
+    "id": "empty-payload-signature",
+    "execute-command": "{{ .Hookecho }}",
+    "command-working-directory": "/",
+    "include-command-output-in-response": true,
+    "trigger-rule":
+    {
+      "and":
+      [
+        {
+          "match":
+          {
+            "type": "payload-hmac-sha1",
+            "secret": "mysecret",
+            "parameter":
+            {
+              "source": "header",
+              "name": "X-Hub-Signature"
+            }
+          }
+        }
+      ]
+    }
   }
 ]
