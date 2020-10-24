@@ -848,7 +848,9 @@ func (r OrRule) Evaluate(req *Request) (bool, error) {
 	for _, v := range r {
 		rv, err := v.Evaluate(req)
 		if err != nil {
-			return false, err
+			if !IsParameterNodeError(err) {
+				return false, err
+			}
 		}
 
 		res = res || rv

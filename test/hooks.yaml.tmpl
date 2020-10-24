@@ -163,6 +163,42 @@
   execute-command: '{{ .Hookecho }} foo'
   include-command-output-in-response: true
 
+- id: issue-471
+  execute-command: '{{ .Hookecho }}'
+  response-message: success
+  trigger-rule:
+    or:
+    - match:
+        parameter:
+          source: payload
+          name: foo
+        type: value
+        value: bar
+    - match:
+        parameter:
+          source: payload
+          name: exists
+        type: value
+        value: 1
+
+- id: issue-471-and
+  execute-command: '{{ .Hookecho }}'
+  response-message: success
+  trigger-rule:
+    and:
+    - match:
+        parameter:
+          source: payload
+          name: foo
+        type: value
+        value: bar
+    - match:
+        parameter:
+          source: payload
+          name: exists
+        type: value
+        value: 1
+
 - id: empty-payload-signature
   include-command-output-in-response: true
   execute-command: '{{ .Hookecho }}'
