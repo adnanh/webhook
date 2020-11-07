@@ -25,8 +25,10 @@ import (
 	"strings"
 	"text/template"
 	"time"
+	"net/http"
 
 	"github.com/ghodss/yaml"
+	"github.com/99designs/httpsignatures-go"
 )
 
 // Constants used to specify the parameter source
@@ -210,6 +212,41 @@ func CheckPayloadSignature512(payload []byte, secret string, signature string) (
 
 	// Validate the MAC.
 	return ValidateMAC(payload, hmac.New(sha512.New, []byte(secret)), signatures)
+}
+
+func CheckHmacSHA256(headers map[string]interface{}, body []byte, signingKey string) (bool, error) {
+	// Check headers for relevant parts
+	if _,ok := headers["Signature"]; !ok {
+		return false, errors.New("Missing Signature header")
+	}
+	if _,ok := headers["Digest"]; !ok {
+		return false, errors.New("Missing Digest header")
+	}
+	if _,ok := headers["Date"]; !ok {
+		return false, errors.New("Missing Date header")
+	}
+	if signingKey == "" {
+		return false, errors.New("Secret key is required and cannot be empty")
+	}
+	headerSignature := headers["Signature"].(string)
+	headerDate := headers["Date"].(string)
+	headerDigest := headers["Digest"].(string)
+
+	tmpHttpRequest := &http.Request{
+			Header: http.Header{
+				"Date": []string{headerDate},
+				"Digest": []string{headerDigest},
+			},
+	}
+	sig,err := httpsignatures.FromString(headerSignature)
+	if err != nil {
+		return false, errors.New("httpsignature error")
+	}
+	if !sig.IsValid(signingKey, tmpHttpRequest) {
+		return false, errors.New("Invalid Signature")
+	}
+
+	return true, nil
 }
 
 func CheckScalrSignature(headers map[string]interface{}, body []byte, signingKey string, checkDate bool) (bool, error) {
@@ -835,6 +872,7 @@ const (
 	MatchHashSHA256 string = "payload-hash-sha256"
 	MatchHashSHA512 string = "payload-hash-sha512"
 	IPWhitelist     string = "ip-whitelist"
+	MatchHmacSHA256 string = "payload-hmac-sha256"
 	ScalrSignature  string = "scalr-signature"
 )
 
@@ -845,6 +883,10 @@ func (r MatchRule) Evaluate(headers, query, payload *map[string]interface{}, bod
 	}
 	if r.Type == ScalrSignature {
 		return CheckScalrSignature(*headers, *body, r.Secret, true)
+	}
+
+	if r.Type == MatchHmacSHA256 {
+		return CheckHmacSHA256(*headers, *body, r.Secret)
 	}
 
 	arg, err := r.Parameter.Get(headers, query, payload)
