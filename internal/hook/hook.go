@@ -17,7 +17,6 @@ import (
 	"log"
 	"math"
 	"net"
-	"net/http"
 	"net/textproto"
 	"os"
 	"reflect"
@@ -47,30 +46,6 @@ const (
 	// environment.
 	EnvNamespace string = "HOOK_"
 )
-
-// Request represents a webhook request.
-type Request struct {
-	// The request ID set by the RequestID middleware.
-	ID string
-
-	// The Content-Type of the request.
-	ContentType string
-
-	// The raw request body.
-	Body []byte
-
-	// Headers is a map of the parsed headers.
-	Headers map[string]interface{}
-
-	// Query is a map of the parsed URL query values.
-	Query map[string]interface{}
-
-	// Payload is a map of the parsed payload.
-	Payload map[string]interface{}
-
-	// The underlying HTTP request.
-	RawRequest *http.Request
-}
 
 // ParameterNodeError describes an error walking a parameter node.
 type ParameterNodeError struct {
