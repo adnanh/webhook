@@ -2,7 +2,6 @@
 There are four types of request values:
 
 1. Context values
-
    These are the values provided by the `pre-hook-command` output.
    
    ```json

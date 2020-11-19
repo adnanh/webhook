@@ -607,6 +607,32 @@ binary data
 	},
 
 	{
+		"issue-471",
+		"issue-471",
+		nil,
+		"POST",
+		nil,
+		"application/json",
+		`{"exists": 1}`,
+		http.StatusOK,
+		`success`,
+		``,
+	},
+
+	{
+		"issue-471-and",
+		"issue-471-and",
+		nil,
+		"POST",
+		nil,
+		"application/json",
+		`{"exists": 1}`,
+		http.StatusOK,
+		`Hook rules were not satisfied.`,
+		`parameter node not found`,
+	},
+
+	{
 		"missing-cmd-arg", // missing head_commit.author.email
 		"github",
 		nil,

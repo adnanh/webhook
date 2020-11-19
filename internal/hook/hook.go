@@ -17,9 +17,7 @@ import (
 	"log"
 	"math"
 	"net"
-	"net/http"
 	"net/textproto"
-	"net/url"
 	"os"
 	"reflect"
 	"regexp"
@@ -49,33 +47,6 @@ const (
 	// environment.
 	EnvNamespace string = "HOOK_"
 )
-
-// Request represents a webhook request.
-type Request struct {
-	// The request ID set by the RequestID middleware.
-	ID string
-
-	// The Content-Type of the request.
-	ContentType string
-
-	// The raw request body.
-	Body []byte
-
-	// Headers is a map of the parsed headers.
-	Headers map[string]interface{}
-
-	// Query is a map of the parsed URL query values.
-	Query map[string]interface{}
-
-	// Payload is a map of the parsed payload.
-	Payload map[string]interface{}
-
-	// Context is a map of the parsed pre-hook command result
-	Context map[string]interface{}
-
-	// The underlying HTTP request.
-	RawRequest *http.Request
-}
 
 // ParameterNodeError describes an error walking a parameter node.
 type ParameterNodeError struct {
@@ -870,7 +841,9 @@ func (r OrRule) Evaluate(req *Request) (bool, error) {
 	for _, v := range r {
 		rv, err := v.Evaluate(req)
 		if err != nil {
-			return false, err
+			if !IsParameterNodeError(err) {
+				return false, err
+			}
 		}
 
 		res = res || rv

@@ -661,12 +661,12 @@ var orRuleTests = []struct {
 	},
 	// failures
 	{
-		"invalid rule",
+		"missing parameter node",
 		OrRule{
 			{Match: &MatchRule{"value", "", "", "z", Argument{"header", "a", "", false}, ""}},
 		},
 		map[string]interface{}{"Y": "Z"}, nil, nil, nil, []byte{},
-		false, true,
+		false, false,
 	},
 }
 
