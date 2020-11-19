@@ -23,7 +23,7 @@ _Make sure you have the `jq` command available, as we're using it to parse the J
 <details>
     <summary>script.sh</summary>
     
-    ```sh
+    ```
     #!/bin/bash
 
     ip=$1
@@ -34,7 +34,7 @@ _Make sure you have the `jq` command available, as we're using it to parse the J
 <details>
     <summary>prehook.sh</summary>
     
-    ```sh
+    ```
     #!/bin/bash
     
     context=$(cat)
@@ -47,7 +47,7 @@ _Make sure you have the `jq` command available, as we're using it to parse the J
 <details>
     <summary>hooks.json</summary>
     
-    ```json
+    ```
     [
         {
             "id": "log-ip",
