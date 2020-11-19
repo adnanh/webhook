@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"crypto/tls"
 	"encoding/json"
 	"flag"
@@ -10,19 +9,16 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/adnanh/webhook/internal/hook"
 	"github.com/adnanh/webhook/internal/middleware"
 	"github.com/adnanh/webhook/internal/pidfile"
 
-	"github.com/clbanning/mxj"
 	chimiddleware "github.com/go-chi/chi/middleware"
 	"github.com/gorilla/mux"
 	fsnotify "gopkg.in/fsnotify.v1"
@@ -373,57 +369,26 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// parse headers
-	req.Headers = valuesToMap(r.Header)
-
-	// parse query variables
-	req.Query = valuesToMap(r.URL.Query())
-
-	// parse body
-	// var payload map[string]interface{}
+	req.ParseHeaders(r.Header)
+	req.ParseQuery(r.URL.Query())
 
 	switch {
 	case strings.Contains(req.ContentType, "json"):
-		decoder := json.NewDecoder(bytes.NewReader(req.Body))
-		decoder.UseNumber()
-
-		var firstChar byte
-		for i := 0; i < len(req.Body); i++ {
-			if unicode.IsSpace(rune(req.Body[i])) {
-				continue
-			}
-			firstChar = req.Body[i]
-			break
-		}
-
-		if firstChar == byte('[') {
-			var arrayPayload interface{}
-			err := decoder.Decode(&arrayPayload)
-			if err != nil {
-				log.Printf("[%s] error parsing JSON array payload %+v\n", req.ID, err)
-			}
-
-			req.Payload = make(map[string]interface{}, 1)
-			req.Payload["root"] = arrayPayload
-		} else {
-			err := decoder.Decode(&req.Payload)
-			if err != nil {
-				log.Printf("[%s] error parsing JSON payload %+v\n", req.ID, err)
-			}
+		err = req.ParseJSONPayload()
+		if err != nil {
+			log.Printf("[%s] %s", req.ID, err)
 		}
 
 	case strings.Contains(req.ContentType, "x-www-form-urlencoded"):
-		fd, err := url.ParseQuery(string(req.Body))
+		err = req.ParseFormPayload()
 		if err != nil {
-			log.Printf("[%s] error parsing form payload %+v\n", req.ID, err)
-		} else {
-			req.Payload = valuesToMap(fd)
+			log.Printf("[%s] %s", req.ID, err)
 		}
 
 	case strings.Contains(req.ContentType, "xml"):
-		req.Payload, err = mxj.NewMapXmlReader(bytes.NewReader(req.Body))
+		err = req.ParseXMLPayload()
 		if err != nil {
-			log.Printf("[%s] error parsing XML payload: %+v\n", req.ID, err)
+			log.Printf("[%s] %s", req.ID, err)
 		}
 
 	case isMultipart:
