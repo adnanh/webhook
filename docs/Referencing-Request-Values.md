@@ -2,7 +2,7 @@
 There are four types of request values:
 
 1. Pre-hook values
-   These are the values provided by the `pre-hook-command` output.
+   These are the values provided by the `pre-hook-command` output. More details on the pre-hook command can be found [here](PreHook-Command.md).
    
    ```json
    {
