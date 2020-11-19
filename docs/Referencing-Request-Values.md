@@ -1,12 +1,12 @@
 # Referencing request values
 There are four types of request values:
 
-1. Context values
+1. Pre-hook values
    These are the values provided by the `pre-hook-command` output.
    
    ```json
    {
-     "source": "context",
+     "source": "pre-hook",
      "name": "parameter-name"
    }
    ``` 

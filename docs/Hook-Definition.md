@@ -32,7 +32,7 @@ Hooks are defined as objects in the JSON or YAML hooks configuration file. Pleas
      * `query` - object with query parameters and their respective values
      * `headers` - object with headers and their respective values
      * `base64EncodedBody` - base64 encoded request body
-    * Output of this command __MUST__ be valid JSON string which will be parsed by the webhook and accessible using the `context` as source when referencing values. 
+    * Output of this command __MUST__ be valid JSON string which will be parsed by the webhook and accessible using the `pre-hook` as source when referencing values. 
 
 ## Examples
 Check out [Hook examples page](Hook-Examples.md) for more complex examples of hooks.

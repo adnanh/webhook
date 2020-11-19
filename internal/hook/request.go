@@ -31,8 +31,8 @@ type Request struct {
 	// Payload is a map of the parsed payload.
 	Payload map[string]interface{}
 
-	// Context is a map of the parsed pre-hook command result
-	Context map[string]interface{}
+	// PreHook is a map of the parsed pre-hook command result
+	PreHook map[string]interface{}
 
 	// The underlying HTTP request.
 	RawRequest *http.Request

@@ -35,7 +35,7 @@ const (
 	SourceQuery         string = "url"
 	SourceQueryAlias    string = "query"
 	SourcePayload       string = "payload"
-	SourceContext       string = "context"
+	SourcePreHook       string = "pre-hook"
 	SourceString        string = "string"
 	SourceEntirePayload string = "entire-payload"
 	SourceEntireQuery   string = "entire-query"
@@ -443,8 +443,8 @@ func (ha *Argument) Get(r *Request) (string, error) {
 		source = &r.Query
 	case SourcePayload:
 		source = &r.Payload
-	case SourceContext:
-		source = &r.Context
+	case SourcePreHook:
+		source = &r.PreHook
 	case SourceString:
 		return ha.Name, nil
 	case SourceEntirePayload:
@@ -591,8 +591,8 @@ func (h *Hook) ParseJSONParameters(r *Request) []error {
 				source = &r.Headers
 			case SourcePayload:
 				source = &r.Payload
-			case SourceContext:
-				source = &r.Context
+			case SourcePreHook:
+				source = &r.PreHook
 			case SourceQuery, SourceQueryAlias:
 				source = &r.Query
 			}

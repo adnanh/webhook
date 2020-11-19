@@ -254,21 +254,21 @@ func TestExtractParameter(t *testing.T) {
 
 var argumentGetTests = []struct {
 	source, name                     string
-	headers, query, payload, context map[string]interface{}
+	headers, query, payload, prehook map[string]interface{}
 	value                            string
 	ok                               bool
 }{
 	{"header", "a", map[string]interface{}{"A": "z"}, nil, nil, nil, "z", true},
 	{"url", "a", nil, map[string]interface{}{"a": "z"}, nil, nil, "z", true},
 	{"payload", "a", nil, nil, map[string]interface{}{"a": "z"}, nil, "z", true},
-	{"context", "a", nil, nil, nil, map[string]interface{}{"a": "z"}, "z", true},
+	{"prehook", "a", nil, nil, nil, map[string]interface{}{"a": "z"}, "z", true},
 	{"string", "a", nil, nil, nil, nil, "a", true},
 	// failures
 	{"header", "a", nil, map[string]interface{}{"a": "z"}, map[string]interface{}{"a": "z"}, nil, "", false},  // nil headers
 	{"url", "a", map[string]interface{}{"A": "z"}, nil, map[string]interface{}{"a": "z"}, nil, "", false},     // nil query
 	{"payload", "a", map[string]interface{}{"A": "z"}, map[string]interface{}{"a": "z"}, nil, nil, "", false}, // nil payload
-	{"context", "a", nil, nil, nil, nil, "", false},                                                             // nil context
-	{"foo", "a", map[string]interface{}{"A": "z"}, nil, nil, nil, "", false},                                   // invalid source
+	{"prehook", "a", nil, nil, nil, nil, "", false},                                                           // nil prehook
+	{"foo", "a", map[string]interface{}{"A": "z"}, nil, nil, nil, "", false},                                  // invalid source
 }
 
 func TestArgumentGet(t *testing.T) {
@@ -278,7 +278,7 @@ func TestArgumentGet(t *testing.T) {
 			Headers: tt.headers,
 			Query:   tt.query,
 			Payload: tt.payload,
-			Context: tt.context,
+			PreHook: tt.prehook,
 		}
 		value, err := a.Get(r)
 		if (err == nil) != tt.ok || value != tt.value {
@@ -289,14 +289,14 @@ func TestArgumentGet(t *testing.T) {
 
 var hookParseJSONParametersTests = []struct {
 	params                               []Argument
-	headers, query, payload, context     map[string]interface{}
-	rheaders, rquery, rpayload, rcontext map[string]interface{}
+	headers, query, payload, prehook     map[string]interface{}
+	rheaders, rquery, rpayload, rprehook map[string]interface{}
 	ok                                   bool
 }{
 	{[]Argument{Argument{"header", "a", "", false}}, map[string]interface{}{"A": `{"b": "y"}`}, nil, nil, nil, map[string]interface{}{"A": map[string]interface{}{"b": "y"}}, nil, nil, nil, true},
 	{[]Argument{Argument{"url", "a", "", false}}, nil, map[string]interface{}{"a": `{"b": "y"}`}, nil, nil, nil, map[string]interface{}{"a": map[string]interface{}{"b": "y"}}, nil, nil, true},
 	{[]Argument{Argument{"payload", "a", "", false}}, nil, nil, map[string]interface{}{"a": `{"b": "y"}`}, nil, nil, nil, map[string]interface{}{"a": map[string]interface{}{"b": "y"}}, nil, true},
-	{[]Argument{Argument{"context", "a", "", false}}, nil, nil, nil, map[string]interface{}{"a": `{"b": "y"}`}, nil, nil, nil, map[string]interface{}{"a": map[string]interface{}{"b": "y"}}, true},
+	{[]Argument{Argument{"prehook", "a", "", false}}, nil, nil, nil, map[string]interface{}{"a": `{"b": "y"}`}, nil, nil, nil, map[string]interface{}{"a": map[string]interface{}{"b": "y"}}, true},
 	{[]Argument{Argument{"header", "z", "", false}}, map[string]interface{}{"Z": `{}`}, nil, nil, nil, map[string]interface{}{"Z": map[string]interface{}{}}, nil, nil, nil, true},
 	// failures
 	{[]Argument{Argument{"header", "z", "", false}}, map[string]interface{}{"Z": ``}, nil, nil, nil, map[string]interface{}{"Z": ``}, nil, nil, nil, false},     // empty string
@@ -311,7 +311,7 @@ func TestHookParseJSONParameters(t *testing.T) {
 			Headers: tt.headers,
 			Query:   tt.query,
 			Payload: tt.payload,
-			Context: tt.context,
+			PreHook: tt.prehook,
 		}
 		err := h.ParseJSONParameters(r)
 		if (err == nil) != tt.ok || !reflect.DeepEqual(tt.headers, tt.rheaders) {
@@ -323,7 +323,7 @@ func TestHookParseJSONParameters(t *testing.T) {
 var hookExtractCommandArgumentsTests = []struct {
 	exec                             string
 	args                             []Argument
-	headers, query, payload, context map[string]interface{}
+	headers, query, payload, prehook map[string]interface{}
 	value                            []string
 	ok                               bool
 }{
@@ -339,7 +339,7 @@ func TestHookExtractCommandArguments(t *testing.T) {
 			Headers: tt.headers,
 			Query:   tt.query,
 			Payload: tt.payload,
-			Context: tt.context,
+			PreHook: tt.prehook,
 		}
 		value, err := h.ExtractCommandArguments(r)
 		if (err == nil) != tt.ok || !reflect.DeepEqual(value, tt.value) {
@@ -370,7 +370,7 @@ func TestHookExtractCommandArguments(t *testing.T) {
 var hookExtractCommandArgumentsForEnvTests = []struct {
 	exec                             string
 	args                             []Argument
-	headers, query, payload, context map[string]interface{}
+	headers, query, payload, prehook map[string]interface{}
 	value                            []string
 	ok                               bool
 }{
@@ -406,7 +406,7 @@ func TestHookExtractCommandArgumentsForEnv(t *testing.T) {
 			Headers: tt.headers,
 			Query:   tt.query,
 			Payload: tt.payload,
-			Context: tt.context,
+			PreHook: tt.prehook,
 		}
 		value, err := h.ExtractCommandArgumentsForEnv(r)
 		if (err == nil) != tt.ok || !reflect.DeepEqual(value, tt.value) {
@@ -486,7 +486,7 @@ func TestHooksMatch(t *testing.T) {
 var matchRuleTests = []struct {
 	typ, regex, secret, value, ipRange string
 	param                              Argument
-	headers, query, payload, context   map[string]interface{}
+	headers, query, payload, prehook   map[string]interface{}
 	body                               []byte
 	remoteAddr                         string
 	ok                                 bool
@@ -533,7 +533,7 @@ func TestMatchRule(t *testing.T) {
 			Headers: tt.headers,
 			Query:   tt.query,
 			Payload: tt.payload,
-			Context: tt.context,
+			PreHook: tt.prehook,
 			Body:    tt.body,
 			RawRequest: &http.Request{
 				RemoteAddr: tt.remoteAddr,
@@ -549,7 +549,7 @@ func TestMatchRule(t *testing.T) {
 var andRuleTests = []struct {
 	desc                             string // description of the test case
 	rule                             AndRule
-	headers, query, payload, context map[string]interface{}
+	headers, query, payload, prehook map[string]interface{}
 	body                             []byte
 	ok                               bool
 	err                              bool
@@ -614,7 +614,7 @@ func TestAndRule(t *testing.T) {
 			Headers: tt.headers,
 			Query:   tt.query,
 			Payload: tt.payload,
-			Context: tt.context,
+			PreHook: tt.prehook,
 			Body:    tt.body,
 		}
 		ok, err := tt.rule.Evaluate(r)
@@ -627,7 +627,7 @@ func TestAndRule(t *testing.T) {
 var orRuleTests = []struct {
 	desc                             string // description of the test case
 	rule                             OrRule
-	headers, query, payload, context map[string]interface{}
+	headers, query, payload, prehook map[string]interface{}
 	body                             []byte
 	ok                               bool
 	err                              bool
@@ -676,7 +676,7 @@ func TestOrRule(t *testing.T) {
 			Headers: tt.headers,
 			Query:   tt.query,
 			Payload: tt.payload,
-			Context: tt.context,
+			PreHook: tt.prehook,
 			Body:    tt.body,
 		}
 		ok, err := tt.rule.Evaluate(r)
@@ -689,7 +689,7 @@ func TestOrRule(t *testing.T) {
 var notRuleTests = []struct {
 	desc                             string // description of the test case
 	rule                             NotRule
-	headers, query, payload, context map[string]interface{}
+	headers, query, payload, prehook map[string]interface{}
 	body                             []byte
 	ok                               bool
 	err                              bool
@@ -704,7 +704,7 @@ func TestNotRule(t *testing.T) {
 			Headers: tt.headers,
 			Query:   tt.query,
 			Payload: tt.payload,
-			Context: tt.context,
+			PreHook: tt.prehook,
 			Body:    tt.body,
 		}
 		ok, err := tt.rule.Evaluate(r)

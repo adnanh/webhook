@@ -473,14 +473,14 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 
 	if matchedHook.PreHookCommand != "" {
 		// check the command exists
-		var lookpath string
+		var searchPath string
 		if filepath.IsAbs(matchedHook.PreHookCommand) || matchedHook.CommandWorkingDirectory == "" {
-			lookpath = matchedHook.PreHookCommand
+			searchPath = matchedHook.PreHookCommand
 		} else {
-			lookpath = filepath.Join(matchedHook.CommandWorkingDirectory, matchedHook.PreHookCommand)
+			searchPath = filepath.Join(matchedHook.CommandWorkingDirectory, matchedHook.PreHookCommand)
 		}
 
-		preHookCommandPath, err := exec.LookPath(lookpath)
+		preHookCommandPath, err := exec.LookPath(searchPath)
 
 		if err != nil {
 			log.Printf("[%s] unable to locate pre-hook command: '%s', %+v\n", req.ID, matchedHook.PreHookCommand, err)
@@ -489,48 +489,85 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 				s := strings.Fields(matchedHook.PreHookCommand)[0]
 				log.Printf("[%s] please use a wrapper script to provide arguments to pre-hook command for '%s'\n", req.ID, s)
 			}
-		} else {
-			preHookCommandStdin := hook.PreHookContext{
-				HookID:            matchedHook.ID,
-				Method:            r.Method,
-				Base64EncodedBody: base64.StdEncoding.EncodeToString(req.Body),
-				RemoteAddr:        r.RemoteAddr,
-				URI:               r.RequestURI,
-				Host:              r.Host,
-				Headers:           r.Header,
-				Query:             r.URL.Query(),
-			}
 
-			if preHookCommandStdinJSONString, err := json.Marshal(preHookCommandStdin); err != nil {
-				log.Printf("[%s] unable to encode pre-hook context as JSON string for the pre-hook command: %+v\n", req.ID, err)
-			} else {
-				preHookCommand := exec.Command(preHookCommandPath)
-				preHookCommand.Dir = matchedHook.CommandWorkingDirectory
-				preHookCommand.Env = append(os.Environ())
+			writeHttpResponseCode(w, req.ID, matchedHook.ID, http.StatusInternalServerError)
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			fmt.Fprint(w, "Error occurred while executing the hook's pre-hook command. Please check your logs for more details.")
+			return
+		}
 
-				if preHookCommandStdinPipe, err := preHookCommand.StdinPipe(); err != nil {
-					log.Printf("[%s] unable to acquire stdin pipe for the pre-hook command: %+v\n", req.ID, err)
-				} else {
-					_, err := io.WriteString(preHookCommandStdinPipe, string(preHookCommandStdinJSONString))
-					preHookCommandStdinPipe.Close()
-					if err != nil {
-						log.Printf("[%s] unable to write to pre-hook command stdin: %+v\n", req.ID, err)
-					} else {
-						log.Printf("[%s] executing pre-hook command %s (%s) using %s as cwd\n", req.ID, matchedHook.PreHookCommand, preHookCommand.Path, preHookCommand.Dir)
+		preHookCommandStdin := hook.PreHookContext{
+			HookID:            matchedHook.ID,
+			Method:            r.Method,
+			Base64EncodedBody: base64.StdEncoding.EncodeToString(req.Body),
+			RemoteAddr:        r.RemoteAddr,
+			URI:               r.RequestURI,
+			Host:              r.Host,
+			Headers:           r.Header,
+			Query:             r.URL.Query(),
+		}
 
-						if preHookCommandOutput, err := preHookCommand.CombinedOutput(); err != nil {
-							log.Printf("[%s] unable to execute pre-hook command: %+v\n", req.ID, err)
-						} else {
-							JSONDecoder := json.NewDecoder(strings.NewReader(string(preHookCommandOutput)))
-							JSONDecoder.UseNumber()
+		preHookCommandStdinJSONString, err := json.Marshal(preHookCommandStdin)
 
-							if err := JSONDecoder.Decode(&req.Context); err != nil {
-								log.Printf("[%s] unable to parse pre-hook command output: %+v\npre-hook command output was: %+v\n", req.ID, err, string(preHookCommandOutput))
-							}
-						}
-					}
-				}
-			}
+		if err != nil {
+			log.Printf("[%s] unable to encode pre-hook context as JSON string for the pre-hook command: %+v\n", req.ID, err)
+
+			writeHttpResponseCode(w, req.ID, matchedHook.ID, http.StatusInternalServerError)
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			fmt.Fprint(w, "Error occurred while executing the hook's pre-hook command. Please check your logs for more details.")
+			return
+		}
+		preHookCommand := exec.Command(preHookCommandPath)
+		preHookCommand.Dir = matchedHook.CommandWorkingDirectory
+		preHookCommand.Env = append(os.Environ())
+
+		preHookCommandStdinPipe, err := preHookCommand.StdinPipe()
+
+		if err != nil {
+			log.Printf("[%s] unable to acquire stdin pipe for the pre-hook command: %+v\n", req.ID, err)
+
+			writeHttpResponseCode(w, req.ID, matchedHook.ID, http.StatusInternalServerError)
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			fmt.Fprint(w, "Error occurred while executing the hook's pre-hook command. Please check your logs for more details.")
+			return
+		}
+
+		_, err = io.WriteString(preHookCommandStdinPipe, string(preHookCommandStdinJSONString))
+
+		preHookCommandStdinPipe.Close()
+
+		if err != nil {
+			log.Printf("[%s] unable to write to pre-hook command stdin: %+v\n", req.ID, err)
+
+			writeHttpResponseCode(w, req.ID, matchedHook.ID, http.StatusInternalServerError)
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			fmt.Fprint(w, "Error occurred while executing the hook's pre-hook command. Please check your logs for more details.")
+			return
+		}
+
+		log.Printf("[%s] executing pre-hook command %s (%s) using %s as cwd\n", req.ID, matchedHook.PreHookCommand, preHookCommand.Path, preHookCommand.Dir)
+
+		preHookCommandOutput, err := preHookCommand.CombinedOutput()
+
+		if err != nil {
+			log.Printf("[%s] unable to execute pre-hook command: %+v\n", req.ID, err)
+
+			writeHttpResponseCode(w, req.ID, matchedHook.ID, http.StatusInternalServerError)
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			fmt.Fprint(w, "Error occurred while executing the hook's pre-hook command. Please check your logs for more details.")
+			return
+		}
+
+		JSONDecoder := json.NewDecoder(strings.NewReader(string(preHookCommandOutput)))
+		JSONDecoder.UseNumber()
+
+		if err := JSONDecoder.Decode(&req.PreHook); err != nil {
+			log.Printf("[%s] unable to parse pre-hook command output: %+v\npre-hook command output was: %+v\n", req.ID, err, string(preHookCommandOutput))
+
+			writeHttpResponseCode(w, req.ID, matchedHook.ID, http.StatusInternalServerError)
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			fmt.Fprint(w, "Error occurred while executing the hook's pre-hook command. Please check your logs for more details.")
+			return
 		}
 	}
 

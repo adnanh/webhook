@@ -1,0 +1,13 @@
+[
+	{
+		"id": "test",
+		"pre-hook-command": "/home/adnan/test.sh",
+		"execute-command": "/bin/echo",
+		"pass-arguments-to-command": [
+			{
+				"source": "payload",
+				"name": "root"
+			}
+		]
+	}
+]
