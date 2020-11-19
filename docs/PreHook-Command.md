@@ -23,31 +23,26 @@ _Make sure you have the `jq` command available, as we're using it to parse the J
 <details>
     <summary>script.sh</summary>
     
-    ```
     #!/bin/bash
 
     ip=$1
     
     echo $ip >> ips.txt
-    ```
 </details>
 <details>
     <summary>prehook.sh</summary>
     
-    ```
     #!/bin/bash
     
     context=$(cat)
     ip=`echo $context | jq -r '.remoteAddr' | cut -d ':' -f 1`
     
     echo "{\"ip\": \"$ip\"}"
-    ```
 </details>
 
 <details>
     <summary>hooks.json</summary>
     
-    ```
     [
         {
             "id": "log-ip",
@@ -58,5 +53,4 @@ _Make sure you have the `jq` command available, as we're using it to parse the J
             ]
         }
     ]
-    ```
 </details>
