@@ -35,6 +35,7 @@ const (
 	SourceQuery         string = "url"
 	SourceQueryAlias    string = "query"
 	SourcePayload       string = "payload"
+	SourceRequest       string = "request"
 	SourceString        string = "string"
 	SourceEntirePayload string = "entire-payload"
 	SourceEntireQuery   string = "entire-query"
@@ -438,12 +439,30 @@ func (ha *Argument) Get(r *Request) (string, error) {
 	case SourceHeader:
 		source = &r.Headers
 		key = textproto.CanonicalMIMEHeaderKey(ha.Name)
+
 	case SourceQuery, SourceQueryAlias:
 		source = &r.Query
+
 	case SourcePayload:
 		source = &r.Payload
+
 	case SourceString:
 		return ha.Name, nil
+
+	case SourceRequest:
+		if r == nil || r.RawRequest == nil {
+			return "", errors.New("request is nil")
+		}
+
+		switch ha.Name {
+		case "remote-addr":
+			return r.RawRequest.RemoteAddr, nil
+		case "method":
+			return r.RawRequest.Method, nil
+		default:
+			return "", fmt.Errorf("unsupported request key: %q", ha.Name)
+		}
+
 	case SourceEntirePayload:
 		res, err := json.Marshal(&r.Payload)
 		if err != nil {
@@ -451,6 +470,7 @@ func (ha *Argument) Get(r *Request) (string, error) {
 		}
 
 		return string(res), nil
+
 	case SourceEntireHeaders:
 		res, err := json.Marshal(&r.Headers)
 		if err != nil {
@@ -458,6 +478,7 @@ func (ha *Argument) Get(r *Request) (string, error) {
 		}
 
 		return string(res), nil
+
 	case SourceEntireQuery:
 		res, err := json.Marshal(&r.Query)
 		if err != nil {

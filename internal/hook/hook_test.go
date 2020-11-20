@@ -255,27 +255,31 @@ func TestExtractParameter(t *testing.T) {
 var argumentGetTests = []struct {
 	source, name            string
 	headers, query, payload map[string]interface{}
+	request                 *http.Request
 	value                   string
 	ok                      bool
 }{
-	{"header", "a", map[string]interface{}{"A": "z"}, nil, nil, "z", true},
-	{"url", "a", nil, map[string]interface{}{"a": "z"}, nil, "z", true},
-	{"payload", "a", nil, nil, map[string]interface{}{"a": "z"}, "z", true},
-	{"string", "a", nil, nil, map[string]interface{}{"a": "z"}, "a", true},
+	{"header", "a", map[string]interface{}{"A": "z"}, nil, nil, nil, "z", true},
+	{"url", "a", nil, map[string]interface{}{"a": "z"}, nil, nil, "z", true},
+	{"payload", "a", nil, nil, map[string]interface{}{"a": "z"}, nil, "z", true},
+	{"request", "method", nil, nil, map[string]interface{}{"a": "z"}, &http.Request{Method: "POST", RemoteAddr: "127.0.0.1:1234"}, "POST", true},
+	{"request", "remote-addr", nil, nil, map[string]interface{}{"a": "z"}, &http.Request{Method: "POST", RemoteAddr: "127.0.0.1:1234"}, "127.0.0.1:1234", true},
+	{"string", "a", nil, nil, map[string]interface{}{"a": "z"}, nil, "a", true},
 	// failures
-	{"header", "a", nil, map[string]interface{}{"a": "z"}, map[string]interface{}{"a": "z"}, "", false},  // nil headers
-	{"url", "a", map[string]interface{}{"A": "z"}, nil, map[string]interface{}{"a": "z"}, "", false},     // nil query
-	{"payload", "a", map[string]interface{}{"A": "z"}, map[string]interface{}{"a": "z"}, nil, "", false}, // nil payload
-	{"foo", "a", map[string]interface{}{"A": "z"}, nil, nil, "", false},                                  // invalid source
+	{"header", "a", nil, map[string]interface{}{"a": "z"}, map[string]interface{}{"a": "z"}, nil, "", false},  // nil headers
+	{"url", "a", map[string]interface{}{"A": "z"}, nil, map[string]interface{}{"a": "z"}, nil, "", false},     // nil query
+	{"payload", "a", map[string]interface{}{"A": "z"}, map[string]interface{}{"a": "z"}, nil, nil, "", false}, // nil payload
+	{"foo", "a", map[string]interface{}{"A": "z"}, nil, nil, nil, "", false},                                  // invalid source
 }
 
 func TestArgumentGet(t *testing.T) {
 	for _, tt := range argumentGetTests {
 		a := Argument{tt.source, tt.name, "", false}
 		r := &Request{
-			Headers: tt.headers,
-			Query:   tt.query,
-			Payload: tt.payload,
+			Headers:    tt.headers,
+			Query:      tt.query,
+			Payload:    tt.payload,
+			RawRequest: tt.request,
 		}
 		value, err := a.Get(r)
 		if (err == nil) != tt.ok || value != tt.value {

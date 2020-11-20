@@ -1,5 +1,5 @@
 # Referencing request values
-There are three types of request values:
+There are four types of request values:
 
 1. HTTP Request Header values
 
@@ -19,7 +19,23 @@ There are three types of request values:
     }
     ```
 
-3. Payload (JSON or form-value encoded)
+3. HTTP Request parameters
+
+    ```json
+    {
+      "source": "request",
+      "name": "method"
+    }
+    ```
+
+    ```json
+    {
+      "source": "request",
+      "name": "remote-addr"
+    }
+    ```
+
+4. Payload (JSON or form-value encoded)
     ```json
     {
       "source": "payload",
@@ -57,7 +73,7 @@ There are three types of request values:
 
     If the payload contains a key with the specified name "commits.0.commit.id", then the value of that key has priority over the dot-notation referencing.
 
-3. XML Payload
+4. XML Payload
 
     Referencing XML payload parameters is much like the JSON examples above, but XML is more complex.
     Element attributes are prefixed by a hyphen (`-`).

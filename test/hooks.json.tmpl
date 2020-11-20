@@ -253,6 +253,21 @@
     "include-command-output-in-response-on-error": true
   },
   {
+    "id": "request-source",
+    "pass-arguments-to-command": [
+      {
+        "source": "request",
+        "name": "method"
+      },
+      {
+        "source": "request",
+        "name": "remote-addr"
+      }
+    ],
+    "execute-command": "{{ .Hookecho }}",
+    "include-command-output-in-response": true
+  },
+  {
     "id": "static-params-ok",
 		"execute-command": "{{ .Hookecho }}",
 		"response-message": "success",
