@@ -12,6 +12,7 @@ os:
 arch:
   - amd64
   - arm64
+  - ppc64le
 
 matrix:
   fast_finish: true
@@ -24,6 +25,11 @@ matrix:
       arch: arm64
     - os: osx
       arch: arm64
+    - os: windows
+      arch: ppc64le
+    - os: osx
+      arch: ppc64le
+
 
 install:
   - go get -d -v -t ./...
