@@ -454,7 +454,7 @@ func (ha *Argument) Get(r *Request) (string, error) {
 			return "", errors.New("request is nil")
 		}
 
-		switch ha.Name {
+		switch strings.ToLower(ha.Name) {
 		case "remote-addr":
 			return r.RawRequest.RemoteAddr, nil
 		case "method":

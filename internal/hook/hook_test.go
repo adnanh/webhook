@@ -262,7 +262,7 @@ var argumentGetTests = []struct {
 	{"header", "a", map[string]interface{}{"A": "z"}, nil, nil, nil, "z", true},
 	{"url", "a", nil, map[string]interface{}{"a": "z"}, nil, nil, "z", true},
 	{"payload", "a", nil, nil, map[string]interface{}{"a": "z"}, nil, "z", true},
-	{"request", "method", nil, nil, map[string]interface{}{"a": "z"}, &http.Request{Method: "POST", RemoteAddr: "127.0.0.1:1234"}, "POST", true},
+	{"request", "METHOD", nil, nil, map[string]interface{}{"a": "z"}, &http.Request{Method: "POST", RemoteAddr: "127.0.0.1:1234"}, "POST", true},
 	{"request", "remote-addr", nil, nil, map[string]interface{}{"a": "z"}, &http.Request{Method: "POST", RemoteAddr: "127.0.0.1:1234"}, "127.0.0.1:1234", true},
 	{"string", "a", nil, nil, map[string]interface{}{"a": "z"}, nil, "a", true},
 	// failures
