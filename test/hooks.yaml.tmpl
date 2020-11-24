@@ -109,6 +109,18 @@
         name: root.0.event
       value: processed
 
+- id: sendgrid/dir
+  execute-command: '{{ .Hookecho }}'
+  command-working-directory: /
+  response-message: success
+  trigger-rule:
+    match:
+      type: value
+      parameter:
+        source: payload
+        name: root.0.event
+      value: it worked!
+
 - id: plex
   trigger-rule:
     match:

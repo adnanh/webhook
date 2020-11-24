@@ -596,6 +596,29 @@ env: HOOK_head_commit.timestamp=2013-03-12T08:14:29-07:00
 		``,
 	},
 	{
+		"slash-in-hook-id",
+		"sendgrid/dir",
+		nil,
+		"POST",
+		nil,
+		"application/json",
+		`[
+  {
+    "email": "example@test.com",
+    "timestamp": 1513299569,
+    "smtp-id": "<14c5d75ce93.dfd.64b469@ismtpd-555>",
+    "event": "it worked!",
+    "category": "cat facts",
+    "sg_event_id": "sg_event_id",
+    "sg_message_id": "sg_message_id"
+  }
+]`,
+		false,
+		http.StatusOK,
+		`success`,
+		``,
+	},
+	{
 		"multipart",
 		"plex",
 		nil,
