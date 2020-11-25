@@ -31,15 +31,16 @@ import (
 
 // Constants used to specify the parameter source
 const (
-	SourceHeader        string = "header"
-	SourceQuery         string = "url"
-	SourceQueryAlias    string = "query"
-	SourcePayload       string = "payload"
-	SourceRequest       string = "request"
-	SourceString        string = "string"
-	SourceEntirePayload string = "entire-payload"
-	SourceEntireQuery   string = "entire-query"
-	SourceEntireHeaders string = "entire-headers"
+	SourceHeader         string = "header"
+	SourceQuery          string = "url"
+	SourceQueryAlias     string = "query"
+	SourcePayload        string = "payload"
+	SourceRawRequestBody string = "raw-request-body"
+	SourceRequest        string = "request"
+	SourceString         string = "string"
+	SourceEntirePayload  string = "entire-payload"
+	SourceEntireQuery    string = "entire-query"
+	SourceEntireHeaders  string = "entire-headers"
 )
 
 const (
@@ -448,6 +449,9 @@ func (ha *Argument) Get(r *Request) (string, error) {
 
 	case SourceString:
 		return ha.Name, nil
+
+	case SourceRawRequestBody:
+		return string(r.Body), nil
 
 	case SourceRequest:
 		if r == nil || r.RawRequest == nil {

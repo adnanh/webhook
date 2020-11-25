@@ -573,6 +573,25 @@ env: HOOK_head_commit.timestamp=2013-03-12T08:14:29-07:00
 		``,
 	},
 	{
+		"txt-raw",
+		"txt-raw",
+		nil,
+		"POST",
+		map[string]string{"Content-Type": "text/plain"},
+		"text/plain",
+		`# FOO
+
+blah
+blah`,
+		false,
+		http.StatusOK,
+		`# FOO
+
+blah
+blah`,
+		``,
+	},
+	{
 		"payload-json-array",
 		"sendgrid",
 		nil,
