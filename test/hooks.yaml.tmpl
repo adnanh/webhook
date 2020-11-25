@@ -28,6 +28,81 @@
     name: head_commit.timestamp
   command-working-directory: /
 
+- id: github-multi-sig
+  http-methods:
+  - "Post "
+  trigger-rule:
+    and:
+    - or:
+      - match:
+          parameter:
+            source: header
+            name: X-Hub-Signature
+          secret: mysecretFAIL
+          type: payload-hmac-sha1
+      - match:
+          parameter:
+            source: header
+            name: X-Hub-Signature
+          secret: mysecret
+          type: payload-hmac-sha1
+    - match:
+        parameter:
+          source: payload
+          name: ref
+        type: value
+        value: refs/heads/master
+  include-command-output-in-response: true
+  trigger-rule-mismatch-http-response-code: 400
+  trigger-signature-soft-failures: true
+  execute-command: '{{ .Hookecho }}'
+  pass-arguments-to-command:
+  - source: payload
+    name: head_commit.id
+  - source: payload
+    name: head_commit.author.email
+  pass-environment-to-command:
+  - source: payload
+    name: head_commit.timestamp
+  command-working-directory: /
+
+- id: github-multi-sig-fail
+  http-methods:
+  - "Post "
+  trigger-rule:
+    and:
+    - or:
+      - match:
+          parameter:
+            source: header
+            name: X-Hub-Signature
+          secret: mysecretFAIL
+          type: payload-hmac-sha1
+      - match:
+          parameter:
+            source: header
+            name: X-Hub-Signature
+          secret: mysecret
+          type: payload-hmac-sha1
+    - match:
+        parameter:
+          source: payload
+          name: ref
+        type: value
+        value: refs/heads/master
+  include-command-output-in-response: true
+  trigger-rule-mismatch-http-response-code: 400
+  execute-command: '{{ .Hookecho }}'
+  pass-arguments-to-command:
+  - source: payload
+    name: head_commit.id
+  - source: payload
+    name: head_commit.author.email
+  pass-environment-to-command:
+  - source: payload
+    name: head_commit.timestamp
+  command-working-directory: /
+
 - id: bitbucket
   trigger-rule:
     and:

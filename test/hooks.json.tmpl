@@ -56,6 +56,149 @@
     }
   },
   {
+    "id": "github-multi-sig",
+    "execute-command": "{{ .Hookecho }}",
+    "command-working-directory": "/",
+    "http-methods": ["Post "],
+    "include-command-output-in-response": true,
+    "trigger-rule-mismatch-http-response-code": 400,
+    "trigger-signature-soft-failures": true,
+    "pass-environment-to-command":
+    [
+      {
+        "source": "payload",
+        "name": "head_commit.timestamp"
+      }
+    ],
+    "pass-arguments-to-command":
+    [
+      {
+        "source": "payload",
+        "name": "head_commit.id"
+      },
+      {
+        "source": "payload",
+        "name": "head_commit.author.email"
+      }
+    ],
+    "trigger-rule":
+    {
+      "and":
+      [
+        "or":
+        [
+          {
+            "match":
+            {
+              "type": "payload-hmac-sha1",
+              "secret": "mysecretFAIL",
+              "parameter":
+              {
+                "source": "header",
+                "name": "X-Hub-Signature"
+              }
+            }
+          },
+          {
+            "match":
+            {
+              "type": "payload-hmac-sha1",
+              "secret": "mysecret",
+              "parameter":
+              {
+                "source": "header",
+                "name": "X-Hub-Signature"
+              }
+            }
+          }
+        ],
+        {
+          "match":
+          {
+            "type": "value",
+            "value": "refs/heads/master",
+            "parameter":
+            {
+              "source": "payload",
+              "name": "ref"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "github-multi-sig-fail",
+    "execute-command": "{{ .Hookecho }}",
+    "command-working-directory": "/",
+    "http-methods": ["Post "],
+    "include-command-output-in-response": true,
+    "trigger-rule-mismatch-http-response-code": 400,
+    "pass-environment-to-command":
+    [
+      {
+        "source": "payload",
+        "name": "head_commit.timestamp"
+      }
+    ],
+    "pass-arguments-to-command":
+    [
+      {
+        "source": "payload",
+        "name": "head_commit.id"
+      },
+      {
+        "source": "payload",
+        "name": "head_commit.author.email"
+      }
+    ],
+    "trigger-rule":
+    {
+      "and":
+      [
+        "or":
+        [
+          {
+            "match":
+            {
+              "type": "payload-hmac-sha1",
+              "secret": "mysecretFAIL",
+              "parameter":
+              {
+                "source": "header",
+                "name": "X-Hub-Signature"
+              }
+            }
+          },
+          {
+            "match":
+            {
+              "type": "payload-hmac-sha1",
+              "secret": "mysecret",
+              "parameter":
+              {
+                "source": "header",
+                "name": "X-Hub-Signature"
+              }
+            }
+          }
+        ],
+        {
+          "match":
+          {
+            "type": "value",
+            "value": "refs/heads/master",
+            "parameter":
+            {
+              "source": "payload",
+              "name": "ref"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
     "id": "bitbucket",
     "execute-command": "{{ .Hookecho }}",
     "command-working-directory": "/",

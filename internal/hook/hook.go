@@ -95,6 +95,16 @@ func (e *SignatureError) Error() string {
 	return fmt.Sprintf("invalid payload signature %s%s", e.Signature, empty)
 }
 
+// IsSignatureError returns whether err is of type SignatureError.
+func IsSignatureError(err error) bool {
+	switch err.(type) {
+	case *SignatureError:
+		return true
+	default:
+		return false
+	}
+}
+
 // ArgumentError describes an invalid argument passed to Hook.
 type ArgumentError struct {
 	Argument Argument
@@ -563,6 +573,7 @@ type Hook struct {
 	JSONStringParameters                []Argument      `json:"parse-parameters-as-json,omitempty"`
 	TriggerRule                         *Rules          `json:"trigger-rule,omitempty"`
 	TriggerRuleMismatchHttpResponseCode int             `json:"trigger-rule-mismatch-http-response-code,omitempty"`
+	TriggerSignatureSoftFailures        bool            `json:"trigger-signature-soft-failures,omitempty"`
 	IncomingPayloadContentType          string          `json:"incoming-payload-content-type,omitempty"`
 	SuccessHttpResponseCode             int             `json:"success-http-response-code,omitempty"`
 	HTTPMethods                         []string        `json:"http-methods"`
@@ -845,7 +856,9 @@ func (r OrRule) Evaluate(req *Request) (bool, error) {
 		rv, err := v.Evaluate(req)
 		if err != nil {
 			if !IsParameterNodeError(err) {
-				return false, err
+				if !req.AllowSignatureErrors || (req.AllowSignatureErrors && !IsSignatureError(err)) {
+					return false, err
+				}
 			}
 		}
 

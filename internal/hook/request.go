@@ -33,6 +33,9 @@ type Request struct {
 
 	// The underlying HTTP request.
 	RawRequest *http.Request
+
+	// Treat signature errors as simple validate failures.
+	AllowSignatureErrors bool
 }
 
 func (r *Request) ParseJSONPayload() error {
