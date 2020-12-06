@@ -172,6 +172,13 @@
           name: "app.messages.message.#text"
         value: "Hello!!"
 
+- id: txt-raw
+  execute-command: '{{ .Hookecho }}'
+  command-working-directory: /
+  include-command-output-in-response: true
+  pass-arguments-to-command:
+  - source: raw-request-body
+
 - id: sendgrid
   execute-command: '{{ .Hookecho }}'
   command-working-directory: /
