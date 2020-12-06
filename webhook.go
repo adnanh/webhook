@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"crypto/tls"
 	"encoding/json"
 	"flag"
@@ -10,7 +9,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -21,14 +19,13 @@ import (
 	"github.com/adnanh/webhook/internal/middleware"
 	"github.com/adnanh/webhook/internal/pidfile"
 
-	"github.com/clbanning/mxj"
 	chimiddleware "github.com/go-chi/chi/middleware"
 	"github.com/gorilla/mux"
 	fsnotify "gopkg.in/fsnotify.v1"
 )
 
 const (
-	version = "2.7.0"
+	version = "2.8.0"
 )
 
 var (
@@ -141,7 +138,7 @@ func main() {
 	}
 
 	if *logPath != "" {
-		file, err := os.OpenFile(*logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+		file, err := os.OpenFile(*logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o666)
 		if err != nil {
 			logQueue = append(logQueue, fmt.Sprintf("error opening log file %q: %v", *logPath, err))
 			// we'll bail out below
@@ -265,7 +262,7 @@ func main() {
 	// Clean up input
 	*httpMethods = strings.ToUpper(strings.ReplaceAll(*httpMethods, " ", ""))
 
-	hooksURL := makeURL(hooksURLPrefix)
+	hooksURL := makeRoutePattern(hooksURLPrefix)
 
 	r.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
 		fmt.Fprint(w, "OK")
@@ -281,7 +278,7 @@ func main() {
 
 	// Serve HTTP
 	if !*secure {
-		log.Printf("serving hooks on http://%s%s", addr, hooksURL)
+		log.Printf("serving hooks on http://%s%s", addr, makeHumanPattern(hooksURLPrefix))
 		log.Print(svr.Serve(ln))
 
 		return
@@ -296,15 +293,19 @@ func main() {
 	}
 	svr.TLSNextProto = make(map[string]func(*http.Server, *tls.Conn, http.Handler)) // disable http/2
 
-	log.Printf("serving hooks on https://%s%s", addr, hooksURL)
+	log.Printf("serving hooks on https://%s%s", addr, makeHumanPattern(hooksURLPrefix))
 	log.Print(svr.ServeTLS(ln, *cert, *key))
 }
 
 func hookHandler(w http.ResponseWriter, r *http.Request) {
-	rid := middleware.GetReqID(r.Context())
+	req := &hook.Request{
+		ID:         middleware.GetReqID(r.Context()),
+		RawRequest: r,
+	}
 
-	log.Printf("[%s] incoming HTTP %s request from %s\n", rid, r.Method, r.RemoteAddr)
+	log.Printf("[%s] incoming HTTP %s request from %s\n", req.ID, r.Method, r.RemoteAddr)
 
+	// TODO: rename this to avoid confusion with Request.ID
 	id := mux.Vars(r)["id"]
 
 	matchedHook := matchLoadedHook(id)
@@ -340,74 +341,60 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 
 	if !allowedMethod {
 		w.WriteHeader(http.StatusMethodNotAllowed)
-		log.Printf("[%s] HTTP %s method not allowed for hook %q", rid, r.Method, id)
+		log.Printf("[%s] HTTP %s method not allowed for hook %q", req.ID, r.Method, id)
 
 		return
 	}
 
-	log.Printf("[%s] %s got matched\n", rid, id)
+	log.Printf("[%s] %s got matched\n", req.ID, id)
 
 	for _, responseHeader := range responseHeaders {
 		w.Header().Set(responseHeader.Name, responseHeader.Value)
 	}
 
-	var (
-		body []byte
-		err  error
-	)
+	var err error
 
 	// set contentType to IncomingPayloadContentType or header value
-	contentType := r.Header.Get("Content-Type")
+	req.ContentType = r.Header.Get("Content-Type")
 	if len(matchedHook.IncomingPayloadContentType) != 0 {
-		contentType = matchedHook.IncomingPayloadContentType
+		req.ContentType = matchedHook.IncomingPayloadContentType
 	}
 
-	isMultipart := strings.HasPrefix(contentType, "multipart/form-data;")
+	isMultipart := strings.HasPrefix(req.ContentType, "multipart/form-data;")
 
 	if !isMultipart {
-		body, err = ioutil.ReadAll(r.Body)
+		req.Body, err = ioutil.ReadAll(r.Body)
 		if err != nil {
-			log.Printf("[%s] error reading the request body: %+v\n", rid, err)
+			log.Printf("[%s] error reading the request body: %+v\n", req.ID, err)
 		}
 	}
 
-	// parse headers
-	headers := valuesToMap(r.Header)
-
-	// parse query variables
-	query := valuesToMap(r.URL.Query())
-
-	// parse body
-	var payload map[string]interface{}
+	req.ParseHeaders(r.Header)
+	req.ParseQuery(r.URL.Query())
 
 	switch {
-	case strings.Contains(contentType, "json"):
-		decoder := json.NewDecoder(bytes.NewReader(body))
-		decoder.UseNumber()
-
-		err := decoder.Decode(&payload)
+	case strings.Contains(req.ContentType, "json"):
+		err = req.ParseJSONPayload()
 		if err != nil {
-			log.Printf("[%s] error parsing JSON payload %+v\n", rid, err)
+			log.Printf("[%s] %s", req.ID, err)
 		}
 
-	case strings.Contains(contentType, "x-www-form-urlencoded"):
-		fd, err := url.ParseQuery(string(body))
+	case strings.Contains(req.ContentType, "x-www-form-urlencoded"):
+		err = req.ParseFormPayload()
 		if err != nil {
-			log.Printf("[%s] error parsing form payload %+v\n", rid, err)
-		} else {
-			payload = valuesToMap(fd)
+			log.Printf("[%s] %s", req.ID, err)
 		}
 
-	case strings.Contains(contentType, "xml"):
-		payload, err = mxj.NewMapXmlReader(bytes.NewReader(body))
+	case strings.Contains(req.ContentType, "xml"):
+		err = req.ParseXMLPayload()
 		if err != nil {
-			log.Printf("[%s] error parsing XML payload: %+v\n", rid, err)
+			log.Printf("[%s] %s", req.ID, err)
 		}
 
 	case isMultipart:
 		err = r.ParseMultipartForm(*maxMultipartMem)
 		if err != nil {
-			msg := fmt.Sprintf("[%s] error parsing multipart form: %+v\n", rid, err)
+			msg := fmt.Sprintf("[%s] error parsing multipart form: %+v\n", req.ID, err)
 			log.Println(msg)
 			w.WriteHeader(http.StatusInternalServerError)
 			fmt.Fprint(w, "Error occurred while parsing multipart form.")
@@ -415,14 +402,14 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		for k, v := range r.MultipartForm.Value {
-			log.Printf("[%s] found multipart form value %q", rid, k)
+			log.Printf("[%s] found multipart form value %q", req.ID, k)
 
-			if payload == nil {
-				payload = make(map[string]interface{})
+			if req.Payload == nil {
+				req.Payload = make(map[string]interface{})
 			}
 
 			// TODO(moorereason): support duplicate, named values
-			payload[k] = v[0]
+			req.Payload[k] = v[0]
 		}
 
 		for k, v := range r.MultipartForm.File {
@@ -451,11 +438,11 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			if parseAsJSON {
-				log.Printf("[%s] parsing multipart form file %q as JSON\n", rid, k)
+				log.Printf("[%s] parsing multipart form file %q as JSON\n", req.ID, k)
 
 				f, err := v[0].Open()
 				if err != nil {
-					msg := fmt.Sprintf("[%s] error parsing multipart form file: %+v\n", rid, err)
+					msg := fmt.Sprintf("[%s] error parsing multipart form file: %+v\n", req.ID, err)
 					log.Println(msg)
 					w.WriteHeader(http.StatusInternalServerError)
 					fmt.Fprint(w, "Error occurred while parsing multipart form file.")
@@ -468,24 +455,24 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 				var part map[string]interface{}
 				err = decoder.Decode(&part)
 				if err != nil {
-					log.Printf("[%s] error parsing JSON payload file: %+v\n", rid, err)
+					log.Printf("[%s] error parsing JSON payload file: %+v\n", req.ID, err)
 				}
 
-				if payload == nil {
-					payload = make(map[string]interface{})
+				if req.Payload == nil {
+					req.Payload = make(map[string]interface{})
 				}
-				payload[k] = part
+				req.Payload[k] = part
 			}
 		}
 
 	default:
-		log.Printf("[%s] error parsing body payload due to unsupported content type header: %s\n", rid, contentType)
+		log.Printf("[%s] error parsing body payload due to unsupported content type header: %s\n", req.ID, req.ContentType)
 	}
 
 	// handle hook
-	errors := matchedHook.ParseJSONParameters(&headers, &query, &payload)
+	errors := matchedHook.ParseJSONParameters(req)
 	for _, err := range errors {
-		log.Printf("[%s] error parsing JSON parameters: %s\n", rid, err)
+		log.Printf("[%s] error parsing JSON parameters: %s\n", req.ID, err)
 	}
 
 	var ok bool
@@ -493,29 +480,32 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 	if matchedHook.TriggerRule == nil {
 		ok = true
 	} else {
-		ok, err = matchedHook.TriggerRule.Evaluate(&headers, &query, &payload, &body, r.RemoteAddr)
+		// Save signature soft failures option in request for evaluators
+		req.AllowSignatureErrors = matchedHook.TriggerSignatureSoftFailures
+
+		ok, err = matchedHook.TriggerRule.Evaluate(req)
 		if err != nil {
 			if !hook.IsParameterNodeError(err) {
-				msg := fmt.Sprintf("[%s] error evaluating hook: %s", rid, err)
+				msg := fmt.Sprintf("[%s] error evaluating hook: %s", req.ID, err)
 				log.Println(msg)
 				w.WriteHeader(http.StatusInternalServerError)
 				fmt.Fprint(w, "Error occurred while evaluating hook rules.")
 				return
 			}
 
-			log.Printf("[%s] %v", rid, err)
+			log.Printf("[%s] %v", req.ID, err)
 		}
 	}
 
 	if ok {
-		log.Printf("[%s] %s hook triggered successfully\n", rid, matchedHook.ID)
+		log.Printf("[%s] %s hook triggered successfully\n", req.ID, matchedHook.ID)
 
 		for _, responseHeader := range matchedHook.ResponseHeaders {
 			w.Header().Set(responseHeader.Name, responseHeader.Value)
 		}
 
 		if matchedHook.CaptureCommandOutput {
-			response, err := handleHook(matchedHook, rid, &headers, &query, &payload, &body)
+			response, err := handleHook(matchedHook, req)
 
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
@@ -528,16 +518,16 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 			} else {
 				// Check if a success return code is configured for the hook
 				if matchedHook.SuccessHttpResponseCode != 0 {
-					writeHttpResponseCode(w, rid, matchedHook.ID, matchedHook.SuccessHttpResponseCode)
+					writeHttpResponseCode(w, req.ID, matchedHook.ID, matchedHook.SuccessHttpResponseCode)
 				}
 				fmt.Fprint(w, response)
 			}
 		} else {
-			go handleHook(matchedHook, rid, &headers, &query, &payload, &body)
+			go handleHook(matchedHook, req)
 
 			// Check if a success return code is configured for the hook
 			if matchedHook.SuccessHttpResponseCode != 0 {
-				writeHttpResponseCode(w, rid, matchedHook.ID, matchedHook.SuccessHttpResponseCode)
+				writeHttpResponseCode(w, req.ID, matchedHook.ID, matchedHook.SuccessHttpResponseCode)
 			}
 
 			fmt.Fprint(w, matchedHook.ResponseMessage)
@@ -547,34 +537,34 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Check if a return code is configured for the hook
 	if matchedHook.TriggerRuleMismatchHttpResponseCode != 0 {
-		writeHttpResponseCode(w, rid, matchedHook.ID, matchedHook.TriggerRuleMismatchHttpResponseCode)
+		writeHttpResponseCode(w, req.ID, matchedHook.ID, matchedHook.TriggerRuleMismatchHttpResponseCode)
 	}
 
 	// if none of the hooks got triggered
-	log.Printf("[%s] %s got matched, but didn't get triggered because the trigger rules were not satisfied\n", rid, matchedHook.ID)
+	log.Printf("[%s] %s got matched, but didn't get triggered because the trigger rules were not satisfied\n", req.ID, matchedHook.ID)
 
 	fmt.Fprint(w, "Hook rules were not satisfied.")
 }
 
-func handleHook(h *hook.Hook, rid string, headers, query, payload *map[string]interface{}, body *[]byte) (string, error) {
+func handleHook(h *hook.Hook, r *hook.Request) (string, error) {
 	var errors []error
 
 	// check the command exists
-	cmdPath, err := exec.LookPath(h.ExecuteCommand)
-	if err != nil {
-		// give a last chance, maybe is a relative path
-		relativeToCwd := filepath.Join(h.CommandWorkingDirectory, h.ExecuteCommand)
-		// check the command exists
-		cmdPath, err = exec.LookPath(relativeToCwd)
+	var lookpath string
+	if filepath.IsAbs(h.ExecuteCommand) || h.CommandWorkingDirectory == "" {
+		lookpath = h.ExecuteCommand
+	} else {
+		lookpath = filepath.Join(h.CommandWorkingDirectory, h.ExecuteCommand)
 	}
 
+	cmdPath, err := exec.LookPath(lookpath)
 	if err != nil {
-		log.Printf("[%s] error locating command: '%s'", rid, h.ExecuteCommand)
+		log.Printf("[%s] error in %s", r.ID, err)
 
 		// check if parameters specified in execute-command by mistake
 		if strings.IndexByte(h.ExecuteCommand, ' ') != -1 {
 			s := strings.Fields(h.ExecuteCommand)[0]
-			log.Printf("[%s] use 'pass-arguments-to-command' to specify args for '%s'", rid, s)
+			log.Printf("[%s] use 'pass-arguments-to-command' to specify args for '%s'", r.ID, s)
 		}
 
 		return "", err
@@ -583,37 +573,37 @@ func handleHook(h *hook.Hook, rid string, headers, query, payload *map[string]in
 	cmd := exec.Command(cmdPath)
 	cmd.Dir = h.CommandWorkingDirectory
 
-	cmd.Args, errors = h.ExtractCommandArguments(headers, query, payload)
+	cmd.Args, errors = h.ExtractCommandArguments(r)
 	for _, err := range errors {
-		log.Printf("[%s] error extracting command arguments: %s\n", rid, err)
+		log.Printf("[%s] error extracting command arguments: %s\n", r.ID, err)
 	}
 
 	var envs []string
-	envs, errors = h.ExtractCommandArgumentsForEnv(headers, query, payload)
+	envs, errors = h.ExtractCommandArgumentsForEnv(r)
 
 	for _, err := range errors {
-		log.Printf("[%s] error extracting command arguments for environment: %s\n", rid, err)
+		log.Printf("[%s] error extracting command arguments for environment: %s\n", r.ID, err)
 	}
 
-	files, errors := h.ExtractCommandArgumentsForFile(headers, query, payload)
+	files, errors := h.ExtractCommandArgumentsForFile(r)
 
 	for _, err := range errors {
-		log.Printf("[%s] error extracting command arguments for file: %s\n", rid, err)
+		log.Printf("[%s] error extracting command arguments for file: %s\n", r.ID, err)
 	}
 
 	for i := range files {
 		tmpfile, err := ioutil.TempFile(h.CommandWorkingDirectory, files[i].EnvName)
 		if err != nil {
-			log.Printf("[%s] error creating temp file [%s]", rid, err)
+			log.Printf("[%s] error creating temp file [%s]", r.ID, err)
 			continue
 		}
-		log.Printf("[%s] writing env %s file %s", rid, files[i].EnvName, tmpfile.Name())
+		log.Printf("[%s] writing env %s file %s", r.ID, files[i].EnvName, tmpfile.Name())
 		if _, err := tmpfile.Write(files[i].Data); err != nil {
-			log.Printf("[%s] error writing file %s [%s]", rid, tmpfile.Name(), err)
+			log.Printf("[%s] error writing file %s [%s]", r.ID, tmpfile.Name(), err)
 			continue
 		}
 		if err := tmpfile.Close(); err != nil {
-			log.Printf("[%s] error closing file %s [%s]", rid, tmpfile.Name(), err)
+			log.Printf("[%s] error closing file %s [%s]", r.ID, tmpfile.Name(), err)
 			continue
 		}
 
@@ -623,32 +613,32 @@ func handleHook(h *hook.Hook, rid string, headers, query, payload *map[string]in
 
 	cmd.Env = append(os.Environ(), envs...)
 
-	log.Printf("[%s] executing %s (%s) with arguments %q and environment %s using %s as cwd\n", rid, h.ExecuteCommand, cmd.Path, cmd.Args, envs, cmd.Dir)
+	log.Printf("[%s] executing %s (%s) with arguments %q and environment %s using %s as cwd\n", r.ID, h.ExecuteCommand, cmd.Path, cmd.Args, envs, cmd.Dir)
 
 	out, err := cmd.CombinedOutput()
 
-	log.Printf("[%s] command output: %s\n", rid, out)
+	log.Printf("[%s] command output: %s\n", r.ID, out)
 
 	if err != nil {
-		log.Printf("[%s] error occurred: %+v\n", rid, err)
+		log.Printf("[%s] error occurred: %+v\n", r.ID, err)
 	}
 
 	for i := range files {
 		if files[i].File != nil {
-			log.Printf("[%s] removing file %s\n", rid, files[i].File.Name())
+			log.Printf("[%s] removing file %s\n", r.ID, files[i].File.Name())
 			err := os.Remove(files[i].File.Name())
 			if err != nil {
-				log.Printf("[%s] error removing file %s [%s]", rid, files[i].File.Name(), err)
+				log.Printf("[%s] error removing file %s [%s]", r.ID, files[i].File.Name(), err)
 			}
 		}
 	}
 
-	log.Printf("[%s] finished handling %s\n", rid, h.ID)
+	log.Printf("[%s] finished handling %s\n", r.ID, h.ID)
 
 	return string(out), err
 }
 
-func writeHttpResponseCode(w http.ResponseWriter, rid string, hookId string, responseCode int) {
+func writeHttpResponseCode(w http.ResponseWriter, rid, hookId string, responseCode int) {
 	// Check if the given return code is supported by the http package
 	// by testing if there is a StatusText for this code.
 	if len(http.StatusText(responseCode)) > 0 {
@@ -776,10 +766,21 @@ func valuesToMap(values map[string][]string) map[string]interface{} {
 	return ret
 }
 
-// makeURL builds a hook URL with or without a prefix.
-func makeURL(prefix *string) string {
+// makeRoutePattern builds a pattern matching URL for the mux.
+func makeRoutePattern(prefix *string) string {
+	return makeBaseURL(prefix) + "/{id:.*}"
+}
+
+// makeHumanPattern builds a human-friendly URL for display.
+func makeHumanPattern(prefix *string) string {
+	return makeBaseURL(prefix) + "/{id}"
+}
+
+// makeBaseURL creates the base URL before any mux pattern matching.
+func makeBaseURL(prefix *string) string {
 	if prefix == nil || *prefix == "" {
-		return "/{id}"
+		return ""
 	}
-	return "/" + *prefix + "/{id}"
+
+	return "/" + *prefix
 }

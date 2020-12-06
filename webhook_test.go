@@ -53,7 +53,11 @@ func TestStaticParams(t *testing.T) {
 	b := &bytes.Buffer{}
 	log.SetOutput(b)
 
-	_, err = handleHook(spHook, "test", &spHeaders, &map[string]interface{}{}, &map[string]interface{}{}, &[]byte{})
+	r := &hook.Request{
+		ID:      "test",
+		Headers: spHeaders,
+	}
+	_, err = handleHook(spHook, r)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v\n", err)
 	}
@@ -77,7 +81,7 @@ func TestWebhook(t *testing.T) {
 		for _, tt := range hookHandlerTests {
 			t.Run(tt.desc+"@"+hookTmpl, func(t *testing.T) {
 				ip, port := serverAddress(t)
-				args := []string{fmt.Sprintf("-hooks=%s", configPath), fmt.Sprintf("-ip=%s", ip), fmt.Sprintf("-port=%s", port), "-verbose"}
+				args := []string{fmt.Sprintf("-hooks=%s", configPath), fmt.Sprintf("-ip=%s", ip), fmt.Sprintf("-port=%s", port), "-debug"}
 
 				if len(tt.cliMethods) != 0 {
 					args = append(args, "-http-methods="+strings.Join(tt.cliMethods, ","))
@@ -111,6 +115,7 @@ func TestWebhook(t *testing.T) {
 				var res *http.Response
 
 				req.Header.Add("Content-Type", tt.contentType)
+				req.ContentLength = int64(len(tt.body))
 
 				client := &http.Client{}
 				res, err = client.Do(req)
@@ -124,8 +129,20 @@ func TestWebhook(t *testing.T) {
 					t.Errorf("POST %q: failed to ready body: %s", tt.desc, err)
 				}
 
-				if res.StatusCode != tt.respStatus || string(body) != tt.respBody {
-					t.Errorf("failed %q (id: %s):\nexpected status: %#v, response: %s\ngot status: %#v, response: %s\ncommand output:\n%s\n", tt.desc, tt.id, tt.respStatus, tt.respBody, res.StatusCode, body, b)
+				// Test body
+				{
+					var bodyFailed bool
+
+					if tt.bodyIsRE {
+						bodyFailed = string(body) == tt.respBody
+					} else {
+						r := regexp.MustCompile(tt.respBody)
+						bodyFailed = !r.Match(body)
+					}
+
+					if res.StatusCode != tt.respStatus || bodyFailed {
+						t.Errorf("failed %q (id: %s):\nexpected status: %#v, response: %s\ngot status: %#v, response: %s\ncommand output:\n%s\n", tt.desc, tt.id, tt.respStatus, tt.respBody, res.StatusCode, body, b)
+					}
 				}
 
 				if tt.logMatch == "" {
@@ -298,6 +315,7 @@ var hookHandlerTests = []struct {
 	headers     map[string]string
 	contentType string
 	body        string
+	bodyIsRE    bool
 
 	respStatus int
 	respBody   string
@@ -454,10 +472,325 @@ var hookHandlerTests = []struct {
 				"watchers":1
 			}
 		}`,
+		false,
 		http.StatusOK,
 		`arg: 1481a2de7b2a7d02428ad93446ab166be7793fbb lolwut@noway.biz
 env: HOOK_head_commit.timestamp=2013-03-12T08:14:29-07:00
 `,
+		``,
+	},
+	{
+		"github-multi-sig",
+		"github-multi-sig",
+		nil,
+		"POST",
+		map[string]string{"X-Hub-Signature": "f68df0375d7b03e3eb29b4cf9f9ec12e08f42ff8"},
+		"application/json",
+		`{
+			"after":"1481a2de7b2a7d02428ad93446ab166be7793fbb",
+			"before":"17c497ccc7cca9c2f735aa07e9e3813060ce9a6a",
+			"commits":[
+				{
+					"added":[
+
+					],
+					"author":{
+						"email":"lolwut@noway.biz",
+						"name":"Garen Torikian",
+						"username":"octokitty"
+					},
+					"committer":{
+						"email":"lolwut@noway.biz",
+						"name":"Garen Torikian",
+						"username":"octokitty"
+					},
+					"distinct":true,
+					"id":"c441029cf673f84c8b7db52d0a5944ee5c52ff89",
+					"message":"Test",
+					"modified":[
+						"README.md"
+					],
+					"removed":[
+
+					],
+					"timestamp":"2013-02-22T13:50:07-08:00",
+					"url":"https://github.com/octokitty/testing/commit/c441029cf673f84c8b7db52d0a5944ee5c52ff89"
+				},
+				{
+					"added":[
+
+					],
+					"author":{
+						"email":"lolwut@noway.biz",
+						"name":"Garen Torikian",
+						"username":"octokitty"
+					},
+					"committer":{
+						"email":"lolwut@noway.biz",
+						"name":"Garen Torikian",
+						"username":"octokitty"
+					},
+					"distinct":true,
+					"id":"36c5f2243ed24de58284a96f2a643bed8c028658",
+					"message":"This is me testing the windows client.",
+					"modified":[
+						"README.md"
+					],
+					"removed":[
+
+					],
+					"timestamp":"2013-02-22T14:07:13-08:00",
+					"url":"https://github.com/octokitty/testing/commit/36c5f2243ed24de58284a96f2a643bed8c028658"
+				},
+				{
+					"added":[
+						"words/madame-bovary.txt"
+					],
+					"author":{
+						"email":"lolwut@noway.biz",
+						"name":"Garen Torikian",
+						"username":"octokitty"
+					},
+					"committer":{
+						"email":"lolwut@noway.biz",
+						"name":"Garen Torikian",
+						"username":"octokitty"
+					},
+					"distinct":true,
+					"id":"1481a2de7b2a7d02428ad93446ab166be7793fbb",
+					"message":"Rename madame-bovary.txt to words/madame-bovary.txt",
+					"modified":[
+
+					],
+					"removed":[
+						"madame-bovary.txt"
+					],
+					"timestamp":"2013-03-12T08:14:29-07:00",
+					"url":"https://github.com/octokitty/testing/commit/1481a2de7b2a7d02428ad93446ab166be7793fbb"
+				}
+			],
+			"compare":"https://github.com/octokitty/testing/compare/17c497ccc7cc...1481a2de7b2a",
+			"created":false,
+			"deleted":false,
+			"forced":false,
+			"head_commit":{
+				"added":[
+					"words/madame-bovary.txt"
+				],
+				"author":{
+					"email":"lolwut@noway.biz",
+					"name":"Garen Torikian",
+					"username":"octokitty"
+				},
+				"committer":{
+					"email":"lolwut@noway.biz",
+					"name":"Garen Torikian",
+					"username":"octokitty"
+				},
+				"distinct":true,
+				"id":"1481a2de7b2a7d02428ad93446ab166be7793fbb",
+				"message":"Rename madame-bovary.txt to words/madame-bovary.txt",
+				"modified":[
+
+				],
+				"removed":[
+					"madame-bovary.txt"
+				],
+				"timestamp":"2013-03-12T08:14:29-07:00",
+				"url":"https://github.com/octokitty/testing/commit/1481a2de7b2a7d02428ad93446ab166be7793fbb"
+			},
+			"pusher":{
+				"email":"lolwut@noway.biz",
+				"name":"Garen Torikian"
+			},
+			"ref":"refs/heads/master",
+			"repository":{
+				"created_at":1332977768,
+				"description":"",
+				"fork":false,
+				"forks":0,
+				"has_downloads":true,
+				"has_issues":true,
+				"has_wiki":true,
+				"homepage":"",
+				"id":3860742,
+				"language":"Ruby",
+				"master_branch":"master",
+				"name":"testing",
+				"open_issues":2,
+				"owner":{
+					"email":"lolwut@noway.biz",
+					"name":"octokitty"
+				},
+				"private":false,
+				"pushed_at":1363295520,
+				"size":2156,
+				"stargazers":1,
+				"url":"https://github.com/octokitty/testing",
+				"watchers":1
+			}
+		}`,
+		false,
+		http.StatusOK,
+		`arg: 1481a2de7b2a7d02428ad93446ab166be7793fbb lolwut@noway.biz
+env: HOOK_head_commit.timestamp=2013-03-12T08:14:29-07:00
+`,
+		``,
+	},
+	{
+		"github-multi-sig-fail",
+		"github-multi-sig-fail",
+		nil,
+		"POST",
+		map[string]string{"X-Hub-Signature": "f68df0375d7b03e3eb29b4cf9f9ec12e08f42ff8"},
+		"application/json",
+		`{
+			"after":"1481a2de7b2a7d02428ad93446ab166be7793fbb",
+			"before":"17c497ccc7cca9c2f735aa07e9e3813060ce9a6a",
+			"commits":[
+				{
+					"added":[
+
+					],
+					"author":{
+						"email":"lolwut@noway.biz",
+						"name":"Garen Torikian",
+						"username":"octokitty"
+					},
+					"committer":{
+						"email":"lolwut@noway.biz",
+						"name":"Garen Torikian",
+						"username":"octokitty"
+					},
+					"distinct":true,
+					"id":"c441029cf673f84c8b7db52d0a5944ee5c52ff89",
+					"message":"Test",
+					"modified":[
+						"README.md"
+					],
+					"removed":[
+
+					],
+					"timestamp":"2013-02-22T13:50:07-08:00",
+					"url":"https://github.com/octokitty/testing/commit/c441029cf673f84c8b7db52d0a5944ee5c52ff89"
+				},
+				{
+					"added":[
+
+					],
+					"author":{
+						"email":"lolwut@noway.biz",
+						"name":"Garen Torikian",
+						"username":"octokitty"
+					},
+					"committer":{
+						"email":"lolwut@noway.biz",
+						"name":"Garen Torikian",
+						"username":"octokitty"
+					},
+					"distinct":true,
+					"id":"36c5f2243ed24de58284a96f2a643bed8c028658",
+					"message":"This is me testing the windows client.",
+					"modified":[
+						"README.md"
+					],
+					"removed":[
+
+					],
+					"timestamp":"2013-02-22T14:07:13-08:00",
+					"url":"https://github.com/octokitty/testing/commit/36c5f2243ed24de58284a96f2a643bed8c028658"
+				},
+				{
+					"added":[
+						"words/madame-bovary.txt"
+					],
+					"author":{
+						"email":"lolwut@noway.biz",
+						"name":"Garen Torikian",
+						"username":"octokitty"
+					},
+					"committer":{
+						"email":"lolwut@noway.biz",
+						"name":"Garen Torikian",
+						"username":"octokitty"
+					},
+					"distinct":true,
+					"id":"1481a2de7b2a7d02428ad93446ab166be7793fbb",
+					"message":"Rename madame-bovary.txt to words/madame-bovary.txt",
+					"modified":[
+
+					],
+					"removed":[
+						"madame-bovary.txt"
+					],
+					"timestamp":"2013-03-12T08:14:29-07:00",
+					"url":"https://github.com/octokitty/testing/commit/1481a2de7b2a7d02428ad93446ab166be7793fbb"
+				}
+			],
+			"compare":"https://github.com/octokitty/testing/compare/17c497ccc7cc...1481a2de7b2a",
+			"created":false,
+			"deleted":false,
+			"forced":false,
+			"head_commit":{
+				"added":[
+					"words/madame-bovary.txt"
+				],
+				"author":{
+					"email":"lolwut@noway.biz",
+					"name":"Garen Torikian",
+					"username":"octokitty"
+				},
+				"committer":{
+					"email":"lolwut@noway.biz",
+					"name":"Garen Torikian",
+					"username":"octokitty"
+				},
+				"distinct":true,
+				"id":"1481a2de7b2a7d02428ad93446ab166be7793fbb",
+				"message":"Rename madame-bovary.txt to words/madame-bovary.txt",
+				"modified":[
+
+				],
+				"removed":[
+					"madame-bovary.txt"
+				],
+				"timestamp":"2013-03-12T08:14:29-07:00",
+				"url":"https://github.com/octokitty/testing/commit/1481a2de7b2a7d02428ad93446ab166be7793fbb"
+			},
+			"pusher":{
+				"email":"lolwut@noway.biz",
+				"name":"Garen Torikian"
+			},
+			"ref":"refs/heads/master",
+			"repository":{
+				"created_at":1332977768,
+				"description":"",
+				"fork":false,
+				"forks":0,
+				"has_downloads":true,
+				"has_issues":true,
+				"has_wiki":true,
+				"homepage":"",
+				"id":3860742,
+				"language":"Ruby",
+				"master_branch":"master",
+				"name":"testing",
+				"open_issues":2,
+				"owner":{
+					"email":"lolwut@noway.biz",
+					"name":"octokitty"
+				},
+				"private":false,
+				"pushed_at":1363295520,
+				"size":2156,
+				"stargazers":1,
+				"url":"https://github.com/octokitty/testing",
+				"watchers":1
+			}
+		}`,
+		false,
+		http.StatusInternalServerError,
+		`Error occurred while evaluating hook rules.`,
 		``,
 	},
 	{
@@ -468,6 +801,7 @@ env: HOOK_head_commit.timestamp=2013-03-12T08:14:29-07:00
 		nil,
 		"application/x-www-form-urlencoded",
 		`payload={"canon_url": "https://bitbucket.org","commits": [{"author": "marcus","branch": "master","files": [{"file": "somefile.py","type": "modified"}],"message": "Added some more things to somefile.py\n","node": "620ade18607a","parents": ["702c70160afc"],"raw_author": "Marcus Bertrand <marcus@somedomain.com>","raw_node": "620ade18607ac42d872b568bb92acaa9a28620e9","revision": null,"size": -1,"timestamp": "2012-05-30 05:58:56","utctimestamp": "2014-11-07 15:19:02+00:00"}],"repository": {"absolute_url": "/webhook/testing/","fork": false,"is_private": true,"name": "Project X","owner": "marcus","scm": "git","slug": "project-x","website": "https://atlassian.com/"},"user": "marcus"}`,
+		false,
 		http.StatusOK,
 		`success`,
 		``,
@@ -521,6 +855,7 @@ env: HOOK_head_commit.timestamp=2013-03-12T08:14:29-07:00
 			],
 			"total_commits_count": 4
 		}`,
+		false,
 		http.StatusOK,
 		`arg: b6568db1bc1dcd7f8b4d5a946b0b91f9dacd7327 John Smith john@example.com
 `,
@@ -542,6 +877,72 @@ env: HOOK_head_commit.timestamp=2013-03-12T08:14:29-07:00
      <message id="1" from_user="1" to_user="2">Hello!!</message>
    </messages>
 </app>`,
+		false,
+		http.StatusOK,
+		`success`,
+		``,
+	},
+	{
+		"txt-raw",
+		"txt-raw",
+		nil,
+		"POST",
+		map[string]string{"Content-Type": "text/plain"},
+		"text/plain",
+		`# FOO
+
+blah
+blah`,
+		false,
+		http.StatusOK,
+		`# FOO
+
+blah
+blah`,
+		``,
+	},
+	{
+		"payload-json-array",
+		"sendgrid",
+		nil,
+		"POST",
+		nil,
+		"application/json",
+		`[
+  {
+    "email": "example@test.com",
+    "timestamp": 1513299569,
+    "smtp-id": "<14c5d75ce93.dfd.64b469@ismtpd-555>",
+    "event": "processed",
+    "category": "cat facts",
+    "sg_event_id": "sg_event_id",
+    "sg_message_id": "sg_message_id"
+  }
+]`,
+		false,
+		http.StatusOK,
+		`success`,
+		``,
+	},
+	{
+		"slash-in-hook-id",
+		"sendgrid/dir",
+		nil,
+		"POST",
+		nil,
+		"application/json",
+		`[
+  {
+    "email": "example@test.com",
+    "timestamp": 1513299569,
+    "smtp-id": "<14c5d75ce93.dfd.64b469@ismtpd-555>",
+    "event": "it worked!",
+    "category": "cat facts",
+    "sg_event_id": "sg_event_id",
+    "sg_message_id": "sg_message_id"
+  }
+]`,
+		false,
 		http.StatusOK,
 		`success`,
 		``,
@@ -574,9 +975,38 @@ Content-Transfer-Encoding: binary
 
 binary data
 --xxx--`,
+		false,
 		http.StatusOK,
 		`success`,
 		``,
+	},
+
+	{
+		"issue-471",
+		"issue-471",
+		nil,
+		"POST",
+		nil,
+		"application/json",
+		`{"exists": 1}`,
+		false,
+		http.StatusOK,
+		`success`,
+		``,
+	},
+
+	{
+		"issue-471-and",
+		"issue-471-and",
+		nil,
+		"POST",
+		nil,
+		"application/json",
+		`{"exists": 1}`,
+		false,
+		http.StatusOK,
+		`Hook rules were not satisfied.`,
+		`parameter node not found`,
 	},
 
 	{
@@ -615,6 +1045,7 @@ binary data
 			},
 			"ref":"refs/heads/master"
 		}`,
+		false,
 		http.StatusOK,
 		`arg: 1481a2de7b2a7d02428ad93446ab166be7793fbb lolwut@noway.biz
 env: HOOK_head_commit.timestamp=2013-03-12T08:14:29-07:00
@@ -657,35 +1088,65 @@ env: HOOK_head_commit.timestamp=2013-03-12T08:14:29-07:00
 			},
 			"ref":"refs/heads/master"
 		}`,
+		false,
 		http.StatusOK,
 		`arg: 1481a2de7b2a7d02428ad93446ab166be7793fbb lolwut@noway.biz
 `,
 		``,
 	},
 
+	{
+		"empty-payload-signature", // allow empty payload signature validation
+		"empty-payload-signature",
+		nil,
+		"POST",
+		map[string]string{"X-Hub-Signature": "33f9d709782f62b8b4a0178586c65ab098a39fe2"},
+		"application/json",
+		``,
+		false,
+		http.StatusOK,
+		``,
+		``,
+	},
+
+	{
+		"request-source",
+		"request-source",
+		nil,
+		"POST",
+		map[string]string{"X-Hub-Signature": "33f9d709782f62b8b4a0178586c65ab098a39fe2"},
+		"application/json",
+		`{}`,
+		true,
+		http.StatusOK,
+		`arg: POST 127.0.0.1:.*
+`,
+		``,
+	},
+
 	// test with disallowed global HTTP method
-	{"global disallowed method", "bitbucket", []string{"Post "}, "GET", nil, `{}`, "application/json", http.StatusMethodNotAllowed, ``, ``},
+	{"global disallowed method", "bitbucket", []string{"Post "}, "GET", nil, `{}`, "application/json", false, http.StatusMethodNotAllowed, ``, ``},
 	// test with disallowed HTTP method
-	{"disallowed method", "github", nil, "Get", nil, `{}`, "application/json", http.StatusMethodNotAllowed, ``, ``},
+	{"disallowed method", "github", nil, "Get", nil, `{}`, "application/json", false, http.StatusMethodNotAllowed, ``, ``},
 	// test with custom return code
-	{"empty payload", "github", nil, "POST", nil, "application/json", `{}`, http.StatusBadRequest, `Hook rules were not satisfied.`, ``},
+	{"empty payload", "github", nil, "POST", nil, "application/json", `{}`, false, http.StatusBadRequest, `Hook rules were not satisfied.`, ``},
 	// test with custom invalid http code, should default to 200 OK
-	{"empty payload", "bitbucket", nil, "POST", nil, "application/json", `{}`, http.StatusOK, `Hook rules were not satisfied.`, ``},
+	{"empty payload", "bitbucket", nil, "POST", nil, "application/json", `{}`, false, http.StatusOK, `Hook rules were not satisfied.`, ``},
 	// test with no configured http return code, should default to 200 OK
-	{"empty payload", "gitlab", nil, "POST", nil, "application/json", `{}`, http.StatusOK, `Hook rules were not satisfied.`, ``},
+	{"empty payload", "gitlab", nil, "POST", nil, "application/json", `{}`, false, http.StatusOK, `Hook rules were not satisfied.`, ``},
 
 	// test capturing command output
-	{"don't capture output on success by default", "capture-command-output-on-success-not-by-default", nil, "POST", nil, "application/json", `{}`, http.StatusOK, ``, ``},
-	{"capture output on success with flag set", "capture-command-output-on-success-yes-with-flag", nil, "POST", nil, "application/json", `{}`, http.StatusOK, `arg: exit=0
+	{"don't capture output on success by default", "capture-command-output-on-success-not-by-default", nil, "POST", nil, "application/json", `{}`, false, http.StatusOK, ``, ``},
+	{"capture output on success with flag set", "capture-command-output-on-success-yes-with-flag", nil, "POST", nil, "application/json", `{}`, false, http.StatusOK, `arg: exit=0
 `, ``},
-	{"don't capture output on error by default", "capture-command-output-on-error-not-by-default", nil, "POST", nil, "application/json", `{}`, http.StatusInternalServerError, `Error occurred while executing the hook's command. Please check your logs for more details.`, ``},
-	{"capture output on error with extra flag set", "capture-command-output-on-error-yes-with-extra-flag", nil, "POST", nil, "application/json", `{}`, http.StatusInternalServerError, `arg: exit=1
+	{"don't capture output on error by default", "capture-command-output-on-error-not-by-default", nil, "POST", nil, "application/json", `{}`, false, http.StatusInternalServerError, `Error occurred while executing the hook's command. Please check your logs for more details.`, ``},
+	{"capture output on error with extra flag set", "capture-command-output-on-error-yes-with-extra-flag", nil, "POST", nil, "application/json", `{}`, false, http.StatusInternalServerError, `arg: exit=1
 `, ``},
 
 	// Check logs
-	{"static params should pass", "static-params-ok", nil, "POST", nil, "application/json", `{}`, http.StatusOK, "arg: passed\n", `(?s)command output: arg: passed`},
-	{"command with space logs warning", "warn-on-space", nil, "POST", nil, "application/json", `{}`, http.StatusInternalServerError, "Error occurred while executing the hook's command. Please check your logs for more details.", `(?s)error locating command.*use 'pass[-]arguments[-]to[-]command' to specify args`},
-	{"unsupported content type error", "github", nil, "POST", map[string]string{"Content-Type": "nonexistent/format"}, "application/json", `{}`, http.StatusBadRequest, `Hook rules were not satisfied.`, `(?s)error parsing body payload due to unsupported content type header:`},
+	{"static params should pass", "static-params-ok", nil, "POST", nil, "application/json", `{}`, false, http.StatusOK, "arg: passed\n", `(?s)command output: arg: passed`},
+	{"command with space logs warning", "warn-on-space", nil, "POST", nil, "application/json", `{}`, false, http.StatusInternalServerError, "Error occurred while executing the hook's command. Please check your logs for more details.", `(?s)error in exec:.*use 'pass[-]arguments[-]to[-]command' to specify args`},
+	{"unsupported content type error", "github", nil, "POST", map[string]string{"Content-Type": "nonexistent/format"}, "application/json", `{}`, false, http.StatusBadRequest, `Hook rules were not satisfied.`, `(?s)error parsing body payload due to unsupported content type header:`},
 }
 
 // buffer provides a concurrency-safe bytes.Buffer to tests above.

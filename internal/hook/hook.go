@@ -31,14 +31,16 @@ import (
 
 // Constants used to specify the parameter source
 const (
-	SourceHeader        string = "header"
-	SourceQuery         string = "url"
-	SourceQueryAlias    string = "query"
-	SourcePayload       string = "payload"
-	SourceString        string = "string"
-	SourceEntirePayload string = "entire-payload"
-	SourceEntireQuery   string = "entire-query"
-	SourceEntireHeaders string = "entire-headers"
+	SourceHeader         string = "header"
+	SourceQuery          string = "url"
+	SourceQueryAlias     string = "query"
+	SourcePayload        string = "payload"
+	SourceRawRequestBody string = "raw-request-body"
+	SourceRequest        string = "request"
+	SourceString         string = "string"
+	SourceEntirePayload  string = "entire-payload"
+	SourceEntireQuery    string = "entire-query"
+	SourceEntireHeaders  string = "entire-headers"
 )
 
 const (
@@ -73,6 +75,8 @@ func IsParameterNodeError(err error) bool {
 type SignatureError struct {
 	Signature  string
 	Signatures []string
+
+	emptyPayload bool
 }
 
 func (e *SignatureError) Error() string {
@@ -80,11 +84,26 @@ func (e *SignatureError) Error() string {
 		return "<nil>"
 	}
 
-	if e.Signatures != nil {
-		return fmt.Sprintf("invalid payload signatures %s", e.Signatures)
+	var empty string
+	if e.emptyPayload {
+		empty = " on empty payload"
 	}
 
-	return fmt.Sprintf("invalid payload signature %s", e.Signature)
+	if e.Signatures != nil {
+		return fmt.Sprintf("invalid payload signatures %s%s", e.Signatures, empty)
+	}
+
+	return fmt.Sprintf("invalid payload signature %s%s", e.Signature, empty)
+}
+
+// IsSignatureError returns whether err is of type SignatureError.
+func IsSignatureError(err error) bool {
+	switch err.(type) {
+	case *SignatureError:
+		return true
+	default:
+		return false
+	}
 }
 
 // ArgumentError describes an invalid argument passed to Hook.
@@ -160,21 +179,24 @@ func ValidateMAC(payload []byte, mac hash.Hash, signatures []string) (string, er
 		return "", err
 	}
 
-	expectedMAC := hex.EncodeToString(mac.Sum(nil))
+	actualMAC := hex.EncodeToString(mac.Sum(nil))
 
 	for _, signature := range signatures {
-		if hmac.Equal([]byte(signature), []byte(expectedMAC)) {
-			return expectedMAC, err
+		if hmac.Equal([]byte(signature), []byte(actualMAC)) {
+			return actualMAC, err
 		}
 	}
 
-	return expectedMAC, &SignatureError{
-		Signatures: signatures,
+	e := &SignatureError{Signatures: signatures}
+	if len(payload) == 0 {
+		e.emptyPayload = true
 	}
+
+	return actualMAC, e
 }
 
 // CheckPayloadSignature calculates and verifies SHA1 signature of the given payload
-func CheckPayloadSignature(payload []byte, secret string, signature string) (string, error) {
+func CheckPayloadSignature(payload []byte, secret, signature string) (string, error) {
 	if secret == "" {
 		return "", errors.New("signature validation secret can not be empty")
 	}
@@ -187,7 +209,7 @@ func CheckPayloadSignature(payload []byte, secret string, signature string) (str
 }
 
 // CheckPayloadSignature256 calculates and verifies SHA256 signature of the given payload
-func CheckPayloadSignature256(payload []byte, secret string, signature string) (string, error) {
+func CheckPayloadSignature256(payload []byte, secret, signature string) (string, error) {
 	if secret == "" {
 		return "", errors.New("signature validation secret can not be empty")
 	}
@@ -200,7 +222,7 @@ func CheckPayloadSignature256(payload []byte, secret string, signature string) (
 }
 
 // CheckPayloadSignature512 calculates and verifies SHA512 signature of the given payload
-func CheckPayloadSignature512(payload []byte, secret string, signature string) (string, error) {
+func CheckPayloadSignature512(payload []byte, secret, signature string) (string, error) {
 	if secret == "" {
 		return "", errors.New("signature validation secret can not be empty")
 	}
@@ -212,22 +234,26 @@ func CheckPayloadSignature512(payload []byte, secret string, signature string) (
 	return ValidateMAC(payload, hmac.New(sha512.New, []byte(secret)), signatures)
 }
 
-func CheckScalrSignature(headers map[string]interface{}, body []byte, signingKey string, checkDate bool) (bool, error) {
-	// Check for the signature and date headers
-	if _, ok := headers["X-Signature"]; !ok {
+func CheckScalrSignature(r *Request, signingKey string, checkDate bool) (bool, error) {
+	if r.Headers == nil {
 		return false, nil
 	}
-	if _, ok := headers["Date"]; !ok {
+
+	// Check for the signature and date headers
+	if _, ok := r.Headers["X-Signature"]; !ok {
+		return false, nil
+	}
+	if _, ok := r.Headers["Date"]; !ok {
 		return false, nil
 	}
 	if signingKey == "" {
 		return false, errors.New("signature validation signing key can not be empty")
 	}
 
-	providedSignature := headers["X-Signature"].(string)
-	dateHeader := headers["Date"].(string)
+	providedSignature := r.Headers["X-Signature"].(string)
+	dateHeader := r.Headers["Date"].(string)
 	mac := hmac.New(sha1.New, []byte(signingKey))
-	mac.Write(body)
+	mac.Write(r.Body)
 	mac.Write([]byte(dateHeader))
 	expectedSignature := hex.EncodeToString(mac.Sum(nil))
 
@@ -254,7 +280,7 @@ func CheckScalrSignature(headers map[string]interface{}, body []byte, signingKey
 
 // CheckIPWhitelist makes sure the provided remote address (of the form IP:port) falls within the provided IP range
 // (in CIDR form or a single IP address).
-func CheckIPWhitelist(remoteAddr string, ipRange string) (bool, error) {
+func CheckIPWhitelist(remoteAddr, ipRange string) (bool, error) {
 	// Extract IP address from remote address.
 
 	// IPv6 addresses will likely be surrounded by [].
@@ -293,7 +319,7 @@ func CheckIPWhitelist(remoteAddr string, ipRange string) (bool, error) {
 // ReplaceParameter replaces parameter value with the passed value in the passed map
 // (please note you should pass pointer to the map, because we're modifying it)
 // based on the passed string
-func ReplaceParameter(s string, params interface{}, value interface{}) bool {
+func ReplaceParameter(s string, params, value interface{}) bool {
 	if params == nil {
 		return false
 	}
@@ -382,14 +408,27 @@ func GetParameter(s string, params interface{}) (interface{}, error) {
 	return nil, &ParameterNodeError{s}
 }
 
-// ExtractParameterAsString extracts value from interface{} as string based on the passed string
+// ExtractParameterAsString extracts value from interface{} as string based on
+// the passed string.  Complex data types are rendered as JSON instead of the Go
+// Stringer format.
 func ExtractParameterAsString(s string, params interface{}) (string, error) {
 	pValue, err := GetParameter(s, params)
 	if err != nil {
 		return "", err
 	}
 
-	return fmt.Sprintf("%v", pValue), nil
+	switch v := reflect.ValueOf(pValue); v.Kind() {
+	case reflect.Array, reflect.Map, reflect.Slice:
+		r, err := json.Marshal(pValue)
+		if err != nil {
+			return "", err
+		}
+
+		return string(r), nil
+
+	default:
+		return fmt.Sprintf("%v", pValue), nil
+	}
 }
 
 // Argument type specifies the parameter key name and the source it should
@@ -403,41 +442,64 @@ type Argument struct {
 
 // Get Argument method returns the value for the Argument's key name
 // based on the Argument's source
-func (ha *Argument) Get(headers, query, payload *map[string]interface{}) (string, error) {
+func (ha *Argument) Get(r *Request) (string, error) {
 	var source *map[string]interface{}
 	key := ha.Name
 
 	switch ha.Source {
 	case SourceHeader:
-		source = headers
+		source = &r.Headers
 		key = textproto.CanonicalMIMEHeaderKey(ha.Name)
+
 	case SourceQuery, SourceQueryAlias:
-		source = query
+		source = &r.Query
+
 	case SourcePayload:
-		source = payload
+		source = &r.Payload
+
 	case SourceString:
 		return ha.Name, nil
+
+	case SourceRawRequestBody:
+		return string(r.Body), nil
+
+	case SourceRequest:
+		if r == nil || r.RawRequest == nil {
+			return "", errors.New("request is nil")
+		}
+
+		switch strings.ToLower(ha.Name) {
+		case "remote-addr":
+			return r.RawRequest.RemoteAddr, nil
+		case "method":
+			return r.RawRequest.Method, nil
+		default:
+			return "", fmt.Errorf("unsupported request key: %q", ha.Name)
+		}
+
 	case SourceEntirePayload:
-		r, err := json.Marshal(payload)
+		res, err := json.Marshal(&r.Payload)
 		if err != nil {
 			return "", err
 		}
 
-		return string(r), nil
+		return string(res), nil
+
 	case SourceEntireHeaders:
-		r, err := json.Marshal(headers)
+		res, err := json.Marshal(&r.Headers)
 		if err != nil {
 			return "", err
 		}
 
-		return string(r), nil
+		return string(res), nil
+
 	case SourceEntireQuery:
-		r, err := json.Marshal(query)
+		res, err := json.Marshal(&r.Query)
 		if err != nil {
 			return "", err
 		}
 
-		return string(r), nil
+		return string(res), nil
 	}
 
 	if source != nil {
@@ -515,6 +577,7 @@ type Hook struct {
 	JSONStringParameters                []Argument      `json:"parse-parameters-as-json,omitempty"`
 	TriggerRule                         *Rules          `json:"trigger-rule,omitempty"`
 	TriggerRuleMismatchHttpResponseCode int             `json:"trigger-rule-mismatch-http-response-code,omitempty"`
+	TriggerSignatureSoftFailures        bool            `json:"trigger-signature-soft-failures,omitempty"`
 	IncomingPayloadContentType          string          `json:"incoming-payload-content-type,omitempty"`
 	SuccessHttpResponseCode             int             `json:"success-http-response-code,omitempty"`
 	HTTPMethods                         []string        `json:"http-methods"`
@@ -522,11 +585,11 @@ type Hook struct {
 
 // ParseJSONParameters decodes specified arguments to JSON objects and replaces the
 // string with the newly created object
-func (h *Hook) ParseJSONParameters(headers, query, payload *map[string]interface{}) []error {
+func (h *Hook) ParseJSONParameters(r *Request) []error {
 	errors := make([]error, 0)
 
 	for i := range h.JSONStringParameters {
-		arg, err := h.JSONStringParameters[i].Get(headers, query, payload)
+		arg, err := h.JSONStringParameters[i].Get(r)
 		if err != nil {
 			errors = append(errors, &ArgumentError{h.JSONStringParameters[i]})
 		} else {
@@ -545,11 +608,11 @@ func (h *Hook) ParseJSONParameters(headers, query, payload *map[string]interface
 
 			switch h.JSONStringParameters[i].Source {
 			case SourceHeader:
-				source = headers
+				source = &r.Headers
 			case SourcePayload:
-				source = payload
+				source = &r.Payload
 			case SourceQuery, SourceQueryAlias:
-				source = query
+				source = &r.Query
 			}
 
 			if source != nil {
@@ -575,14 +638,14 @@ func (h *Hook) ParseJSONParameters(headers, query, payload *map[string]interface
 
 // ExtractCommandArguments creates a list of arguments, based on the
 // PassArgumentsToCommand property that is ready to be used with exec.Command()
-func (h *Hook) ExtractCommandArguments(headers, query, payload *map[string]interface{}) ([]string, []error) {
+func (h *Hook) ExtractCommandArguments(r *Request) ([]string, []error) {
 	args := make([]string, 0)
 	errors := make([]error, 0)
 
 	args = append(args, h.ExecuteCommand)
 
 	for i := range h.PassArgumentsToCommand {
-		arg, err := h.PassArgumentsToCommand[i].Get(headers, query, payload)
+		arg, err := h.PassArgumentsToCommand[i].Get(r)
 		if err != nil {
 			args = append(args, "")
 			errors = append(errors, &ArgumentError{h.PassArgumentsToCommand[i]})
@@ -602,11 +665,11 @@ func (h *Hook) ExtractCommandArguments(headers, query, payload *map[string]inter
 // ExtractCommandArgumentsForEnv creates a list of arguments in key=value
 // format, based on the PassEnvironmentToCommand property that is ready to be used
 // with exec.Command().
-func (h *Hook) ExtractCommandArgumentsForEnv(headers, query, payload *map[string]interface{}) ([]string, []error) {
+func (h *Hook) ExtractCommandArgumentsForEnv(r *Request) ([]string, []error) {
 	args := make([]string, 0)
 	errors := make([]error, 0)
 	for i := range h.PassEnvironmentToCommand {
-		arg, err := h.PassEnvironmentToCommand[i].Get(headers, query, payload)
+		arg, err := h.PassEnvironmentToCommand[i].Get(r)
 		if err != nil {
 			errors = append(errors, &ArgumentError{h.PassEnvironmentToCommand[i]})
 			continue
@@ -638,11 +701,11 @@ type FileParameter struct {
 // ExtractCommandArgumentsForFile creates a list of arguments in key=value
 // format, based on the PassFileToCommand property that is ready to be used
 // with exec.Command().
-func (h *Hook) ExtractCommandArgumentsForFile(headers, query, payload *map[string]interface{}) ([]FileParameter, []error) {
+func (h *Hook) ExtractCommandArgumentsForFile(r *Request) ([]FileParameter, []error) {
 	args := make([]FileParameter, 0)
 	errors := make([]error, 0)
 	for i := range h.PassFileToCommand {
-		arg, err := h.PassFileToCommand[i].Get(headers, query, payload)
+		arg, err := h.PassFileToCommand[i].Get(r)
 		if err != nil {
 			errors = append(errors, &ArgumentError{h.PassFileToCommand[i]})
 			continue
@@ -749,16 +812,16 @@ type Rules struct {
 
 // Evaluate finds the first rule property that is not nil and returns the value
 // it evaluates to
-func (r Rules) Evaluate(headers, query, payload *map[string]interface{}, body *[]byte, remoteAddr string) (bool, error) {
+func (r Rules) Evaluate(req *Request) (bool, error) {
 	switch {
 	case r.And != nil:
-		return r.And.Evaluate(headers, query, payload, body, remoteAddr)
+		return r.And.Evaluate(req)
 	case r.Or != nil:
-		return r.Or.Evaluate(headers, query, payload, body, remoteAddr)
+		return r.Or.Evaluate(req)
 	case r.Not != nil:
-		return r.Not.Evaluate(headers, query, payload, body, remoteAddr)
+		return r.Not.Evaluate(req)
 	case r.Match != nil:
-		return r.Match.Evaluate(headers, query, payload, body, remoteAddr)
+		return r.Match.Evaluate(req)
 	}
 
 	return false, nil
@@ -768,11 +831,11 @@ func (r Rules) Evaluate(headers, query, payload *map[string]interface{}, body *[
 type AndRule []Rules
 
 // Evaluate AndRule will return true if and only if all of ChildRules evaluate to true
-func (r AndRule) Evaluate(headers, query, payload *map[string]interface{}, body *[]byte, remoteAddr string) (bool, error) {
+func (r AndRule) Evaluate(req *Request) (bool, error) {
 	res := true
 
 	for _, v := range r {
-		rv, err := v.Evaluate(headers, query, payload, body, remoteAddr)
+		rv, err := v.Evaluate(req)
 		if err != nil {
 			return false, err
 		}
@@ -790,13 +853,17 @@ func (r AndRule) Evaluate(headers, query, payload *map[string]interface{}, body 
 type OrRule []Rules
 
 // Evaluate OrRule will return true if any of ChildRules evaluate to true
-func (r OrRule) Evaluate(headers, query, payload *map[string]interface{}, body *[]byte, remoteAddr string) (bool, error) {
+func (r OrRule) Evaluate(req *Request) (bool, error) {
 	res := false
 
 	for _, v := range r {
-		rv, err := v.Evaluate(headers, query, payload, body, remoteAddr)
+		rv, err := v.Evaluate(req)
 		if err != nil {
-			return false, err
+			if !IsParameterNodeError(err) {
+				if !req.AllowSignatureErrors || (req.AllowSignatureErrors && !IsSignatureError(err)) {
+					return false, err
+				}
+			}
 		}
 
 		res = res || rv
@@ -812,8 +879,8 @@ func (r OrRule) Evaluate(headers, query, payload *map[string]interface{}, body *
 type NotRule Rules
 
 // Evaluate NotRule will return true if and only if ChildRule evaluates to false
-func (r NotRule) Evaluate(headers, query, payload *map[string]interface{}, body *[]byte, remoteAddr string) (bool, error) {
-	rv, err := Rules(r).Evaluate(headers, query, payload, body, remoteAddr)
+func (r NotRule) Evaluate(req *Request) (bool, error) {
+	rv, err := Rules(r).Evaluate(req)
 	return !rv, err
 }
 
@@ -831,6 +898,9 @@ type MatchRule struct {
 const (
 	MatchValue      string = "value"
 	MatchRegex      string = "regex"
+	MatchHMACSHA1   string = "payload-hmac-sha1"
+	MatchHMACSHA256 string = "payload-hmac-sha256"
+	MatchHMACSHA512 string = "payload-hmac-sha512"
 	MatchHashSHA1   string = "payload-hash-sha1"
 	MatchHashSHA256 string = "payload-hash-sha256"
 	MatchHashSHA512 string = "payload-hash-sha512"
@@ -839,15 +909,15 @@ const (
 )
 
 // Evaluate MatchRule will return based on the type
-func (r MatchRule) Evaluate(headers, query, payload *map[string]interface{}, body *[]byte, remoteAddr string) (bool, error) {
+func (r MatchRule) Evaluate(req *Request) (bool, error) {
 	if r.Type == IPWhitelist {
-		return CheckIPWhitelist(remoteAddr, r.IPRange)
+		return CheckIPWhitelist(req.RawRequest.RemoteAddr, r.IPRange)
 	}
 	if r.Type == ScalrSignature {
-		return CheckScalrSignature(*headers, *body, r.Secret, true)
+		return CheckScalrSignature(req, r.Secret, true)
 	}
 
-	arg, err := r.Parameter.Get(headers, query, payload)
+	arg, err := r.Parameter.Get(req)
 	if err == nil {
 		switch r.Type {
 		case MatchValue:
@@ -855,13 +925,22 @@ func (r MatchRule) Evaluate(headers, query, payload *map[string]interface{}, bod
 		case MatchRegex:
 			return regexp.MatchString(r.Regex, arg)
 		case MatchHashSHA1:
-			_, err := CheckPayloadSignature(*body, r.Secret, arg)
+			log.Print(`warn: use of deprecated option payload-hash-sha1; use payload-hmac-sha1 instead`)
+			fallthrough
+		case MatchHMACSHA1:
+			_, err := CheckPayloadSignature(req.Body, r.Secret, arg)
 			return err == nil, err
 		case MatchHashSHA256:
-			_, err := CheckPayloadSignature256(*body, r.Secret, arg)
+			log.Print(`warn: use of deprecated option payload-hash-sha256: use payload-hmac-sha256 instead`)
+			fallthrough
+		case MatchHMACSHA256:
+			_, err := CheckPayloadSignature256(req.Body, r.Secret, arg)
 			return err == nil, err
 		case MatchHashSHA512:
-			_, err := CheckPayloadSignature512(*body, r.Secret, arg)
+			log.Print(`warn: use of deprecated option payload-hash-sha512: use payload-hmac-sha512 instead`)
+			fallthrough
+		case MatchHMACSHA512:
+			_, err := CheckPayloadSignature512(req.Body, r.Secret, arg)
 			return err == nil, err
 		}
 	}

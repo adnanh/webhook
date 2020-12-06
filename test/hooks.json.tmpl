@@ -31,7 +31,7 @@
         {
           "match":
           {
-            "type": "payload-hash-sha1",
+            "type": "payload-hmac-sha1",
             "secret": "mysecret",
             "parameter":
             {
@@ -40,6 +40,149 @@
             }
           }
         },
+        {
+          "match":
+          {
+            "type": "value",
+            "value": "refs/heads/master",
+            "parameter":
+            {
+              "source": "payload",
+              "name": "ref"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "github-multi-sig",
+    "execute-command": "{{ .Hookecho }}",
+    "command-working-directory": "/",
+    "http-methods": ["Post "],
+    "include-command-output-in-response": true,
+    "trigger-rule-mismatch-http-response-code": 400,
+    "trigger-signature-soft-failures": true,
+    "pass-environment-to-command":
+    [
+      {
+        "source": "payload",
+        "name": "head_commit.timestamp"
+      }
+    ],
+    "pass-arguments-to-command":
+    [
+      {
+        "source": "payload",
+        "name": "head_commit.id"
+      },
+      {
+        "source": "payload",
+        "name": "head_commit.author.email"
+      }
+    ],
+    "trigger-rule":
+    {
+      "and":
+      [
+        "or":
+        [
+          {
+            "match":
+            {
+              "type": "payload-hmac-sha1",
+              "secret": "mysecretFAIL",
+              "parameter":
+              {
+                "source": "header",
+                "name": "X-Hub-Signature"
+              }
+            }
+          },
+          {
+            "match":
+            {
+              "type": "payload-hmac-sha1",
+              "secret": "mysecret",
+              "parameter":
+              {
+                "source": "header",
+                "name": "X-Hub-Signature"
+              }
+            }
+          }
+        ],
+        {
+          "match":
+          {
+            "type": "value",
+            "value": "refs/heads/master",
+            "parameter":
+            {
+              "source": "payload",
+              "name": "ref"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "github-multi-sig-fail",
+    "execute-command": "{{ .Hookecho }}",
+    "command-working-directory": "/",
+    "http-methods": ["Post "],
+    "include-command-output-in-response": true,
+    "trigger-rule-mismatch-http-response-code": 400,
+    "pass-environment-to-command":
+    [
+      {
+        "source": "payload",
+        "name": "head_commit.timestamp"
+      }
+    ],
+    "pass-arguments-to-command":
+    [
+      {
+        "source": "payload",
+        "name": "head_commit.id"
+      },
+      {
+        "source": "payload",
+        "name": "head_commit.author.email"
+      }
+    ],
+    "trigger-rule":
+    {
+      "and":
+      [
+        "or":
+        [
+          {
+            "match":
+            {
+              "type": "payload-hmac-sha1",
+              "secret": "mysecretFAIL",
+              "parameter":
+              {
+                "source": "header",
+                "name": "X-Hub-Signature"
+              }
+            }
+          },
+          {
+            "match":
+            {
+              "type": "payload-hmac-sha1",
+              "secret": "mysecret",
+              "parameter":
+              {
+                "source": "header",
+                "name": "X-Hub-Signature"
+              }
+            }
+          }
+        ],
         {
           "match":
           {
@@ -169,6 +312,49 @@
     }
   },
   {
+    "id": "txt-raw",
+    "execute-command": "{{ .Hookecho }}",
+    "command-working-directory": "/",
+    "include-command-output-in-response": true,
+    "pass-arguments-to-command": [
+      {
+        "source": "raw-request-body"
+      }
+    ]
+  },
+  {
+    "id": "sendgrid",
+    "execute-command": "{{ .Hookecho }}",
+    "command-working-directory": "/",
+    "response-message": "success",
+    "trigger-rule": {
+      "match": {
+        "type": "value",
+        "parameter": {
+          "source": "payload",
+          "name": "root.0.event"
+        },
+        "value": "processed"
+      }
+    }
+  },
+  {
+    "id": "sendgrid/dir",
+    "execute-command": "{{ .Hookecho }}",
+    "command-working-directory": "/",
+    "response-message": "success",
+    "trigger-rule": {
+      "match": {
+        "type": "value",
+        "parameter": {
+          "source": "payload",
+          "name": "root.0.event"
+        },
+        "value": "it worked!"
+      }
+    }
+  },
+  {
     "id": "plex",
     "execute-command": "{{ .Hookecho }}",
     "command-working-directory": "/",
@@ -237,6 +423,21 @@
     "include-command-output-in-response-on-error": true
   },
   {
+    "id": "request-source",
+    "pass-arguments-to-command": [
+      {
+        "source": "request",
+        "name": "method"
+      },
+      {
+        "source": "request",
+        "name": "remote-addr"
+      }
+    ],
+    "execute-command": "{{ .Hookecho }}",
+    "include-command-output-in-response": true
+  },
+  {
     "id": "static-params-ok",
 		"execute-command": "{{ .Hookecho }}",
 		"response-message": "success",
@@ -259,5 +460,99 @@
         "name": "passed"
       }
     ],
+  },
+  {
+    "id": "issue-471",
+    "execute-command": "{{ .Hookecho }}",
+    "response-message": "success",
+    "trigger-rule":
+    {
+      "or":
+      [
+        {
+          "match":
+          {
+            "parameter":
+            {
+              "source": "payload",
+              "name": "foo"
+            },
+            "type": "value",
+            "value": "bar"
+          }
+        },
+        {
+          "match":
+          {
+            "parameter":
+            {
+              "source": "payload",
+              "name": "exists"
+            },
+            "type": "value",
+            "value": 1
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "issue-471-and",
+    "execute-command": "{{ .Hookecho }}",
+    "response-message": "success",
+    "trigger-rule":
+    {
+      "and":
+      [
+        {
+          "match":
+          {
+            "parameter":
+            {
+              "source": "payload",
+              "name": "foo"
+            },
+            "type": "value",
+            "value": "bar"
+          }
+        },
+        {
+          "match":
+          {
+            "parameter":
+            {
+              "source": "payload",
+              "name": "exists"
+            },
+            "type": "value",
+            "value": 1
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "empty-payload-signature",
+    "execute-command": "{{ .Hookecho }}",
+    "command-working-directory": "/",
+    "include-command-output-in-response": true,
+    "trigger-rule":
+    {
+      "and":
+      [
+        {
+          "match":
+          {
+            "type": "payload-hmac-sha1",
+            "secret": "mysecret",
+            "parameter":
+            {
+              "source": "header",
+              "name": "X-Hub-Signature"
+            }
+          }
+        }
+      ]
+    }
   }
 ]

@@ -1,6 +1,6 @@
 module github.com/adnanh/webhook
 
-go 1.13
+go 1.14
 
 require (
 	github.com/clbanning/mxj v1.8.4
