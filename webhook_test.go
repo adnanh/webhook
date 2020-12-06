@@ -133,10 +133,6 @@ func TestWebhook(t *testing.T) {
 				{
 					var bodyFailed bool
 
-					if res.StatusCode != tt.respStatus {
-						bodyFailed = true
-					}
-
 					if tt.bodyIsRE {
 						bodyFailed = string(body) == tt.respBody
 					} else {
@@ -144,7 +140,7 @@ func TestWebhook(t *testing.T) {
 						bodyFailed = !r.Match(body)
 					}
 
-					if bodyFailed {
+					if res.StatusCode != tt.respStatus || bodyFailed {
 						t.Errorf("failed %q (id: %s):\nexpected status: %#v, response: %s\ngot status: %#v, response: %s\ncommand output:\n%s\n", tt.desc, tt.id, tt.respStatus, tt.respBody, res.StatusCode, body, b)
 					}
 				}
@@ -481,6 +477,320 @@ var hookHandlerTests = []struct {
 		`arg: 1481a2de7b2a7d02428ad93446ab166be7793fbb lolwut@noway.biz
 env: HOOK_head_commit.timestamp=2013-03-12T08:14:29-07:00
 `,
+		``,
+	},
+	{
+		"github-multi-sig",
+		"github-multi-sig",
+		nil,
+		"POST",
+		map[string]string{"X-Hub-Signature": "f68df0375d7b03e3eb29b4cf9f9ec12e08f42ff8"},
+		"application/json",
+		`{
+			"after":"1481a2de7b2a7d02428ad93446ab166be7793fbb",
+			"before":"17c497ccc7cca9c2f735aa07e9e3813060ce9a6a",
+			"commits":[
+				{
+					"added":[
+
+					],
+					"author":{
+						"email":"lolwut@noway.biz",
+						"name":"Garen Torikian",
+						"username":"octokitty"
+					},
+					"committer":{
+						"email":"lolwut@noway.biz",
+						"name":"Garen Torikian",
+						"username":"octokitty"
+					},
+					"distinct":true,
+					"id":"c441029cf673f84c8b7db52d0a5944ee5c52ff89",
+					"message":"Test",
+					"modified":[
+						"README.md"
+					],
+					"removed":[
+
+					],
+					"timestamp":"2013-02-22T13:50:07-08:00",
+					"url":"https://github.com/octokitty/testing/commit/c441029cf673f84c8b7db52d0a5944ee5c52ff89"
+				},
+				{
+					"added":[
+
+					],
+					"author":{
+						"email":"lolwut@noway.biz",
+						"name":"Garen Torikian",
+						"username":"octokitty"
+					},
+					"committer":{
+						"email":"lolwut@noway.biz",
+						"name":"Garen Torikian",
+						"username":"octokitty"
+					},
+					"distinct":true,
+					"id":"36c5f2243ed24de58284a96f2a643bed8c028658",
+					"message":"This is me testing the windows client.",
+					"modified":[
+						"README.md"
+					],
+					"removed":[
+
+					],
+					"timestamp":"2013-02-22T14:07:13-08:00",
+					"url":"https://github.com/octokitty/testing/commit/36c5f2243ed24de58284a96f2a643bed8c028658"
+				},
+				{
+					"added":[
+						"words/madame-bovary.txt"
+					],
+					"author":{
+						"email":"lolwut@noway.biz",
+						"name":"Garen Torikian",
+						"username":"octokitty"
+					},
+					"committer":{
+						"email":"lolwut@noway.biz",
+						"name":"Garen Torikian",
+						"username":"octokitty"
+					},
+					"distinct":true,
+					"id":"1481a2de7b2a7d02428ad93446ab166be7793fbb",
+					"message":"Rename madame-bovary.txt to words/madame-bovary.txt",
+					"modified":[
+
+					],
+					"removed":[
+						"madame-bovary.txt"
+					],
+					"timestamp":"2013-03-12T08:14:29-07:00",
+					"url":"https://github.com/octokitty/testing/commit/1481a2de7b2a7d02428ad93446ab166be7793fbb"
+				}
+			],
+			"compare":"https://github.com/octokitty/testing/compare/17c497ccc7cc...1481a2de7b2a",
+			"created":false,
+			"deleted":false,
+			"forced":false,
+			"head_commit":{
+				"added":[
+					"words/madame-bovary.txt"
+				],
+				"author":{
+					"email":"lolwut@noway.biz",
+					"name":"Garen Torikian",
+					"username":"octokitty"
+				},
+				"committer":{
+					"email":"lolwut@noway.biz",
+					"name":"Garen Torikian",
+					"username":"octokitty"
+				},
+				"distinct":true,
+				"id":"1481a2de7b2a7d02428ad93446ab166be7793fbb",
+				"message":"Rename madame-bovary.txt to words/madame-bovary.txt",
+				"modified":[
+
+				],
+				"removed":[
+					"madame-bovary.txt"
+				],
+				"timestamp":"2013-03-12T08:14:29-07:00",
+				"url":"https://github.com/octokitty/testing/commit/1481a2de7b2a7d02428ad93446ab166be7793fbb"
+			},
+			"pusher":{
+				"email":"lolwut@noway.biz",
+				"name":"Garen Torikian"
+			},
+			"ref":"refs/heads/master",
+			"repository":{
+				"created_at":1332977768,
+				"description":"",
+				"fork":false,
+				"forks":0,
+				"has_downloads":true,
+				"has_issues":true,
+				"has_wiki":true,
+				"homepage":"",
+				"id":3860742,
+				"language":"Ruby",
+				"master_branch":"master",
+				"name":"testing",
+				"open_issues":2,
+				"owner":{
+					"email":"lolwut@noway.biz",
+					"name":"octokitty"
+				},
+				"private":false,
+				"pushed_at":1363295520,
+				"size":2156,
+				"stargazers":1,
+				"url":"https://github.com/octokitty/testing",
+				"watchers":1
+			}
+		}`,
+		false,
+		http.StatusOK,
+		`arg: 1481a2de7b2a7d02428ad93446ab166be7793fbb lolwut@noway.biz
+env: HOOK_head_commit.timestamp=2013-03-12T08:14:29-07:00
+`,
+		``,
+	},
+	{
+		"github-multi-sig-fail",
+		"github-multi-sig-fail",
+		nil,
+		"POST",
+		map[string]string{"X-Hub-Signature": "f68df0375d7b03e3eb29b4cf9f9ec12e08f42ff8"},
+		"application/json",
+		`{
+			"after":"1481a2de7b2a7d02428ad93446ab166be7793fbb",
+			"before":"17c497ccc7cca9c2f735aa07e9e3813060ce9a6a",
+			"commits":[
+				{
+					"added":[
+
+					],
+					"author":{
+						"email":"lolwut@noway.biz",
+						"name":"Garen Torikian",
+						"username":"octokitty"
+					},
+					"committer":{
+						"email":"lolwut@noway.biz",
+						"name":"Garen Torikian",
+						"username":"octokitty"
+					},
+					"distinct":true,
+					"id":"c441029cf673f84c8b7db52d0a5944ee5c52ff89",
+					"message":"Test",
+					"modified":[
+						"README.md"
+					],
+					"removed":[
+
+					],
+					"timestamp":"2013-02-22T13:50:07-08:00",
+					"url":"https://github.com/octokitty/testing/commit/c441029cf673f84c8b7db52d0a5944ee5c52ff89"
+				},
+				{
+					"added":[
+
+					],
+					"author":{
+						"email":"lolwut@noway.biz",
+						"name":"Garen Torikian",
+						"username":"octokitty"
+					},
+					"committer":{
+						"email":"lolwut@noway.biz",
+						"name":"Garen Torikian",
+						"username":"octokitty"
+					},
+					"distinct":true,
+					"id":"36c5f2243ed24de58284a96f2a643bed8c028658",
+					"message":"This is me testing the windows client.",
+					"modified":[
+						"README.md"
+					],
+					"removed":[
+
+					],
+					"timestamp":"2013-02-22T14:07:13-08:00",
+					"url":"https://github.com/octokitty/testing/commit/36c5f2243ed24de58284a96f2a643bed8c028658"
+				},
+				{
+					"added":[
+						"words/madame-bovary.txt"
+					],
+					"author":{
+						"email":"lolwut@noway.biz",
+						"name":"Garen Torikian",
+						"username":"octokitty"
+					},
+					"committer":{
+						"email":"lolwut@noway.biz",
+						"name":"Garen Torikian",
+						"username":"octokitty"
+					},
+					"distinct":true,
+					"id":"1481a2de7b2a7d02428ad93446ab166be7793fbb",
+					"message":"Rename madame-bovary.txt to words/madame-bovary.txt",
+					"modified":[
+
+					],
+					"removed":[
+						"madame-bovary.txt"
+					],
+					"timestamp":"2013-03-12T08:14:29-07:00",
+					"url":"https://github.com/octokitty/testing/commit/1481a2de7b2a7d02428ad93446ab166be7793fbb"
+				}
+			],
+			"compare":"https://github.com/octokitty/testing/compare/17c497ccc7cc...1481a2de7b2a",
+			"created":false,
+			"deleted":false,
+			"forced":false,
+			"head_commit":{
+				"added":[
+					"words/madame-bovary.txt"
+				],
+				"author":{
+					"email":"lolwut@noway.biz",
+					"name":"Garen Torikian",
+					"username":"octokitty"
+				},
+				"committer":{
+					"email":"lolwut@noway.biz",
+					"name":"Garen Torikian",
+					"username":"octokitty"
+				},
+				"distinct":true,
+				"id":"1481a2de7b2a7d02428ad93446ab166be7793fbb",
+				"message":"Rename madame-bovary.txt to words/madame-bovary.txt",
+				"modified":[
+
+				],
+				"removed":[
+					"madame-bovary.txt"
+				],
+				"timestamp":"2013-03-12T08:14:29-07:00",
+				"url":"https://github.com/octokitty/testing/commit/1481a2de7b2a7d02428ad93446ab166be7793fbb"
+			},
+			"pusher":{
+				"email":"lolwut@noway.biz",
+				"name":"Garen Torikian"
+			},
+			"ref":"refs/heads/master",
+			"repository":{
+				"created_at":1332977768,
+				"description":"",
+				"fork":false,
+				"forks":0,
+				"has_downloads":true,
+				"has_issues":true,
+				"has_wiki":true,
+				"homepage":"",
+				"id":3860742,
+				"language":"Ruby",
+				"master_branch":"master",
+				"name":"testing",
+				"open_issues":2,
+				"owner":{
+					"email":"lolwut@noway.biz",
+					"name":"octokitty"
+				},
+				"private":false,
+				"pushed_at":1363295520,
+				"size":2156,
+				"stargazers":1,
+				"url":"https://github.com/octokitty/testing",
+				"watchers":1
+			}
+		}`,
+		false,
+		http.StatusInternalServerError,
+		`Error occurred while evaluating hook rules.`,
 		``,
 	},
 	{

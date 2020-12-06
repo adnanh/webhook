@@ -480,6 +480,9 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 	if matchedHook.TriggerRule == nil {
 		ok = true
 	} else {
+		// Save signature soft failures option in request for evaluators
+		req.AllowSignatureErrors = matchedHook.TriggerSignatureSoftFailures
+
 		ok, err = matchedHook.TriggerRule.Evaluate(req)
 		if err != nil {
 			if !hook.IsParameterNodeError(err) {
