@@ -20,6 +20,7 @@ although the examples on this page all use the JSON format.
 * [Travis CI webhook](#travis-ci-webhook)
 * [XML Payload](#xml-payload)
 * [Multipart Form Data](#multipart-form-data)
+* [Pass string arguments to command](#pass-string-arguments-to-command)
 
 ## Incoming Github webhook
 ```json
@@ -589,3 +590,34 @@ Content-Disposition: form-data; name="thumb"; filename="thumb.jpg"
 ```
 
 We key off of the `name` attribute in the `Content-Disposition` value.
+
+## Pass string arguments to command
+
+To pass simple string arguments to a command, use the `string` parameter source.
+The following example will pass two static string parameters ("-e 123123") to the
+`execute-command` before appending the `pusher.email` value from the payload:
+
+```json
+[
+  {
+    "id": "webhook",
+    "execute-command": "/home/adnan/redeploy-go-webhook.sh",
+    "command-working-directory": "/home/adnan/go",
+    "pass-arguments-to-command":
+    [
+      {
+        "source": "string",
+        "name": "-e"
+      },
+      {
+        "source": "string",
+        "name": "123123"
+      },
+      {
+        "source": "payload",
+        "name": "pusher.email"
+      }
+    ]
+  }
+]
+```
