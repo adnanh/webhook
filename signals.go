@@ -37,6 +37,16 @@ func watchForSignals(svc *service.Service) {
 			log.Println("caught HUP signal")
 			reloadAllHooks()
 
+			if svc.TLSEnabled() {
+				log.Println("attempting to reload TLS key pair")
+				err := svc.ReloadTLSKeyPair()
+				if err != nil {
+					log.Printf("failed to reload TLS key pair: %s\n", err)
+				} else {
+					log.Println("successfully reloaded TLS key pair")
+				}
+			}
+
 		case os.Interrupt, syscall.SIGTERM:
 			log.Printf("caught %s signal; exiting\n", sig)
 			err := svc.DeletePIDFile()

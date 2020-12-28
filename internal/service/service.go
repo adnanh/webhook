@@ -112,6 +112,11 @@ func (s *Service) SetTLSEnabled() {
 	s.enableTLS = true
 }
 
+// TLSEnabled return true if TLS is enabled for the service.
+func (s *Service) TLSEnabled() bool {
+	return s.enableTLS
+}
+
 // SetTLSKeyPair sets the TLS key pair for the service.
 func (s *Service) SetTLSKeyPair(certPath, keyPath string) error {
 	if certPath == "" {
@@ -130,6 +135,11 @@ func (s *Service) SetTLSKeyPair(certPath, keyPath string) error {
 	}
 
 	return nil
+}
+
+// ReloadTLSKeyPair attempts to reload the configured TLS certificate key pair.
+func (s *Service) ReloadTLSKeyPair() error {
+	return s.kpr.Reload()
 }
 
 // SetTLSMinVersion sets the minimum support TLS version, such as "v1.3".

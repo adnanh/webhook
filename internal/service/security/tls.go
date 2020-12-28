@@ -38,6 +38,20 @@ func NewKeyPairReloader(certPath, keyPath string) (*KeyPairReloader, error) {
 	return res, nil
 }
 
+// Reload attempts to reload the TLS key pair.
+func (kpr *KeyPairReloader) Reload() error {
+	cert, err := tls.LoadX509KeyPair(kpr.certPath, kpr.keyPath)
+	if err != nil {
+		return err
+	}
+
+	kpr.certMu.Lock()
+	defer kpr.certMu.Unlock()
+
+	kpr.cert = &cert
+	return nil
+}
+
 // GetCertificateFunc provides a function for tls.Config.GetCertificate.
 func (kpr *KeyPairReloader) GetCertificateFunc() func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
 	return func(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) {
