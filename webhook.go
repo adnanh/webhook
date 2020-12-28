@@ -60,7 +60,7 @@ var (
 	watcher *fsnotify.Watcher
 	signals chan os.Signal
 
-	S *service.Service
+	Service *service.Service
 )
 
 func matchLoadedHook(id string) *hook.Hook {
@@ -112,25 +112,25 @@ func main() {
 	}
 
 	// Setup a new Service instance
-	S = service.New(*ip, *port)
+	Service = service.New(*ip, *port)
 
 	// We must setup TLS prior to opening a listening port.
 	if *secure {
-		S.SetTLSEnabled()
+		Service.SetTLSEnabled()
 
-		err := S.SetTLSKeyPair(*cert, *key)
+		err := Service.SetTLSKeyPair(*cert, *key)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
 
-		err = S.SetTLSMinVersion(*tlsMinVersion)
+		err = Service.SetTLSMinVersion(*tlsMinVersion)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
 
-		S.SetTLSCiphers(*tlsCipherSuites)
+		Service.SetTLSCiphers(*tlsCipherSuites)
 	}
 
 	// logQueue is a queue for log messages encountered during startup. We need
@@ -139,7 +139,7 @@ func main() {
 	var logQueue []string
 
 	// Open listener early so we can drop privileges.
-	err := S.Listen()
+	err := Service.Listen()
 	if err != nil {
 		logQueue = append(logQueue, fmt.Sprintf("error listening on port: %s", err))
 		// we'll bail out below
@@ -182,7 +182,7 @@ func main() {
 	if *pidPath != "" {
 		var err error
 
-		err = S.CreatePIDFile(*pidPath)
+		err = Service.CreatePIDFile(*pidPath)
 		if err != nil {
 			log.Fatalf("Error creating pidfile: %v", err)
 		}
@@ -190,7 +190,7 @@ func main() {
 		defer func() {
 			// NOTE(moorereason): my testing shows that this doesn't work with
 			// ^C, so we also do a Remove in the signal handler elsewhere.
-			if nerr := S.DeletePIDFile(); nerr != nil {
+			if nerr := Service.DeletePIDFile(); nerr != nil {
 				log.Print(nerr)
 			}
 		}()
@@ -199,7 +199,7 @@ func main() {
 	log.Println("version " + version + " starting")
 
 	// set os signal watcher
-	setupSignals(S)
+	setupSignals(Service)
 
 	// load and parse hooks
 	if len(hooksFiles) == 0 {
@@ -291,15 +291,15 @@ func main() {
 	r.HandleFunc(hooksURL, hookHandler)
 
 	// Create common HTTP server settings
-	S.SetHTTPHandler(r)
+	Service.SetHTTPHandler(r)
 
 	if !*secure {
-		log.Printf("serving hooks on http://%s%s", S.Address, makeHumanPattern(hooksURLPrefix))
+		log.Printf("serving hooks on http://%s%s", Service.Address, makeHumanPattern(hooksURLPrefix))
 	} else {
-		log.Printf("serving hooks on https://%s%s", S.Address, makeHumanPattern(hooksURLPrefix))
+		log.Printf("serving hooks on https://%s%s", Service.Address, makeHumanPattern(hooksURLPrefix))
 	}
 
-	log.Print(S.Serve())
+	log.Print(Service.Serve())
 }
 
 func hookHandler(w http.ResponseWriter, r *http.Request) {
