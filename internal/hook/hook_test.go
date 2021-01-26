@@ -245,7 +245,7 @@ var extractParameterTests = []struct {
 
 func TestExtractParameter(t *testing.T) {
 	for _, tt := range extractParameterTests {
-		value, err := ExtractParameterAsString(tt.s, tt.params)
+		value, _, err := ExtractParameterAsString(tt.s, tt.params)
 		if (err == nil) != tt.ok || value != tt.value {
 			t.Errorf("failed to extract parameter %q:\nexpected {value:%#v, ok:%#v},\ngot {value:%#v, err:%v}", tt.s, tt.value, tt.ok, value, err)
 		}
@@ -281,7 +281,7 @@ func TestArgumentGet(t *testing.T) {
 			Payload:    tt.payload,
 			RawRequest: tt.request,
 		}
-		value, err := a.Get(r)
+		value, _, err := a.Get(r)
 		if (err == nil) != tt.ok || value != tt.value {
 			t.Errorf("failed to get {%q, %q}:\nexpected {value:%#v, ok:%#v},\ngot {value:%#v, err:%v}", tt.source, tt.name, tt.value, tt.ok, value, err)
 		}
