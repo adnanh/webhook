@@ -113,7 +113,10 @@ TLS version and cipher suite selection flags are available from the command line
 If you want to set CORS headers, you can use the `-header name=value` flag while starting [webhook][w] to set the appropriate CORS headers that will be returned with each response.
 
 ## Interested in running webhook inside of a Docker container?
-You can use [almir/webhook](https://hub.docker.com/r/almir/webhook/) docker image, or create your own (please read [this discussion](https://github.com/adnanh/webhook/issues/63)).
+You can use one of the following Docker images, or create your own (please read [this discussion](https://github.com/adnanh/webhook/issues/63)):
+- [almir/webhook](https://github.com/almir/docker-webhook)
+- [roxedus/webhook](https://github.com/Roxedus/docker-webhook)
+- [thecatlady/webhook](https://github.com/thecatlady/docker-webhook)
 
 ## Examples
 Check out [Hook examples page](docs/Hook-Examples.md) for more complex examples of hooks.
