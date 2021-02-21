@@ -234,6 +234,39 @@ func CheckPayloadSignature512(payload []byte, secret, signature string) (string,
 	return ValidateMAC(payload, hmac.New(sha512.New, []byte(secret)), signatures)
 }
 
+func CheckMSTeamsSignature(r *Request, signingKey string) (bool, error) {
+	if r.Headers == nil {
+		return false, nil
+	}
+
+	// Check if the signing key is valid
+	if signingKey == "" {
+		return false, errors.New("signature validation key can not be empty")
+	}
+	secret, err := base64.StdEncoding.DecodeString(signingKey)
+	if err != nil {
+		return false, errors.New("signature validation key must be valid base64")
+	}
+	// Check if a valid HMAC header was provided
+	if _, ok := r.Headers["Authorization"]; !ok {
+		return false, nil
+	}
+	headerParts := strings.SplitN(r.Headers["Authorization"].(string), " ", 2)
+	if len(headerParts) != 2 || headerParts[0] != "HMAC" {
+		return false, errors.New("malformed 'Authorization' header")
+	}
+	providedSignature := headerParts[1]
+
+	mac := hmac.New(sha256.New, secret)
+	mac.Write(r.Body)
+	expectedSignature := base64.StdEncoding.EncodeToString(mac.Sum(nil))
+	if !hmac.Equal([]byte(providedSignature), []byte(expectedSignature)) {
+		return false, &SignatureError{Signature: providedSignature}
+	}
+	return true, nil
+
+}
+
 func CheckScalrSignature(r *Request, signingKey string, checkDate bool) (bool, error) {
 	if r.Headers == nil {
 		return false, nil
@@ -896,16 +929,17 @@ type MatchRule struct {
 
 // Constants for the MatchRule type
 const (
-	MatchValue      string = "value"
-	MatchRegex      string = "regex"
-	MatchHMACSHA1   string = "payload-hmac-sha1"
-	MatchHMACSHA256 string = "payload-hmac-sha256"
-	MatchHMACSHA512 string = "payload-hmac-sha512"
-	MatchHashSHA1   string = "payload-hash-sha1"
-	MatchHashSHA256 string = "payload-hash-sha256"
-	MatchHashSHA512 string = "payload-hash-sha512"
-	IPWhitelist     string = "ip-whitelist"
-	ScalrSignature  string = "scalr-signature"
+	MatchValue       string = "value"
+	MatchRegex       string = "regex"
+	MatchHMACSHA1    string = "payload-hmac-sha1"
+	MatchHMACSHA256  string = "payload-hmac-sha256"
+	MatchHMACSHA512  string = "payload-hmac-sha512"
+	MatchHashSHA1    string = "payload-hash-sha1"
+	MatchHashSHA256  string = "payload-hash-sha256"
+	MatchHashSHA512  string = "payload-hash-sha512"
+	IPWhitelist      string = "ip-whitelist"
+	ScalrSignature   string = "scalr-signature"
+	MSTeamsSignature string = "msteams-signature"
 )
 
 // Evaluate MatchRule will return based on the type
@@ -915,6 +949,9 @@ func (r MatchRule) Evaluate(req *Request) (bool, error) {
 	}
 	if r.Type == ScalrSignature {
 		return CheckScalrSignature(req, r.Secret, true)
+	}
+	if r.Type == MSTeamsSignature {
+		return CheckMSTeamsSignature(req, r.Secret)
 	}
 
 	arg, err := r.Parameter.Get(req)
