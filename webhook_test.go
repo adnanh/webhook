@@ -33,7 +33,8 @@ func TestStaticParams(t *testing.T) {
 	spHeaders["Accept"] = "*/*"
 
 	// case 2: binary with spaces in its name
-	err := os.Symlink("/bin/echo", "/tmp/with space")
+	d1 := []byte("#!/bin/sh\n/bin/echo\n")
+	err := ioutil.WriteFile("/tmp/with space", d1, 0755)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
