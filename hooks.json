@@ -1,0 +1,55 @@
+[
+  {
+    "id": "webhook",
+    "execute-command": "/home/adnan/redeploy-go-webhook.sh",
+    "command-working-directory": "/home/adnan/go",
+    "response-message": "I got the payload!",
+    "response-headers":
+    [
+      {
+        "name": "Access-Control-Allow-Origin",
+        "value": "*"
+      }
+    ],
+    "pass-arguments-to-command":
+    [
+      {
+        "source": "payload",
+        "name": "head_commit.id"
+      },
+      {
+        "source": "payload",
+        "name": "pusher.name"
+      },
+      {
+        "source": "payload",
+        "name": "pusher.email"
+      }
+    ],
+    "trigger-rule":
+    {
+      "or":
+      [
+        {
+          "match":
+          {
+            "type": "expression",
+            "expression": "\"ada\" in Payload"
+          }
+        },
+        {
+          "match":
+          {
+            "type": "value",
+            "value": "refs/heads/master",
+            "parameter":
+            {
+              "source": "payload",
+              "name": "ref"
+            }
+          }
+        }
+      ]
+    }
+  }
+]

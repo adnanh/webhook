@@ -1,3 +1,15 @@
+# github.com/antonmedv/expr v1.8.9
+## explicit
+github.com/antonmedv/expr
+github.com/antonmedv/expr/ast
+github.com/antonmedv/expr/checker
+github.com/antonmedv/expr/compiler
+github.com/antonmedv/expr/conf
+github.com/antonmedv/expr/file
+github.com/antonmedv/expr/optimizer
+github.com/antonmedv/expr/parser
+github.com/antonmedv/expr/parser/lexer
+github.com/antonmedv/expr/vm
 # github.com/clbanning/mxj v1.8.4
 ## explicit
 github.com/clbanning/mxj
@@ -16,14 +28,14 @@ github.com/go-chi/chi/middleware
 # github.com/gofrs/uuid v3.2.0+incompatible
 ## explicit
 github.com/gofrs/uuid
+# github.com/google/cel-go v0.7.0
+## explicit
 # github.com/gorilla/mux v1.7.3
 ## explicit
 github.com/gorilla/mux
 # github.com/kr/pretty v0.1.0
 ## explicit
-# golang.org/x/net v0.0.0-20191209160850-c0dbc17a3553
-## explicit
-# golang.org/x/sys v0.0.0-20191228213918-04cbcbbfeed8
+# golang.org/x/sys v0.0.0-20200302150141-5c8b2ff67527
 ## explicit
 golang.org/x/sys/unix
 golang.org/x/sys/windows
@@ -32,6 +44,5 @@ golang.org/x/sys/windows
 # gopkg.in/fsnotify.v1 v1.4.2
 ## explicit
 gopkg.in/fsnotify.v1
-# gopkg.in/yaml.v2 v2.0.0-20170812160011-eb3733d160e7
-## explicit
+# gopkg.in/yaml.v2 v2.2.2
 gopkg.in/yaml.v2

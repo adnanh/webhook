@@ -26,6 +26,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/antonmedv/expr"
 	"github.com/ghodss/yaml"
 )
 
@@ -314,6 +315,29 @@ func CheckIPWhitelist(remoteAddr, ipRange string) (bool, error) {
 	}
 
 	return false, nil
+}
+
+type ExpressionEnv struct {
+	Headers, Query, Payload map[string]interface{}
+}
+
+func CheckExpression(request *Request, expression string) (bool, error) {
+	program, err := expr.Compile(expression, expr.Env(ExpressionEnv{}))
+	if err != nil {
+		return false, err
+	}
+
+	out, err := expr.Run(program, ExpressionEnv{
+		Headers: request.Headers,
+		Query:   request.Query,
+		Payload: request.Payload,
+	})
+
+	if err != nil {
+		return false, err
+	}
+
+	return out == true, nil
 }
 
 // ReplaceParameter replaces parameter value with the passed value in the passed map
@@ -886,18 +910,20 @@ func (r NotRule) Evaluate(req *Request) (bool, error) {
 
 // MatchRule will evaluate to true based on the type
 type MatchRule struct {
-	Type      string   `json:"type,omitempty"`
-	Regex     string   `json:"regex,omitempty"`
-	Secret    string   `json:"secret,omitempty"`
-	Value     string   `json:"value,omitempty"`
-	Parameter Argument `json:"parameter,omitempty"`
-	IPRange   string   `json:"ip-range,omitempty"`
+	Type       string   `json:"type,omitempty"`
+	Regex      string   `json:"regex,omitempty"`
+	Expression string   `json:"expression,omitempty"`
+	Secret     string   `json:"secret,omitempty"`
+	Value      string   `json:"value,omitempty"`
+	Parameter  Argument `json:"parameter,omitempty"`
+	IPRange    string   `json:"ip-range,omitempty"`
 }
 
 // Constants for the MatchRule type
 const (
 	MatchValue      string = "value"
 	MatchRegex      string = "regex"
+	MatchExpression string = "expression"
 	MatchHMACSHA1   string = "payload-hmac-sha1"
 	MatchHMACSHA256 string = "payload-hmac-sha256"
 	MatchHMACSHA512 string = "payload-hmac-sha512"
@@ -915,6 +941,9 @@ func (r MatchRule) Evaluate(req *Request) (bool, error) {
 	}
 	if r.Type == ScalrSignature {
 		return CheckScalrSignature(req, r.Secret, true)
+	}
+	if r.Type == MatchExpression {
+		return CheckExpression(req, r.Expression)
 	}
 
 	arg, err := r.Parameter.Get(req)
