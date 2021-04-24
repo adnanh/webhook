@@ -51,7 +51,7 @@ although the examples on this page all use the JSON format.
         {
           "match":
           {
-            "type": "payload-hmac-sha1",
+            "type": "payload-hash-sha1",
             "secret": "mysecret",
             "parameter":
             {
