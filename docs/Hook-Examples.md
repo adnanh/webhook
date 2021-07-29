@@ -23,6 +23,9 @@ although the examples on this page all use the JSON format.
 * [Pass string arguments to command](#pass-string-arguments-to-command)
 
 ## Incoming Github webhook
+
+This example works on 2.8+ versions of Webhook - if you are on a previous series, change `payload-hmac-sha1` to `payload-hash-sha1`.
+
 ```json
 [
   {
