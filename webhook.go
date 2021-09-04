@@ -1,13 +1,11 @@
 package main
 
 import (
-	"crypto/tls"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
-	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -17,7 +15,8 @@ import (
 
 	"github.com/adnanh/webhook/internal/hook"
 	"github.com/adnanh/webhook/internal/middleware"
-	"github.com/adnanh/webhook/internal/pidfile"
+	"github.com/adnanh/webhook/internal/service"
+	"github.com/adnanh/webhook/internal/service/security"
 
 	chimiddleware "github.com/go-chi/chi/middleware"
 	"github.com/gorilla/mux"
@@ -60,7 +59,8 @@ var (
 
 	watcher *fsnotify.Watcher
 	signals chan os.Signal
-	pidFile *pidfile.PIDFile
+
+	Service *service.Service
 )
 
 func matchLoadedHook(id string) *hook.Hook {
@@ -94,7 +94,7 @@ func main() {
 	}
 
 	if *justListCiphers {
-		err := writeTLSSupportedCipherStrings(os.Stdout, getTLSMinVersion(*tlsMinVersion))
+		err := security.WriteTLSSupportedCipherStrings(os.Stdout, *tlsMinVersion)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -111,8 +111,26 @@ func main() {
 		*verbose = true
 	}
 
-	if len(hooksFiles) == 0 {
-		hooksFiles = append(hooksFiles, "hooks.json")
+	// Setup a new Service instance
+	Service = service.New(*ip, *port)
+
+	// We must setup TLS prior to opening a listening port.
+	if *secure {
+		Service.SetTLSEnabled()
+
+		err := Service.SetTLSKeyPair(*cert, *key)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+
+		err = Service.SetTLSMinVersion(*tlsMinVersion)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+
+		Service.SetTLSCiphers(*tlsCipherSuites)
 	}
 
 	// logQueue is a queue for log messages encountered during startup. We need
@@ -120,10 +138,8 @@ func main() {
 	// log file opening prior to writing our first log message.
 	var logQueue []string
 
-	addr := fmt.Sprintf("%s:%d", *ip, *port)
-
 	// Open listener early so we can drop privileges.
-	ln, err := net.Listen("tcp", addr)
+	err := Service.Listen()
 	if err != nil {
 		logQueue = append(logQueue, fmt.Sprintf("error listening on port: %s", err))
 		// we'll bail out below
@@ -166,7 +182,7 @@ func main() {
 	if *pidPath != "" {
 		var err error
 
-		pidFile, err = pidfile.New(*pidPath)
+		err = Service.CreatePIDFile(*pidPath)
 		if err != nil {
 			log.Fatalf("Error creating pidfile: %v", err)
 		}
@@ -174,7 +190,7 @@ func main() {
 		defer func() {
 			// NOTE(moorereason): my testing shows that this doesn't work with
 			// ^C, so we also do a Remove in the signal handler elsewhere.
-			if nerr := pidFile.Remove(); nerr != nil {
+			if nerr := Service.DeletePIDFile(); nerr != nil {
 				log.Print(nerr)
 			}
 		}()
@@ -183,9 +199,13 @@ func main() {
 	log.Println("version " + version + " starting")
 
 	// set os signal watcher
-	setupSignals()
+	setupSignals(Service)
 
 	// load and parse hooks
+	if len(hooksFiles) == 0 {
+		hooksFiles = append(hooksFiles, "hooks.json")
+	}
+
 	for _, hooksFilePath := range hooksFiles {
 		log.Printf("attempting to load hooks from %s\n", hooksFilePath)
 
@@ -275,30 +295,15 @@ func main() {
 	r.HandleFunc(hooksURL, hookHandler)
 
 	// Create common HTTP server settings
-	svr := &http.Server{
-		Addr:    addr,
-		Handler: r,
-	}
+	Service.SetHTTPHandler(r)
 
-	// Serve HTTP
 	if !*secure {
-		log.Printf("serving hooks on http://%s%s", addr, makeHumanPattern(hooksURLPrefix))
-		log.Print(svr.Serve(ln))
-
-		return
+		log.Printf("serving hooks on http://%s%s", Service.Address, makeHumanPattern(hooksURLPrefix))
+	} else {
+		log.Printf("serving hooks on https://%s%s", Service.Address, makeHumanPattern(hooksURLPrefix))
 	}
 
-	// Server HTTPS
-	svr.TLSConfig = &tls.Config{
-		CipherSuites:             getTLSCipherSuites(*tlsCipherSuites),
-		CurvePreferences:         []tls.CurveID{tls.CurveP521, tls.CurveP384, tls.CurveP256},
-		MinVersion:               getTLSMinVersion(*tlsMinVersion),
-		PreferServerCipherSuites: true,
-	}
-	svr.TLSNextProto = make(map[string]func(*http.Server, *tls.Conn, http.Handler)) // disable http/2
-
-	log.Printf("serving hooks on https://%s%s", addr, makeHumanPattern(hooksURLPrefix))
-	log.Print(svr.ServeTLS(ln, *cert, *key))
+	log.Print(Service.Serve())
 }
 
 func hookHandler(w http.ResponseWriter, r *http.Request) {
