@@ -24,7 +24,7 @@ If you don't have time to waste configuring, hosting, debugging and maintaining 
 
 #
 
-<a href="https://www.hookdeck.io/?ref=adnanh-webhook"><img src="http://hajdarevic.net/hookdeck-logo.svg" height="17" alt="hookdeck" align="left" /></a> If you need a way of inspecting, monitoring and replaying webhooks without the back and forth troubleshooting, [give Hookdeck a try!](https://www.hookdeck.io/?ref=adnanh-webhook)
+<a href="https://www.hookdeck.com/?ref=adnanh-webhook"><img src="http://hajdarevic.net/hookdeck-logo.svg" height="17" alt="hookdeck" align="left" /></a> If you need a way of inspecting, monitoring and replaying webhooks without the back and forth troubleshooting, [give Hookdeck a try!](https://www.hookdeck.com/?ref=adnanh-webhook)
 
 # Getting started
 ## Installation
