@@ -123,7 +123,7 @@ Check out [Hook examples page](docs/Hook-Examples.md) for more complex examples 
 
 ### Guides featuring webhook
  - [Plex 2 Telegram](https://gitlab.com/-/snippets/1972594) by [@psyhomb](https://github.com/psyhomb)
- - [Webhook & JIRA](https://sites.google.com/site/mrxpalmeiras/notes/jira-webhooks) by [@perfecto25](https://github.com/perfecto25)
+ - [Webhook & JIRA](https://sites.google.com/site/mrxpalmeiras/more/jira-webhooks) by [@perfecto25](https://github.com/perfecto25)
  - [Trigger Ansible AWX job runs on SCM (e.g. git) commit](http://jpmens.net/2017/10/23/trigger-awx-job-runs-on-scm-commit/) by [@jpmens](http://mens.de/)
  - [Deploy using GitHub webhooks](https://davidauthier.wearemd.com/blog/deploy-using-github-webhooks.html) by [@awea](https://davidauthier.wearemd.com)
  - [Setting up Automatic Deployment and Builds Using Webhooks](https://willbrowning.me/setting-up-automatic-deployment-and-builds-using-webhooks/) by [Will Browning](https://willbrowning.me/about/)
