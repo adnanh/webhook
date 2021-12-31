@@ -312,7 +312,7 @@ __Not recommended in production due to low security__
 ```
 
 ## JIRA Webhooks
-[Guide by @perfecto25](https://sites.google.com/site/mrxpalmeiras/notes/jira-webhooks)
+[Guide by @perfecto25](https://sites.google.com/site/mrxpalmeiras/more/jira-webhooks)
 
 ## Pass File-to-command sample
 
