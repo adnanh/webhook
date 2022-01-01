@@ -1,5 +1,6 @@
 OS = darwin freebsd linux openbsd
 ARCHS = 386 arm amd64 arm64
+DOCKER_REPO_NAME=adnanh/webhook
 
 .DEFAULT_GOAL := help
 
@@ -32,6 +33,10 @@ release-windows: clean deps ## Generate release for windows
 		GOOS=windows GOARCH=$$arch go build -o build/webhook-windows-$$arch/webhook.exe; \
 		tar cz -C build -f build/webhook-windows-$$arch.tar.gz webhook-windows-$$arch; \
 	done
+
+release-docker:
+	docker build -t "${DOCKER_REPO_NAME}" -f Dockerfile .
+	docker build -t "${DOCKER_REPO_NAME}:alpine" -f Dockerfile.alpine .
 
 test: deps ## Execute tests
 	go test ./...
