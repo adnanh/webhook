@@ -83,7 +83,7 @@ This example works on 2.8+ versions of Webhook - if you are on a previous series
 
 ## Incoming Bitbucket webhook
 
-Bitbucket does not pass any secrets back to the webhook.  [Per their documentation](https://confluence.atlassian.com/bitbucket/manage-webhooks-735643732.html#Managewebhooks-trigger_webhookTriggeringwebhooks), in order to verify that the webhook came from Bitbucket you must whitelist the IP range `104.192.143.0/24`:
+Bitbucket does not pass any secrets back to the webhook.  [Per their documentation](https://support.atlassian.com/organization-administration/docs/ip-addresses-and-domains-for-atlassian-cloud-products/#Outgoing-Connections), in order to verify that the webhook came from Bitbucket you must whitelist the IP range `104.192.143.0/24`:
 
 ```json
 [
