@@ -23,6 +23,9 @@ although the examples on this page all use the JSON format.
 * [Pass string arguments to command](#pass-string-arguments-to-command)
 
 ## Incoming Github webhook
+
+This example works on 2.8+ versions of Webhook - if you are on a previous series, change `payload-hmac-sha1` to `payload-hash-sha1`.
+
 ```json
 [
   {
@@ -80,7 +83,7 @@ although the examples on this page all use the JSON format.
 
 ## Incoming Bitbucket webhook
 
-Bitbucket does not pass any secrets back to the webhook.  [Per their documentation](https://confluence.atlassian.com/bitbucket/manage-webhooks-735643732.html#Managewebhooks-trigger_webhookTriggeringwebhooks), in order to verify that the webhook came from Bitbucket you must whitelist the IP range `104.192.143.0/24`:
+Bitbucket does not pass any secrets back to the webhook.  [Per their documentation](https://support.atlassian.com/organization-administration/docs/ip-addresses-and-domains-for-atlassian-cloud-products/#Outgoing-Connections), in order to verify that the webhook came from Bitbucket you must whitelist a set of IP ranges:
 
 ```json
 [
@@ -97,11 +100,23 @@ Bitbucket does not pass any secrets back to the webhook.  [Per their documentati
     ],
     "trigger-rule":
     {
-      "match":
-      {
-        "type": "ip-whitelist",
-        "ip-range": "104.192.143.0/24"
-      }
+      "or":
+      [
+        { "match": { "type": "ip-whitelist", "ip-range": "13.52.5.96/28" } },
+        { "match": { "type": "ip-whitelist", "ip-range": "13.236.8.224/28" } },
+        { "match": { "type": "ip-whitelist", "ip-range": "18.136.214.96/28" } },
+        { "match": { "type": "ip-whitelist", "ip-range": "18.184.99.224/28" } },
+        { "match": { "type": "ip-whitelist", "ip-range": "18.234.32.224/28" } },
+        { "match": { "type": "ip-whitelist", "ip-range": "18.246.31.224/28" } },
+        { "match": { "type": "ip-whitelist", "ip-range": "52.215.192.224/28" } },
+        { "match": { "type": "ip-whitelist", "ip-range": "104.192.137.240/28" } },
+        { "match": { "type": "ip-whitelist", "ip-range": "104.192.138.240/28" } },
+        { "match": { "type": "ip-whitelist", "ip-range": "104.192.140.240/28" } },
+        { "match": { "type": "ip-whitelist", "ip-range": "104.192.142.240/28" } },
+        { "match": { "type": "ip-whitelist", "ip-range": "104.192.143.240/28" } },
+        { "match": { "type": "ip-whitelist", "ip-range": "185.166.143.240/28" } },
+        { "match": { "type": "ip-whitelist", "ip-range": "185.166.142.240/28" } }
+      ]
     }
   }
 ]
@@ -309,7 +324,7 @@ __Not recommended in production due to low security__
 ```
 
 ## JIRA Webhooks
-[Guide by @perfecto25](https://sites.google.com/site/mrxpalmeiras/notes/jira-webhooks)
+[Guide by @perfecto25](https://sites.google.com/site/mrxpalmeiras/more/jira-webhooks)
 
 ## Pass File-to-command sample
 

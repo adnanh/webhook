@@ -24,7 +24,7 @@ If you don't have time to waste configuring, hosting, debugging and maintaining 
 
 #
 
-<a href="https://www.hookdeck.io/?ref=adnanh-webhook"><img src="http://hajdarevic.net/hookdeck-logo.svg" height="17" alt="hookdeck" align="left" /></a> If you need a way of inspecting, monitoring and replaying webhooks without the back and forth troubleshooting, [give Hookdeck a try!](https://www.hookdeck.io/?ref=adnanh-webhook)
+<a href="https://www.hookdeck.com/?ref=adnanh-webhook"><img src="http://hajdarevic.net/hookdeck-logo.svg" height="17" alt="hookdeck" align="left" /></a> If you need a way of inspecting, monitoring and replaying webhooks without the back and forth troubleshooting, [give Hookdeck a try!](https://www.hookdeck.com/?ref=adnanh-webhook)
 
 # Getting started
 ## Installation
@@ -123,7 +123,7 @@ Check out [Hook examples page](docs/Hook-Examples.md) for more complex examples 
 
 ### Guides featuring webhook
  - [Plex 2 Telegram](https://gitlab.com/-/snippets/1972594) by [@psyhomb](https://github.com/psyhomb)
- - [Webhook & JIRA](https://sites.google.com/site/mrxpalmeiras/notes/jira-webhooks) by [@perfecto25](https://github.com/perfecto25)
+ - [Webhook & JIRA](https://sites.google.com/site/mrxpalmeiras/more/jira-webhooks) by [@perfecto25](https://github.com/perfecto25)
  - [Trigger Ansible AWX job runs on SCM (e.g. git) commit](http://jpmens.net/2017/10/23/trigger-awx-job-runs-on-scm-commit/) by [@jpmens](http://mens.de/)
  - [Deploy using GitHub webhooks](https://davidauthier.wearemd.com/blog/deploy-using-github-webhooks.html) by [@awea](https://davidauthier.wearemd.com)
  - [Setting up Automatic Deployment and Builds Using Webhooks](https://willbrowning.me/setting-up-automatic-deployment-and-builds-using-webhooks/) by [Will Browning](https://willbrowning.me/about/)
@@ -138,6 +138,8 @@ Check out [Hook examples page](docs/Hook-Examples.md) for more complex examples 
  - [XiaoMi Vacuum + Amazon Button = Dash Cleaning](https://www.instructables.com/id/XiaoMi-Vacuum-Amazon-Button-Dash-Cleaning/) by [c0mmensal](https://www.instructables.com/member/c0mmensal/)
  - [Set up Automated Deployments From Github With Webhook](https://maximorlov.com/automated-deployments-from-github-with-webhook/) by [Maxim Orlov](https://twitter.com/_maximization)
  - VIDEO: [Gitlab CI/CD configuration using Docker and adnanh/webhook to deploy on VPS - Tutorial #1](https://www.youtube.com/watch?v=Qhn-lXjyrZA&feature=youtu.be) by [Yes! Let's Learn Software Engineering](https://www.youtube.com/channel/UCH4XJf2BZ_52fbf8fOBMF3w)
+ - [Integrate automatic deployment in 20 minutes using webhooks + Nginx setup](https://anksus.me/blog/integrate-automatic-deployment-in-20-minutes-using-webhooks) by [Anksus](https://github.com/Anksus)
+ - [Automatically redeploy your static blog with Gitea, Uberspace & Webhook](https://by.arran.nz/posts/code/webhook-deploy/) by [Arran](https://arran.nz)
  - ...
  - Want to add your own? Open an Issue or create a PR :-)
  
