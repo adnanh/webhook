@@ -21,6 +21,7 @@ although the examples on this page all use the JSON format.
 * [XML Payload](#xml-payload)
 * [Multipart Form Data](#multipart-form-data)
 * [Pass string arguments to command](#pass-string-arguments-to-command)
+* [Receive Synology DSM notifications](#receive-synology-notifications)
 
 ## Incoming Github webhook
 
@@ -633,6 +634,42 @@ The following example will pass two static string parameters ("-e 123123") to th
         "name": "pusher.email"
       }
     ]
+  }
+]
+```
+
+## Receive Synology DSM notifications
+
+It's possible to securely receive Synology push notifications via webhooks.
+Webhooks feature introduced in DSM 7.x seems to be incomplete & broken, but you can use Synology SMS notification service to push webhooks. To configure SMS notifications on DSM follow instructions found here: https://github.com/ryancurrah/synology-notifications this will allow you to set up everything needed for webhook to accept any and all notifications sent by Synology. During setup an 'api_key' is specified - you can generate your own 32-char string and use it as an authentication mechanism to secure your webhook. Additionally, you can specify what notifications to receive via this method by going and selecting the "SMS" checkboxes under topics of interes in DSM: Control Panel -> Notification -> Rules
+
+```json
+[
+  {
+    "id": "synology",
+    "execute-command": "do-something.sh",
+    "command-working-directory": "/opt/webhook-linux-amd64/synology",
+    "response-message": "Request accepted",
+    "pass-arguments-to-command":
+    [
+      {
+        "source": "payload",
+        "name": "message"
+      }
+    ],
+    "trigger-rule":
+    {
+      "match":
+      {
+        "type": "value",
+        "value": "PUT_YOUR_API_KEY_HERE",
+        "parameter":
+        {
+          "source": "header",
+          "name": "api_key"
+        }
+      }
+    }
   }
 ]
 ```
