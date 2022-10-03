@@ -15,6 +15,7 @@ var parseJSONPayloadTests = []struct {
 	{[]byte(`  [1,2,3]`), map[string]interface{}{"root": []interface{}{json.Number("1"), json.Number("2"), json.Number("3")}}, true},
 	{[]byte(`{"key": "value"}`), map[string]interface{}{"key": "value"}, true},
 	{[]byte(`[1, {"]`), map[string]interface{}(nil), false},
+	{[]byte(`{"key": "value}`), map[string]interface{}(nil), false},
 }
 
 func TestParseJSONPayload(t *testing.T) {
