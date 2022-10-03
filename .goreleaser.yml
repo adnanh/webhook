@@ -1,0 +1,8 @@
+builds:
+  -
+    goos:
+      - freebsd
+      - windows
+      - linux
+      - darwin
+      - openbsd
