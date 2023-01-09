@@ -21,14 +21,11 @@ import (
 	"github.com/adnanh/webhook/internal/middleware"
 	"github.com/adnanh/webhook/internal/pidfile"
 	"github.com/adnanh/webhook/internal/platform"
+	"github.com/adnanh/webhook/internal/version"
 
 	chimiddleware "github.com/go-chi/chi/middleware"
 	"github.com/gorilla/mux"
 	fsnotify "gopkg.in/fsnotify.v1"
-)
-
-const (
-	version = "2.8.0"
 )
 
 var (
@@ -105,7 +102,7 @@ func main() {
 	flag.Parse()
 
 	if *justDisplayVersion {
-		fmt.Println("webhook version " + version)
+		fmt.Println("webhook version " + version.Version)
 		os.Exit(0)
 	}
 
@@ -196,7 +193,7 @@ func main() {
 		}()
 	}
 
-	log.Println("version " + version + " starting")
+	log.Println("version " + version.Version + " starting")
 
 	// set os signal watcher
 	platform.SetupSignals(signals, reloadAllHooks, pidFile)
