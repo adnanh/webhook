@@ -19,6 +19,7 @@ import (
 	"github.com/adnanh/webhook/internal/hook"
 	"github.com/adnanh/webhook/internal/middleware"
 	"github.com/adnanh/webhook/internal/pidfile"
+	"github.com/adnanh/webhook/internal/platform"
 
 	chimiddleware "github.com/go-chi/chi/middleware"
 	"github.com/gorilla/mux"
@@ -144,7 +145,7 @@ func main() {
 	}
 
 	if *setUID != 0 {
-		err := dropPrivileges(*setUID, *setGID)
+		err := platform.DropPrivileges(*setUID, *setGID)
 		if err != nil {
 			logQueue = append(logQueue, fmt.Sprintf("error dropping privileges: %s", err))
 			// we'll bail out below
@@ -197,7 +198,7 @@ func main() {
 	log.Println("version " + version + " starting")
 
 	// set os signal watcher
-	setupSignals()
+	platform.SetupSignals(signals, reloadAllHooks, pidFile)
 
 	// load and parse hooks
 	for _, hooksFilePath := range hooksFiles {

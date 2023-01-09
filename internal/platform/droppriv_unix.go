@@ -1,13 +1,13 @@
 //go:build !windows && !linux
 // +build !windows,!linux
 
-package main
+package platform
 
 import (
 	"syscall"
 )
 
-func dropPrivileges(uid, gid int) error {
+func DropPrivileges(uid, gid int) error {
 	err := syscall.Setgid(gid)
 	if err != nil {
 		return err

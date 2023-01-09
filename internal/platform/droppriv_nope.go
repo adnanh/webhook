@@ -1,13 +1,13 @@
 //go:build linux || windows
 // +build linux windows
 
-package main
+package platform
 
 import (
 	"errors"
 	"runtime"
 )
 
-func dropPrivileges(uid, gid int) error {
+func DropPrivileges(uid, gid int) error {
 	return errors.New("setuid and setgid not supported on " + runtime.GOOS)
 }

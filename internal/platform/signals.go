@@ -1,16 +1,18 @@
 //go:build !windows
 // +build !windows
 
-package main
+package platform
 
 import (
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/adnanh/webhook/internal/pidfile"
 )
 
-func setupSignals() {
+func SetupSignals(signals chan os.Signal, reloadFn func(), pidFile *pidfile.PIDFile) {
 	log.Printf("setting up os signal watcher\n")
 
 	signals = make(chan os.Signal, 1)
@@ -19,10 +21,10 @@ func setupSignals() {
 	signal.Notify(signals, syscall.SIGTERM)
 	signal.Notify(signals, os.Interrupt)
 
-	go watchForSignals()
+	go watchForSignals(signals, reloadFn, pidFile)
 }
 
-func watchForSignals() {
+func watchForSignals(signals chan os.Signal, reloadFn func(), pidFile *pidfile.PIDFile) {
 	log.Println("os signal watcher ready")
 
 	for {
@@ -30,11 +32,11 @@ func watchForSignals() {
 		switch sig {
 		case syscall.SIGUSR1:
 			log.Println("caught USR1 signal")
-			reloadAllHooks()
+			reloadFn()
 
 		case syscall.SIGHUP:
 			log.Println("caught HUP signal")
-			reloadAllHooks()
+			reloadFn()
 
 		case os.Interrupt, syscall.SIGTERM:
 			log.Printf("caught %s signal; exiting\n", sig)

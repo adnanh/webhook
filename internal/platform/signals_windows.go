@@ -1,8 +1,8 @@
 //go:build windows
 // +build windows
 
-package main
+package platform
 
-func setupSignals() {
+func SetupSignals() {
 	// NOOP: Windows doesn't have signals equivalent to the Unix world.
 }
