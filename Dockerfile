@@ -1,4 +1,5 @@
 FROM golang:1.19.4-bullseye AS Builder
+ENV GOPROXY=https://goproxy.cn
 WORKDIR /app
 COPY . .
 RUN go mod download -x

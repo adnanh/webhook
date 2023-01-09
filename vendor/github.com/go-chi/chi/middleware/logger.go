@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"runtime"
 	"time"
 )
 
@@ -16,7 +17,7 @@ var (
 	// DefaultLogger is called by the Logger middleware handler to log each request.
 	// Its made a package-level variable so that it can be reconfigured for custom
 	// logging configurations.
-	DefaultLogger = RequestLogger(&DefaultLogFormatter{Logger: log.New(os.Stdout, "", log.LstdFlags), NoColor: false})
+	DefaultLogger func(next http.Handler) http.Handler
 )
 
 // Logger is a middleware that logs the start and end of each request, along
@@ -25,8 +26,18 @@ var (
 // print in color, otherwise it will print in black and white. Logger prints a
 // request ID if one is provided.
 //
-// Alternatively, look at https://github.com/pressly/lg and the `lg.RequestLogger`
-// middleware pkg.
+// Alternatively, look at https://github.com/goware/httplog for a more in-depth
+// http logger with structured logging support.
+//
+// IMPORTANT NOTE: Logger should go before any other middleware that may change
+// the response, such as `middleware.Recoverer`. Example:
+//
+// ```go
+// r := chi.NewRouter()
+// r.Use(middleware.Logger)        // <--<< Logger should come before Recoverer
+// r.Use(middleware.Recoverer)
+// r.Get("/", handler)
+// ```
 func Logger(next http.Handler) http.Handler {
 	return DefaultLogger(next)
 }
@@ -40,7 +51,7 @@ func RequestLogger(f LogFormatter) func(next http.Handler) http.Handler {
 
 			t1 := time.Now()
 			defer func() {
-				entry.Write(ww.Status(), ww.BytesWritten(), time.Since(t1))
+				entry.Write(ww.Status(), ww.BytesWritten(), ww.Header(), time.Since(t1), nil)
 			}()
 
 			next.ServeHTTP(ww, WithLogEntry(r, entry))
@@ -58,7 +69,7 @@ type LogFormatter interface {
 // LogEntry records the final log when a request completes.
 // See defaultLogEntry for an example implementation.
 type LogEntry interface {
-	Write(status, bytes int, elapsed time.Duration)
+	Write(status, bytes int, header http.Header, elapsed time.Duration, extra interface{})
 	Panic(v interface{}, stack []byte)
 }
 
@@ -122,7 +133,7 @@ type defaultLogEntry struct {
 	useColor bool
 }
 
-func (l *defaultLogEntry) Write(status, bytes int, elapsed time.Duration) {
+func (l *defaultLogEntry) Write(status, bytes int, header http.Header, elapsed time.Duration, extra interface{}) {
 	switch {
 	case status < 200:
 		cW(l.buf, l.useColor, bBlue, "%03d", status)
@@ -151,8 +162,13 @@ func (l *defaultLogEntry) Write(status, bytes int, elapsed time.Duration) {
 }
 
 func (l *defaultLogEntry) Panic(v interface{}, stack []byte) {
-	panicEntry := l.NewLogEntry(l.request).(*defaultLogEntry)
-	cW(panicEntry.buf, l.useColor, bRed, "panic: %+v", v)
-	l.Logger.Print(panicEntry.buf.String())
-	l.Logger.Print(string(stack))
+	PrintPrettyStack(v)
+}
+
+func init() {
+	color := true
+	if runtime.GOOS == "windows" {
+		color = false
+	}
+	DefaultLogger = RequestLogger(&DefaultLogFormatter{Logger: log.New(os.Stdout, "", log.LstdFlags), NoColor: !color})
 }
