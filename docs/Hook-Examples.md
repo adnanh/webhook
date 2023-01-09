@@ -21,6 +21,7 @@ although the examples on this page all use the JSON format.
 * [XML Payload](#xml-payload)
 * [Multipart Form Data](#multipart-form-data)
 * [Pass string arguments to command](#pass-string-arguments-to-command)
+* [Receive Synology DSM notifications](#receive-synology-notifications)
 
 ## Incoming Github webhook
 
@@ -83,7 +84,7 @@ This example works on 2.8+ versions of Webhook - if you are on a previous series
 
 ## Incoming Bitbucket webhook
 
-Bitbucket does not pass any secrets back to the webhook.  [Per their documentation](https://confluence.atlassian.com/bitbucket/manage-webhooks-735643732.html#Managewebhooks-trigger_webhookTriggeringwebhooks), in order to verify that the webhook came from Bitbucket you must whitelist the IP range `104.192.143.0/24`:
+Bitbucket does not pass any secrets back to the webhook.  [Per their documentation](https://support.atlassian.com/organization-administration/docs/ip-addresses-and-domains-for-atlassian-cloud-products/#Outgoing-Connections), in order to verify that the webhook came from Bitbucket you must whitelist a set of IP ranges:
 
 ```json
 [
@@ -100,11 +101,23 @@ Bitbucket does not pass any secrets back to the webhook.  [Per their documentati
     ],
     "trigger-rule":
     {
-      "match":
-      {
-        "type": "ip-whitelist",
-        "ip-range": "104.192.143.0/24"
-      }
+      "or":
+      [
+        { "match": { "type": "ip-whitelist", "ip-range": "13.52.5.96/28" } },
+        { "match": { "type": "ip-whitelist", "ip-range": "13.236.8.224/28" } },
+        { "match": { "type": "ip-whitelist", "ip-range": "18.136.214.96/28" } },
+        { "match": { "type": "ip-whitelist", "ip-range": "18.184.99.224/28" } },
+        { "match": { "type": "ip-whitelist", "ip-range": "18.234.32.224/28" } },
+        { "match": { "type": "ip-whitelist", "ip-range": "18.246.31.224/28" } },
+        { "match": { "type": "ip-whitelist", "ip-range": "52.215.192.224/28" } },
+        { "match": { "type": "ip-whitelist", "ip-range": "104.192.137.240/28" } },
+        { "match": { "type": "ip-whitelist", "ip-range": "104.192.138.240/28" } },
+        { "match": { "type": "ip-whitelist", "ip-range": "104.192.140.240/28" } },
+        { "match": { "type": "ip-whitelist", "ip-range": "104.192.142.240/28" } },
+        { "match": { "type": "ip-whitelist", "ip-range": "104.192.143.240/28" } },
+        { "match": { "type": "ip-whitelist", "ip-range": "185.166.143.240/28" } },
+        { "match": { "type": "ip-whitelist", "ip-range": "185.166.142.240/28" } }
+      ]
     }
   }
 ]
@@ -621,6 +634,42 @@ The following example will pass two static string parameters ("-e 123123") to th
         "name": "pusher.email"
       }
     ]
+  }
+]
+```
+
+## Receive Synology DSM notifications
+
+It's possible to securely receive Synology push notifications via webhooks.
+Webhooks feature introduced in DSM 7.x seems to be incomplete & broken, but you can use Synology SMS notification service to push webhooks. To configure SMS notifications on DSM follow instructions found here: https://github.com/ryancurrah/synology-notifications this will allow you to set up everything needed for webhook to accept any and all notifications sent by Synology. During setup an 'api_key' is specified - you can generate your own 32-char string and use it as an authentication mechanism to secure your webhook. Additionally, you can specify what notifications to receive via this method by going and selecting the "SMS" checkboxes under topics of interes in DSM: Control Panel -> Notification -> Rules
+
+```json
+[
+  {
+    "id": "synology",
+    "execute-command": "do-something.sh",
+    "command-working-directory": "/opt/webhook-linux-amd64/synology",
+    "response-message": "Request accepted",
+    "pass-arguments-to-command":
+    [
+      {
+        "source": "payload",
+        "name": "message"
+      }
+    ],
+    "trigger-rule":
+    {
+      "match":
+      {
+        "type": "value",
+        "value": "PUT_YOUR_API_KEY_HERE",
+        "parameter":
+        {
+          "source": "header",
+          "name": "api_key"
+        }
+      }
+    }
   }
 ]
 ```
