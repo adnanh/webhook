@@ -1,6 +1,6 @@
 # What is webhook? ![build-status][badge]
 
- <img src="https://github.com/adnanh/webhook/raw/development/docs/logo/logo-128x128.png" alt="Webhook" align="left" />
+ <img src="./docs/logo/logo-128x128.png" alt="Webhook" align="left" />
  
  [webhook][w] is a lightweight configurable tool written in Go, that allows you to easily create HTTP endpoints (hooks) on your server, which you can use to execute configured commands. You can also pass data from the HTTP request (such as headers, payload or query variables) to your commands. [webhook][w] also allows you to specify rules which have to be satisfied in order for the hook to be triggered.
 
@@ -17,34 +17,17 @@ If you use Mattermost or Slack, you can set up an "Outgoing webhook integration"
 
 Everything else is the responsibility of the command's author.
 
-# Hookdoo
-<a href="https://www.hookdoo.com/?github"><img src="https://www.hookdoo.com/logo/logo.svg" height="96" alt="hookdoo" align="left" /></a>
-
-If you don't have time to waste configuring, hosting, debugging and maintaining your webhook instance, we offer a __SaaS__ solution that has all of the capabilities webhook provides, plus a lot more, and all that packaged in a nice friendly web interface. If you are interested, find out more at [hookdoo website](https://www.hookdoo.com/?ref=github-webhook-readme). If you have any questions, you can contact us at info@hookdoo.com
-
-#
-
-<a href="https://www.hookdeck.com/?ref=adnanh-webhook"><img src="http://hajdarevic.net/hookdeck-logo.svg" height="17" alt="hookdeck" align="left" /></a> If you need a way of inspecting, monitoring and replaying webhooks without the back and forth troubleshooting, [give Hookdeck a try!](https://www.hookdeck.com/?ref=adnanh-webhook)
-
 # Getting started
 ## Installation
 ### Building from source
-To get started, first make sure you've properly set up your [Go](http://golang.org/doc/install) 1.14 or newer environment and then run
+To get started, first make sure you've properly set up your [Go](http://golang.org/doc/install) 1.19 or newer environment and then run
 ```bash
 $ go build github.com/adnanh/webhook
 ```
 to build the latest version of the [webhook][w].
 
-### Using package manager
-
-#### Ubuntu
-If you are using Ubuntu linux (17.04 or later), you can install webhook using `sudo apt-get install webhook` which will install community packaged version.
-
-#### Debian
-If you are using Debian linux ("stretch" or later), you can install webhook using `sudo apt-get install webhook` which will install community packaged version (thanks [@freeekanayaka](https://github.com/freeekanayaka)) from https://packages.debian.org/sid/webhook
-
 ### Download prebuilt binaries
-Prebuilt binaries for different architectures are available at [GitHub Releases](https://github.com/adnanh/webhook/releases).
+Prebuilt binaries for different architectures are available at [GitHub Releases](https://github.com/soulteary/webhook/releases).
 
 ## Configuration
 Next step is to define some hooks you want [webhook][w] to serve.
@@ -145,57 +128,13 @@ Check out [Hook examples page](docs/Hook-Examples.md) for more complex examples 
 See the [webhook-contrib][wc] repository for a collections of tools and helpers related to [webhook][w] that have been contributed by the [webhook][w] community.
 
 ## Need help?
-Check out [existing issues](https://github.com/adnanh/webhook/issues) to see if someone else also had the same problem, or [open a new one](https://github.com/adnanh/webhook/issues/new).
-
-# Support active development
-
-## Sponsors
-## <a href="https://www.digitalocean.com/?ref=webhook"><img src="http://www.hajdarevic.net/DO_Logo_Horizontal_Blue.png" alt="DigitalOcean" width="250"/></a>
-[DigitalOcean](https://www.digitalocean.com/?ref=webhook) is a simple and robust cloud computing platform, designed for developers.
-
-
-## <a href="https://www.browserstack.com/?ref=webhook"><img src="http://www.hajdarevic.net/browserstack.svg" alt="BrowserStack" width="250"/></a>
-[BrowserStack](https://www.browserstack.com/?ref=webhook) is a cloud-based cross-browser testing tool that enables developers to test their websites across various browsers on different operating systems and mobile devices, without requiring users to install virtual machines, devices or emulators.
-
----
-
-Support this project by becoming a sponsor. Your logo will show up here with a link to your website.
-
-<a href="https://opencollective.com/webhook/sponsor/0/website" target="_blank"><img src="https://opencollective.com/webhook/sponsor/0/avatar.svg"></a>
-<a href="https://opencollective.com/webhook/sponsor/1/website" target="_blank"><img src="https://opencollective.com/webhook/sponsor/1/avatar.svg"></a>
-<a href="https://opencollective.com/webhook/sponsor/2/website" target="_blank"><img src="https://opencollective.com/webhook/sponsor/2/avatar.svg"></a>
-<a href="https://opencollective.com/webhook/sponsor/3/website" target="_blank"><img src="https://opencollective.com/webhook/sponsor/3/avatar.svg"></a>
-<a href="https://opencollective.com/webhook/sponsor/4/website" target="_blank"><img src="https://opencollective.com/webhook/sponsor/4/avatar.svg"></a>
-<a href="https://opencollective.com/webhook/sponsor/5/website" target="_blank"><img src="https://opencollective.com/webhook/sponsor/5/avatar.svg"></a>
-<a href="https://opencollective.com/webhook/sponsor/6/website" target="_blank"><img src="https://opencollective.com/webhook/sponsor/6/avatar.svg"></a>
-<a href="https://opencollective.com/webhook/sponsor/7/website" target="_blank"><img src="https://opencollective.com/webhook/sponsor/7/avatar.svg"></a>
-<a href="https://opencollective.com/webhook/sponsor/8/website" target="_blank"><img src="https://opencollective.com/webhook/sponsor/8/avatar.svg"></a>
-<a href="https://opencollective.com/webhook/sponsor/9/website" target="_blank"><img src="https://opencollective.com/webhook/sponsor/9/avatar.svg"></a>
-
-## By contributing
-
-This project exists thanks to all the people who contribute. [Contribute!](CONTRIBUTING.md).
-<a href="graphs/contributors"><img src="https://opencollective.com/webhook/contributors.svg?width=890" /></a>
-
-## By giving money
-
- - [OpenCollective Backer](https://opencollective.com/webhook#backer)
- - [OpenCollective Sponsor](https://opencollective.com/webhook#sponsor)
- - [PayPal](https://paypal.me/hookdoo)
- - [Patreon](https://www.patreon.com/webhook)
- - [Faircode](https://faircode.io/product/webhook?utm_source=badge&utm_medium=badgelarge&utm_campaign=webhook)
- - [Flattr](https://flattr.com/submit/auto?user_id=adnanh&url=https%3A%2F%2Fwww.github.com%2Fadnanh%2Fwebhook)
-
----
-
-Thank you to all our backers!
-
-<a href="https://opencollective.com/webhook#backers" target="_blank"><img src="https://opencollective.com/webhook/backers.svg?width=890"></a>
+Check out [existing issues](https://github.com/soulteary/webhook/issues) to see if someone else also had the same problem, or [open a new one](https://github.com/soulteary/webhook/issues/new).
 
 # License
 
 The MIT License (MIT)
 
+Copyright (c) 2023 soulteary <soulteary@gmail.com>
 Copyright (c) 2015 Adnan Hajdarevic <adnanh@gmail.com>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -217,6 +156,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 
-[w]: https://github.com/adnanh/webhook
-[wc]: https://github.com/adnanh/webhook-contrib
-[badge]: https://github.com/adnanh/webhook/workflows/build/badge.svg
+[w]: https://github.com/soulteary/webhook
+[wc]: https://github.com/soulteary/webhook-contrib
+[badge]: https://github.com/soulteary/webhook/workflows/build/badge.svg
