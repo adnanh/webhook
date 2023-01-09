@@ -1,0 +1,8 @@
+FROM alpine:3.15.0 as certs
+RUN apk --update add ca-certificates
+
+FROM scratch
+COPY --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY webhook /usr/bin/webhook
+EXPOSE 8345/tcp
+ENTRYPOINT ["/usr/bin/webhook"]

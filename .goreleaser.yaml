@@ -1,4 +1,4 @@
-project_name: hbh
+project_name: webhook
 
 builds:
   - <<: &build_defaults
