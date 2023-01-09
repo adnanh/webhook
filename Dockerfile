@@ -1,4 +1,4 @@
-FROM golang:1.17.5-stretch AS Builder
+FROM golang:1.19.4-bullseye AS Builder
 WORKDIR /app
 COPY . .
 RUN go mod download -x
