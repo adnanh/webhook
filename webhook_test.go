@@ -47,7 +47,7 @@ func TestStaticParams(t *testing.T) {
 		ResponseMessage:         "success",
 		CaptureCommandOutput:    true,
 		PassArgumentsToCommand: []hook.Argument{
-			hook.Argument{Source: "string", Name: "passed"},
+			{Source: "string", Name: "passed"},
 		},
 	}
 

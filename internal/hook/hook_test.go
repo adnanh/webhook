@@ -294,14 +294,14 @@ var hookParseJSONParametersTests = []struct {
 	rheaders, rquery, rpayload map[string]interface{}
 	ok                         bool
 }{
-	{[]Argument{Argument{"header", "a", "", false}}, map[string]interface{}{"A": `{"b": "y"}`}, nil, nil, map[string]interface{}{"A": map[string]interface{}{"b": "y"}}, nil, nil, true},
-	{[]Argument{Argument{"url", "a", "", false}}, nil, map[string]interface{}{"a": `{"b": "y"}`}, nil, nil, map[string]interface{}{"a": map[string]interface{}{"b": "y"}}, nil, true},
-	{[]Argument{Argument{"payload", "a", "", false}}, nil, nil, map[string]interface{}{"a": `{"b": "y"}`}, nil, nil, map[string]interface{}{"a": map[string]interface{}{"b": "y"}}, true},
-	{[]Argument{Argument{"header", "z", "", false}}, map[string]interface{}{"Z": `{}`}, nil, nil, map[string]interface{}{"Z": map[string]interface{}{}}, nil, nil, true},
+	{[]Argument{{"header", "a", "", false}}, map[string]interface{}{"A": `{"b": "y"}`}, nil, nil, map[string]interface{}{"A": map[string]interface{}{"b": "y"}}, nil, nil, true},
+	{[]Argument{{"url", "a", "", false}}, nil, map[string]interface{}{"a": `{"b": "y"}`}, nil, nil, map[string]interface{}{"a": map[string]interface{}{"b": "y"}}, nil, true},
+	{[]Argument{{"payload", "a", "", false}}, nil, nil, map[string]interface{}{"a": `{"b": "y"}`}, nil, nil, map[string]interface{}{"a": map[string]interface{}{"b": "y"}}, true},
+	{[]Argument{{"header", "z", "", false}}, map[string]interface{}{"Z": `{}`}, nil, nil, map[string]interface{}{"Z": map[string]interface{}{}}, nil, nil, true},
 	// failures
-	{[]Argument{Argument{"header", "z", "", false}}, map[string]interface{}{"Z": ``}, nil, nil, map[string]interface{}{"Z": ``}, nil, nil, false},     // empty string
-	{[]Argument{Argument{"header", "y", "", false}}, map[string]interface{}{"X": `{}`}, nil, nil, map[string]interface{}{"X": `{}`}, nil, nil, false}, // missing parameter
-	{[]Argument{Argument{"string", "z", "", false}}, map[string]interface{}{"Z": ``}, nil, nil, map[string]interface{}{"Z": ``}, nil, nil, false},     // invalid argument source
+	{[]Argument{{"header", "z", "", false}}, map[string]interface{}{"Z": ``}, nil, nil, map[string]interface{}{"Z": ``}, nil, nil, false},     // empty string
+	{[]Argument{{"header", "y", "", false}}, map[string]interface{}{"X": `{}`}, nil, nil, map[string]interface{}{"X": `{}`}, nil, nil, false}, // missing parameter
+	{[]Argument{{"string", "z", "", false}}, map[string]interface{}{"Z": ``}, nil, nil, map[string]interface{}{"Z": ``}, nil, nil, false},     // invalid argument source
 }
 
 func TestHookParseJSONParameters(t *testing.T) {
@@ -326,9 +326,9 @@ var hookExtractCommandArgumentsTests = []struct {
 	value                   []string
 	ok                      bool
 }{
-	{"test", []Argument{Argument{"header", "a", "", false}}, map[string]interface{}{"A": "z"}, nil, nil, []string{"test", "z"}, true},
+	{"test", []Argument{{"header", "a", "", false}}, map[string]interface{}{"A": "z"}, nil, nil, []string{"test", "z"}, true},
 	// failures
-	{"fail", []Argument{Argument{"payload", "a", "", false}}, map[string]interface{}{"A": "z"}, nil, nil, []string{"fail", ""}, false},
+	{"fail", []Argument{{"payload", "a", "", false}}, map[string]interface{}{"A": "z"}, nil, nil, []string{"fail", ""}, false},
 }
 
 func TestHookExtractCommandArguments(t *testing.T) {
@@ -351,20 +351,21 @@ func TestHookExtractCommandArguments(t *testing.T) {
 // we test both cases where the name of the data is used as the name of the
 // env key & the case where the hook definition sets the env var name to a
 // fixed value using the envname construct like so::
-//    [
-//      {
-//        "id": "push",
-//        "execute-command": "bb2mm",
-//        "command-working-directory": "/tmp",
-//        "pass-environment-to-command":
-//        [
-//          {
-//            "source": "entire-payload",
-//            "envname": "PAYLOAD"
-//          },
-//        ]
-//      }
-//    ]
+//
+//	[
+//	  {
+//	    "id": "push",
+//	    "execute-command": "bb2mm",
+//	    "command-working-directory": "/tmp",
+//	    "pass-environment-to-command":
+//	    [
+//	      {
+//	        "source": "entire-payload",
+//	        "envname": "PAYLOAD"
+//	      },
+//	    ]
+//	  }
+//	]
 var hookExtractCommandArgumentsForEnvTests = []struct {
 	exec                    string
 	args                    []Argument
@@ -375,14 +376,14 @@ var hookExtractCommandArgumentsForEnvTests = []struct {
 	// successes
 	{
 		"test",
-		[]Argument{Argument{"header", "a", "", false}},
+		[]Argument{{"header", "a", "", false}},
 		map[string]interface{}{"A": "z"}, nil, nil,
 		[]string{"HOOK_a=z"},
 		true,
 	},
 	{
 		"test",
-		[]Argument{Argument{"header", "a", "MYKEY", false}},
+		[]Argument{{"header", "a", "MYKEY", false}},
 		map[string]interface{}{"A": "z"}, nil, nil,
 		[]string{"MYKEY=z"},
 		true,
@@ -390,7 +391,7 @@ var hookExtractCommandArgumentsForEnvTests = []struct {
 	// failures
 	{
 		"fail",
-		[]Argument{Argument{"payload", "a", "", false}},
+		[]Argument{{"payload", "a", "", false}},
 		map[string]interface{}{"A": "z"}, nil, nil,
 		[]string{},
 		false,
