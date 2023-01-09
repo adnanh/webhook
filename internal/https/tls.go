@@ -1,4 +1,4 @@
-package main
+package https
 
 import (
 	"crypto/tls"
@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func writeTLSSupportedCipherStrings(w io.Writer, min uint16) error {
+func WriteTLSSupportedCipherStrings(w io.Writer, min uint16) error {
 	for _, c := range tls.CipherSuites() {
 		var found bool
 
@@ -30,8 +30,8 @@ func writeTLSSupportedCipherStrings(w io.Writer, min uint16) error {
 	return nil
 }
 
-// getTLSMinVersion converts a version string into a TLS version ID.
-func getTLSMinVersion(v string) uint16 {
+// GetTLSMinVersion converts a version string into a TLS version ID.
+func GetTLSMinVersion(v string) uint16 {
 	switch v {
 	case "1.0":
 		return tls.VersionTLS10
@@ -47,9 +47,9 @@ func getTLSMinVersion(v string) uint16 {
 	}
 }
 
-// getTLSCipherSuites converts a comma separated list of cipher suites into a
+// GetTLSCipherSuites converts a comma separated list of cipher suites into a
 // slice of TLS cipher suite IDs.
-func getTLSCipherSuites(v string) []uint16 {
+func GetTLSCipherSuites(v string) []uint16 {
 	supported := tls.CipherSuites()
 
 	if v == "" {

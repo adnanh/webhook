@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/adnanh/webhook/internal/hook"
+	"github.com/adnanh/webhook/internal/https"
 	"github.com/adnanh/webhook/internal/middleware"
 	"github.com/adnanh/webhook/internal/pidfile"
 	"github.com/adnanh/webhook/internal/platform"
@@ -109,7 +110,7 @@ func main() {
 	}
 
 	if *justListCiphers {
-		err := writeTLSSupportedCipherStrings(os.Stdout, getTLSMinVersion(*tlsMinVersion))
+		err := https.WriteTLSSupportedCipherStrings(os.Stdout, https.GetTLSMinVersion(*tlsMinVersion))
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -300,9 +301,9 @@ func main() {
 
 	// Server HTTPS
 	svr.TLSConfig = &tls.Config{
-		CipherSuites:             getTLSCipherSuites(*tlsCipherSuites),
+		CipherSuites:             https.GetTLSCipherSuites(*tlsCipherSuites),
 		CurvePreferences:         []tls.CurveID{tls.CurveP521, tls.CurveP384, tls.CurveP256},
-		MinVersion:               getTLSMinVersion(*tlsMinVersion),
+		MinVersion:               https.GetTLSMinVersion(*tlsMinVersion),
 		PreferServerCipherSuites: true,
 	}
 	svr.TLSNextProto = make(map[string]func(*http.Server, *tls.Conn, http.Handler)) // disable http/2
