@@ -425,6 +425,7 @@ var hooksLoadFromFileTests = []struct {
 	{"", false, true},
 	// failures
 	{"missing.json", false, false},
+	{"testdata/unrecognized.yaml", false, false},
 }
 
 func TestHooksLoadFromFile(t *testing.T) {
@@ -434,6 +435,7 @@ func TestHooksLoadFromFile(t *testing.T) {
 	for _, tt := range hooksLoadFromFileTests {
 		h := &Hooks{}
 		err := h.LoadFromFile(tt.path, tt.asTemplate)
+		t.Log(err)
 		if (err == nil) != tt.ok {
 			t.Errorf(err.Error())
 		}
