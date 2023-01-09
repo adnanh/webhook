@@ -206,21 +206,20 @@ func main() {
 		newHooks := hook.Hooks{}
 
 		err := newHooks.LoadFromFile(hooksFilePath, *asTemplate)
-
 		if err != nil {
-			log.Fatalf("couldn't load hooks from file! %+v\n", err)
-		}
+			log.Printf("couldn't load hooks from file! %+v\n", err)
+		} else {
+			log.Printf("found %d hook(s) in file\n", len(newHooks))
 
-		log.Printf("found %d hook(s) in file\n", len(newHooks))
-
-		for _, hook := range newHooks {
-			if matchLoadedHook(hook.ID) != nil {
-				log.Fatalf("error: hook with the id %s has already been loaded!\nplease check your hooks file for duplicate hooks ids!\n", hook.ID)
+			for _, hook := range newHooks {
+				if matchLoadedHook(hook.ID) != nil {
+					log.Fatalf("error: hook with the id %s has already been loaded!\nplease check your hooks file for duplicate hooks ids!\n", hook.ID)
+				}
+				log.Printf("\tloaded: %s\n", hook.ID)
 			}
-			log.Printf("\tloaded: %s\n", hook.ID)
-		}
 
-		loadedHooksFromFiles[hooksFilePath] = newHooks
+			loadedHooksFromFiles[hooksFilePath] = newHooks
+		}
 	}
 
 	newHooksFiles := hooksFiles[:0]

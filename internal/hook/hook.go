@@ -816,13 +816,7 @@ func (h *Hooks) LoadFromFile(path string, asTemplate bool) error {
 		file = buf.Bytes()
 	}
 
-	toJSON, err := yaml.YAMLToJSON(file)
-	if err != nil {
-		return err
-	}
-	jsonDecoder := json.NewDecoder(bytes.NewBuffer(toJSON))
-	jsonDecoder.DisallowUnknownFields()
-	return jsonDecoder.Decode(h)
+	return yaml.Unmarshal(file, h)
 }
 
 // Append appends hooks unless the new hooks contain a hook with an ID that already exists
