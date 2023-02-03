@@ -15,5 +15,5 @@ require (
 	golang.org/x/sys v0.0.0-20191228213918-04cbcbbfeed8
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
 	gopkg.in/fsnotify.v1 v1.4.2
-	gopkg.in/yaml.v2 v2.0.0-20170812160011-eb3733d160e7 // indirect
+	gopkg.in/yaml.v2 v2.2.8 // indirect
 )
