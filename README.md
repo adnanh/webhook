@@ -18,7 +18,7 @@ If you use Mattermost or Slack, you can set up an "Outgoing webhook integration"
 Everything else is the responsibility of the command's author.
 
 # Hookdoo
-<a href="https://www.hookdoo.com/?github"><img src="https://www.hookdoo.com/logo/logo.svg" height="96" alt="hookdoo" align="left" /></a>
+<a href="https://www.hookdoo.com/?github"><img src="https://hookdoo.com/img/Hookdoo_Logo_1.png" height="96" alt="hookdoo" align="left" /></a>
 
 If you don't have time to waste configuring, hosting, debugging and maintaining your webhook instance, we offer a __SaaS__ solution that has all of the capabilities webhook provides, plus a lot more, and all that packaged in a nice friendly web interface. If you are interested, find out more at [hookdoo website](https://www.hookdoo.com/?ref=github-webhook-readme). If you have any questions, you can contact us at info@hookdoo.com
 
