@@ -265,6 +265,10 @@ func main() {
 	hooksURL := makeRoutePattern(hooksURLPrefix)
 
 	r.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
+		for _, responseHeader := range responseHeaders {
+			w.Header().Set(responseHeader.Name, responseHeader.Value)
+		}
+
 		fmt.Fprint(w, "OK")
 	})
 
