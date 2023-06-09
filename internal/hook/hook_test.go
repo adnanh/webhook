@@ -351,20 +351,21 @@ func TestHookExtractCommandArguments(t *testing.T) {
 // we test both cases where the name of the data is used as the name of the
 // env key & the case where the hook definition sets the env var name to a
 // fixed value using the envname construct like so::
-//    [
-//      {
-//        "id": "push",
-//        "execute-command": "bb2mm",
-//        "command-working-directory": "/tmp",
-//        "pass-environment-to-command":
-//        [
-//          {
-//            "source": "entire-payload",
-//            "envname": "PAYLOAD"
-//          },
-//        ]
-//      }
-//    ]
+//
+//	[
+//	  {
+//	    "id": "push",
+//	    "execute-command": "bb2mm",
+//	    "command-working-directory": "/tmp",
+//	    "pass-environment-to-command":
+//	    [
+//	      {
+//	        "source": "entire-payload",
+//	        "envname": "PAYLOAD"
+//	      },
+//	    ]
+//	  }
+//	]
 var hookExtractCommandArgumentsForEnvTests = []struct {
 	exec                    string
 	args                    []Argument
@@ -493,8 +494,11 @@ var matchRuleTests = []struct {
 	{"regex", "^z", "", "z", "", Argument{"header", "a", "", false, nil}, map[string]interface{}{"A": "z"}, nil, nil, []byte{}, "", true, false},
 	{"payload-hmac-sha1", "", "secret", "", "", Argument{"header", "a", "", false, nil}, map[string]interface{}{"A": "b17e04cbb22afa8ffbff8796fc1894ed27badd9e"}, nil, nil, []byte(`{"a": "z"}`), "", true, false},
 	{"payload-hash-sha1", "", "secret", "", "", Argument{"header", "a", "", false, nil}, map[string]interface{}{"A": "b17e04cbb22afa8ffbff8796fc1894ed27badd9e"}, nil, nil, []byte(`{"a": "z"}`), "", true, false},
+	{"payload-hash-sha1", "", "secret", "", "", Argument{"header", "a", "", false, []string{"X-Header"}}, map[string]interface{}{"A": "63bfb5c18198b324c22a2349796ac1657cec24e5", "X-Header": "custom-value"}, nil, nil, []byte(`{"a": "z"}`), "", true, false},
 	{"payload-hmac-sha256", "", "secret", "", "", Argument{"header", "a", "", false, nil}, map[string]interface{}{"A": "f417af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89"}, nil, nil, []byte(`{"a": "z"}`), "", true, false},
 	{"payload-hash-sha256", "", "secret", "", "", Argument{"header", "a", "", false, nil}, map[string]interface{}{"A": "f417af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89"}, nil, nil, []byte(`{"a": "z"}`), "", true, false},
+	{"payload-hash-sha256", "", "secret", "", "", Argument{"header", "a", "", false, []string{"X-Header"}}, map[string]interface{}{"A": "0a817ee9c28421c89e30792534fbe2dff5c246fe3a2e31d624ddab20f0227268", "X-Header": "custom-value"}, nil, nil, []byte(`{"a": "z"}`), "", true, false},
+	{"payload-hash-sha512", "", "secret", "", "", Argument{"header", "a", "", false, []string{"X-Header"}}, map[string]interface{}{"A": "08ed79bb565b6848666d40c874e2818552f897923cd43765dcd4983bfa6fa4d2443c3be0d3addda1cd416bcc538c48b0d328a9c4af6ce7a7fecd4ba7641a6412", "X-Header": "custom-value"}, nil, nil, []byte(`{"a": "z"}`), "", true, false},
 	// failures
 	{"value", "", "", "X", "", Argument{"header", "a", "", false, nil}, map[string]interface{}{"A": "z"}, nil, nil, []byte{}, "", false, false},
 	{"regex", "^X", "", "", "", Argument{"header", "a", "", false, nil}, map[string]interface{}{"A": "z"}, nil, nil, []byte{}, "", false, false},
