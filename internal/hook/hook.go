@@ -951,13 +951,11 @@ func (r MatchRule) Evaluate(req *Request) (bool, error) {
 
 // signaturePayload will concatenate the request body with header values from headers specified in r.Parameter.SignaturePayloadHeaders.
 func (r MatchRule) signaturePayload(body []byte, headers map[string]interface{}) []byte {
-	if len(r.Parameter.SignaturePayloadHeaders) > 0 {
-		for _, elem := range r.Parameter.SignaturePayloadHeaders {
-			h, found := headers[elem]
-			header := fmt.Sprintf("%s", h)
-			if found && header != "" {
-				body = append(body, []byte(header)...)
-			}
+	for _, elem := range r.Parameter.SignaturePayloadHeaders {
+		h, found := headers[elem]
+		header := fmt.Sprintf("%s", h)
+		if found && header != "" {
+			body = append(body, []byte(header)...)
 		}
 	}
 
