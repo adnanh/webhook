@@ -10,7 +10,7 @@ help:
 all: build release release-windows
 
 build: deps ## Build the project
-	go build
+	go build -ldflags "-linkmode external -extldflags=-static"
 
 release: clean deps ## Generate releases for unix systems
 	@for arch in $(ARCHS);\
