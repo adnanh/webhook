@@ -140,6 +140,7 @@ Check out [Hook examples page](docs/Hook-Examples.md) for more complex examples 
  - VIDEO: [Gitlab CI/CD configuration using Docker and adnanh/webhook to deploy on VPS - Tutorial #1](https://www.youtube.com/watch?v=Qhn-lXjyrZA&feature=youtu.be) by [Yes! Let's Learn Software Engineering](https://www.youtube.com/channel/UCH4XJf2BZ_52fbf8fOBMF3w)
  - [Integrate automatic deployment in 20 minutes using webhooks + Nginx setup](https://anksus.me/blog/integrate-automatic-deployment-in-20-minutes-using-webhooks) by [Anksus](https://github.com/Anksus)
  - [Automatically redeploy your static blog with Gitea, Uberspace & Webhook](https://by.arran.nz/posts/code/webhook-deploy/) by [Arran](https://arran.nz)
+- [Automatically Updating My Zola Site Using a Webhook](https://osc.garden/blog/updating-site-with-webhook/) by [Óscar Fernández](https://osc.garden/)
  - ...
  - Want to add your own? Open an Issue or create a PR :-)
  
