@@ -380,7 +380,7 @@ http://localhost:9000/hooks/test-file-webhook
 Scalr makes webhook calls based on an event to a configured webhook endpoint (for example Host Down, Host Up). Webhook endpoints are URLs where Scalr will deliver Webhook notifications.  
 Scalr assigns a unique signing key for every configured webhook endpoint.
 Refer to this URL for information on how to setup the webhook call on the Scalr side: [Scalr Wiki Webhooks](https://scalr-wiki.atlassian.net/wiki/spaces/docs/pages/6193173/Webhooks)
-In order to leverage the Signing Key for addtional authentication/security you must configure the trigger rule with a match type of "scalr-signature".
+In order to leverage the Signing Key for additional authentication/security you must configure the trigger rule with a match type of "scalr-signature".
 
 ```json
 [
