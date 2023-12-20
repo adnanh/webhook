@@ -41,7 +41,7 @@ Additionally, the result is piped through the built-in Go template function `js`
         {
           "match": {
             "type": "payload-hmac-sha1",
-            "secret": "{{ getenv \"XXXTEST_SECRET\" | js }}",
+            "secret": "{{ getenv "XXXTEST_SECRET" | js }}",
             "parameter": {
               "source": "header",
               "name": "X-Hub-Signature"
