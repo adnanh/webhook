@@ -26,12 +26,6 @@ If you don't have time to waste configuring, hosting, debugging and maintaining 
 
 <a href="https://www.hookdeck.com/?ref=adnanh-webhook"><img src="http://hajdarevic.net/hookdeck-logo.svg" height="17" alt="hookdeck" align="left" /></a> If you need a way of inspecting, monitoring and replaying webhooks without the back and forth troubleshooting, [give Hookdeck a try!](https://www.hookdeck.com/?ref=adnanh-webhook)
 
-# Nango
-
-<a href="https://www.nango.dev?utm_source=github&utm_medium=oss-banner&utm_campaign=adnanh-webhook"><img src="https://uploads-ssl.webflow.com/64f77a831b9d50c279dc926c/656a436fa14ac7bdd490de84_Nango_Github_Banner_1200x398.png" height="110" alt="Nango" align="left" /></a>
-
-Building integrations to receive webhooks from an external API? Check out [Nango](https://www.nango.dev?utm_source=github&utm_medium=oss-banner&utm_campaign=adnanh-webhook), an open source platform for **product integrations**. Nango provides a unified API, helps you deal with OAuth, and syncs data between your application and external APIs.
-
 # Getting started
 ## Installation
 ### Building from source
