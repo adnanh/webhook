@@ -45,6 +45,9 @@ If you are using Ubuntu linux (17.04 or later), you can install webhook using `s
 #### Debian
 If you are using Debian linux ("stretch" or later), you can install webhook using `sudo apt-get install webhook` which will install community packaged version (thanks [@freeekanayaka](https://github.com/freeekanayaka)) from https://packages.debian.org/sid/webhook
 
+#### FreeBSD
+If you are using FreeBSD, you can install webhook using `pkg install webhook`.
+
 ### Download prebuilt binaries
 Prebuilt binaries for different architectures are available at [GitHub Releases](https://github.com/adnanh/webhook/releases).
 
