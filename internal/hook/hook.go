@@ -434,10 +434,11 @@ func ExtractParameterAsString(s string, params interface{}) (string, error) {
 // Argument type specifies the parameter key name and the source it should
 // be extracted from
 type Argument struct {
-	Source       string `json:"source,omitempty"`
-	Name         string `json:"name,omitempty"`
-	EnvName      string `json:"envname,omitempty"`
-	Base64Decode bool   `json:"base64decode,omitempty"`
+	Source                  string   `json:"source,omitempty"`
+	Name                    string   `json:"name,omitempty"`
+	EnvName                 string   `json:"envname,omitempty"`
+	Base64Decode            bool     `json:"base64decode,omitempty"`
+	SignaturePayloadHeaders []string `json:"headers-to-add-to-signature-payload,omitempty"`
 }
 
 // Get Argument method returns the value for the Argument's key name
@@ -919,6 +920,7 @@ func (r MatchRule) Evaluate(req *Request) (bool, error) {
 
 	arg, err := r.Parameter.Get(req)
 	if err == nil {
+		payload := r.signaturePayload(req.Body, req.Headers)
 		switch r.Type {
 		case MatchValue:
 			return compare(arg, r.Value), nil
@@ -928,23 +930,36 @@ func (r MatchRule) Evaluate(req *Request) (bool, error) {
 			log.Print(`warn: use of deprecated option payload-hash-sha1; use payload-hmac-sha1 instead`)
 			fallthrough
 		case MatchHMACSHA1:
-			_, err := CheckPayloadSignature(req.Body, r.Secret, arg)
+			_, err := CheckPayloadSignature(payload, r.Secret, arg)
 			return err == nil, err
 		case MatchHashSHA256:
 			log.Print(`warn: use of deprecated option payload-hash-sha256: use payload-hmac-sha256 instead`)
 			fallthrough
 		case MatchHMACSHA256:
-			_, err := CheckPayloadSignature256(req.Body, r.Secret, arg)
+			_, err := CheckPayloadSignature256(payload, r.Secret, arg)
 			return err == nil, err
 		case MatchHashSHA512:
 			log.Print(`warn: use of deprecated option payload-hash-sha512: use payload-hmac-sha512 instead`)
 			fallthrough
 		case MatchHMACSHA512:
-			_, err := CheckPayloadSignature512(req.Body, r.Secret, arg)
+			_, err := CheckPayloadSignature512(payload, r.Secret, arg)
 			return err == nil, err
 		}
 	}
 	return false, err
+}
+
+// signaturePayload will concatenate the request body with header values from headers specified in r.Parameter.SignaturePayloadHeaders.
+func (r MatchRule) signaturePayload(body []byte, headers map[string]interface{}) []byte {
+	for _, elem := range r.Parameter.SignaturePayloadHeaders {
+		h, found := headers[elem]
+		header := fmt.Sprintf("%s", h)
+		if found && header != "" {
+			body = append(body, []byte(header)...)
+		}
+	}
+
+	return body
 }
 
 // compare is a helper function for constant time string comparisons.
