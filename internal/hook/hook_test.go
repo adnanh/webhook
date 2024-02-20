@@ -231,6 +231,8 @@ var extractParameterTests = []struct {
 	{"b", map[string]interface{}{"b": map[string]interface{}{"z": 1}}, `{"z":1}`, true},
 	{"c", map[string]interface{}{"c": []interface{}{"y", "z"}}, `["y","z"]`, true},
 	{"d", map[string]interface{}{"d": [2]interface{}{"y", "z"}}, `["y","z"]`, true},
+	{"a.b.c.1", map[string]interface{}{"a": map[string]interface{}{"b": map[string]interface{}{"c.1": "z"}}}, "z", true},
+	{"a.b.1.c", map[string]interface{}{"a": map[string]interface{}{"b.1": map[string]interface{}{"c": "z"}}}, "z", true},
 	// failures
 	{"check_nil", nil, "", false},
 	{"a.X", map[string]interface{}{"a": map[string]interface{}{"b": "z"}}, "", false},                                                      // non-existent parameter reference
