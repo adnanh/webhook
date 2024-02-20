@@ -17,14 +17,11 @@ If you use Mattermost or Slack, you can set up an "Outgoing webhook integration"
 
 Everything else is the responsibility of the command's author.
 
-# Hookdoo
-<a href="https://www.hookdoo.com/?github"><img src="https://hookdoo.com/img/Hookdoo_Logo_1.png" height="96" alt="hookdoo" align="left" /></a>
-
-If you don't have time to waste configuring, hosting, debugging and maintaining your webhook instance, we offer a __SaaS__ solution that has all of the capabilities webhook provides, plus a lot more, and all that packaged in a nice friendly web interface. If you are interested, find out more at [hookdoo website](https://www.hookdoo.com/?ref=github-webhook-readme). If you have any questions, you can contact us at info@hookdoo.com
-
-#
-
-<a href="https://www.hookdeck.com/?ref=adnanh-webhook"><img src="http://hajdarevic.net/hookdeck-logo.svg" height="17" alt="hookdeck" align="left" /></a> If you need a way of inspecting, monitoring and replaying webhooks without the back and forth troubleshooting, [give Hookdeck a try!](https://www.hookdeck.com/?ref=adnanh-webhook)
+## Not what you're looking for?
+| <a href="https://www.hookdoo.com/?github"><img src="https://hookdoo.com/img/Hookdoo_Logo_1.png" height="48" alt="hookdoo" /></a> | <a href="https://www.hookdeck.com/?ref=adnanh-webhook"><img src="http://hajdarevic.net/hookdeck-logo.svg" height="17" alt="hookdeck" /></a> |
+| :-: | :-: |
+| Scriptable webhook gateway to safely run your custom builds, deploys, and proxy scripts on your servers.                                      | Inspect, monitor and replay webhooks without the back and forth troubleshooting. |
+ 
 
 # Getting started
 ## Installation
