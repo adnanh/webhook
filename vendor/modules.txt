@@ -21,9 +21,9 @@ github.com/gofrs/uuid
 github.com/gorilla/mux
 # github.com/kr/pretty v0.1.0
 ## explicit
-# golang.org/x/net v0.0.0-20191209160850-c0dbc17a3553
+# golang.org/x/net v0.7.0
 ## explicit
-# golang.org/x/sys v0.0.0-20191228213918-04cbcbbfeed8
+# golang.org/x/sys v0.7.0
 ## explicit
 golang.org/x/sys/unix
 golang.org/x/sys/windows
