@@ -10,6 +10,7 @@ In the example JSON template file below (YAML is also supported), the `payload-h
 Additionally, the result is piped through the built-in Go template function `js` to ensure that the result is a well-formed Javascript/JSON string.
 
 ```
+[
   {
     "id": "webhook",
     "execute-command": "/home/adnan/redeploy-go-webhook.sh",
