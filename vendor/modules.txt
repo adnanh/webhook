@@ -1,7 +1,7 @@
 # github.com/clbanning/mxj v1.8.4
 ## explicit
 github.com/clbanning/mxj
-# github.com/dustin/go-humanize v1.0.0
+# github.com/dustin/go-humanize v1.0.1
 ## explicit
 github.com/dustin/go-humanize
 # github.com/fsnotify/fsnotify v1.4.7
