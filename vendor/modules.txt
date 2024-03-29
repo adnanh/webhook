@@ -13,12 +13,10 @@ github.com/ghodss/yaml
 ## explicit
 github.com/go-chi/chi/v5
 github.com/go-chi/chi/v5/middleware
-# github.com/gofrs/uuid v3.2.0+incompatible
-## explicit
 # github.com/gofrs/uuid/v5 v5.0.0
 ## explicit
 github.com/gofrs/uuid/v5
-# github.com/gorilla/mux v1.7.3
+# github.com/gorilla/mux v1.8.1
 ## explicit
 github.com/gorilla/mux
 # github.com/kr/pretty v0.1.0
