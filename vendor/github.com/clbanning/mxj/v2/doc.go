@@ -1,6 +1,6 @@
 // mxj - A collection of map[string]interface{} and associated XML and JSON utilities.
-// Copyright 2012-2015, 2018 Charles Banning. All rights reserved.
-// Use of this source code is governed by a BSD-style
+// Copyright 2012-2019, Charles Banning. All rights reserved.
+// Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file
 
 /*
@@ -14,6 +14,15 @@ Related Packages:
 	checkxml: github.com/clbanning/checkxml provides functions for validating XML data.
 
 Notes:
+	2022.11.28: v2.7 - add SetGlobalKeyMapPrefix to change default prefix, '#', for default keys
+	2022.11.20: v2.6 - add NewMapForattedXmlSeq for XML docs formatted with whitespace character
+	2021.02.02: v2.5 - add XmlCheckIsValid toggle to force checking that the encoded XML is valid
+	2020.12.14: v2.4 - add XMLEscapeCharsDecoder to preserve XML escaped characters in Map values
+	2020.10.28: v2.3 - add TrimWhiteSpace option
+	2020.05.01: v2.2 - optimize map to XML encoding for large XML docs.
+	2019.07.04: v2.0 - remove unnecessary methods - mv.XmlWriterRaw, mv.XmlIndentWriterRaw - for Map and MapSeq.
+	2019.07.04: Add MapSeq type and move associated functions and methods from Map to MapSeq.
+	2019.01.21: DecodeSimpleValuesAsMap - decode to map[<tag>:map["#text":<value>]] rather than map[<tag>:<value>].
 	2018.04.18: mv.Xml/mv.XmlIndent encodes non-map[string]interface{} map values - map[string]string, map[int]uint, etc.
 	2018.03.29: mv.Gob/NewMapGob support gob encoding/decoding of Maps.
 	2018.03.26: Added mxj/x2j-wrapper sub-package for migrating from legacy x2j package.

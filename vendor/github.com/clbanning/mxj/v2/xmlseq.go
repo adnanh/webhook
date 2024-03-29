@@ -1,4 +1,4 @@
-// Copyright 2012-2016 Charles Banning. All rights reserved.
+// Copyright 2012-2016, 2019 Charles Banning. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file
 
@@ -13,22 +13,29 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"regexp"
 	"sort"
 	"strings"
 )
 
+// MapSeq is like Map but contains seqencing indices to allow recovering the original order of
+// the XML elements when the map[string]interface{} is marshaled. Element attributes are
+// stored as a map["#attr"]map[<attr_key>]map[string]interface{}{"#text":"<value>", "#seq":<attr_index>}
+// value instead of denoting the keys with a prefix character.  Also, comments, directives and
+// process instructions are preserved.
+type MapSeq map[string]interface{}
+
+// NoRoot is returned by NewXmlSeq, etc., when a comment, directive or procinstr element is parsed
+// in the XML data stream and the element is not contained in an XML object with a root element.
 var NoRoot = errors.New("no root key")
 var NO_ROOT = NoRoot // maintain backwards compatibility
 
 // ------------------- NewMapXmlSeq & NewMapXmlSeqReader ... -------------------------
 
-// This is only useful if you want to re-encode the Map as XML using mv.XmlSeq(), etc., to preserve the original structure.
-// The xml.Decoder.RawToken method is used to parse the XML, so there is no checking for appropriate xml.EndElement values;
-// thus, it is assumed that the XML is valid.
-//
-// NewMapXmlSeq - convert a XML doc into a Map with elements id'd with decoding sequence int - #seq.
+// NewMapXmlSeq converts a XML doc into a MapSeq value with elements id'd with decoding sequence key represented
+// as map["#seq"]<int value>.
 // If the optional argument 'cast' is 'true', then values will be converted to boolean or float64 if possible.
-// NOTE: "#seq" key/value pairs are removed on encoding with mv.XmlSeq() / mv.XmlSeqIndent().
+// NOTE: "#seq" key/value pairs are removed on encoding with msv.Xml() / msv.XmlIndent().
 //	• attributes are a map - map["#attr"]map["attr_key"]map[string]interface{}{"#text":<aval>, "#seq":<num>}
 //	• all simple elements are decoded as map["#text"]interface{} with a "#seq" k:v pair, as well.
 //	• lists always decode as map["list_tag"][]map[string]interface{} where the array elements are maps that
@@ -50,7 +57,7 @@ var NO_ROOT = NoRoot // maintain backwards compatibility
 //	      newtag :
 //	        #seq :[int] 1
 //	        #text :[string] value 2
-//	  It will encode in proper sequence even though the Map representation merges all "ltag" elements in an array.
+//	  It will encode in proper sequence even though the MapSeq representation merges all "ltag" elements in an array.
 //	• comments - "<!--comment-->" -  are decoded as map["#comment"]map["#text"]"cmnt_text" with a "#seq" k:v pair.
 //	• directives - "<!text>" - are decoded as map["#directive"]map[#text"]"directive_text" with a "#seq" k:v pair.
 //	• process instructions  - "<?instr?>" - are decoded as map["#procinst"]interface{} where the #procinst value
@@ -68,10 +75,16 @@ var NO_ROOT = NoRoot // maintain backwards compatibility
 //	   3. If CoerceKeysToSnakeCase() has been called, then all key values will be converted to snake case.
 //
 //	NAME SPACES:
-//	   1. Keys in the Map value that are parsed from a <name space prefix>:<local name> tag preserve the
+//	   1. Keys in the MapSeq value that are parsed from a <name space prefix>:<local name> tag preserve the
 //	      "<prefix>:" notation rather than stripping it as with NewMapXml().
 //	   2. Attribute keys for name space prefix declarations preserve "xmlns:<prefix>" notation.
-func NewMapXmlSeq(xmlVal []byte, cast ...bool) (Map, error) {
+//
+//	ERRORS:
+//	   1. If a NoRoot error, "no root key," is returned, check the initial map key for a "#comment",
+//	      "#directive" or #procinst" key.
+//	   2. Unmarshaling an XML doc that is formatted using the whitespace character, " ", will error, since
+//	      Decoder.RawToken treats such occurances as significant. See NewMapFormattedXmlSeq().
+func NewMapXmlSeq(xmlVal []byte, cast ...bool) (MapSeq, error) {
 	var r bool
 	if len(cast) == 1 {
 		r = cast[0]
@@ -79,16 +92,40 @@ func NewMapXmlSeq(xmlVal []byte, cast ...bool) (Map, error) {
 	return xmlSeqToMap(xmlVal, r)
 }
 
-// This is only useful if you want to re-encode the Map as XML using mv.XmlSeq(), etc., to preserve the original structure.
+// NewMapFormattedXmlSeq performs the same as NewMapXmlSeq but is useful for processing XML objects that
+// are formatted using the whitespace character, " ".  (The stdlib xml.Decoder, by default, treats all
+// whitespace as significant; Decoder.Token() and Decoder.RawToken() will return strings of one or more
+// whitespace characters and without alphanumeric or punctuation characters as xml.CharData values.)
 //
-// Get next XML doc from an io.Reader as a Map value.  Returns Map value.
+// If you're processing such XML, then this will convert all occurrences of whitespace-only strings
+// into an empty string, "", prior to parsing the XML - irrespective of whether the occurrence is
+// formatting or is a actual element value.
+func NewMapFormattedXmlSeq(xmlVal []byte, cast ...bool) (MapSeq, error) {
+	var c bool
+	if len(cast) == 1 {
+		c = cast[0]
+	}
+
+	// Per PR #104 - clean out formatting characters so they don't show up in Decoder.RawToken() stream.
+	// NOTE: Also replaces element values that are solely comprised of formatting/whitespace characters
+	// with empty string, "".
+	r := regexp.MustCompile(`>[\n\t\r ]*<`)
+	xmlVal = r.ReplaceAll(xmlVal, []byte("><"))
+	return xmlSeqToMap(xmlVal, c)
+}
+
+// NewMpaXmlSeqReader returns next XML doc from an io.Reader as a MapSeq value.
 //	NOTES:
 //	   1. The 'xmlReader' will be parsed looking for an xml.StartElement, xml.Comment, etc., so BOM and other
 //	      extraneous xml.CharData will be ignored unless io.EOF is reached first.
 //	   2. CoerceKeysToLower() is NOT recognized, since the intent here is to eventually call m.XmlSeq() to
 //	      re-encode the message in its original structure.
 //	   3. If CoerceKeysToSnakeCase() has been called, then all key values will be converted to snake case.
-func NewMapXmlSeqReader(xmlReader io.Reader, cast ...bool) (Map, error) {
+//
+//	ERRORS:
+//	   1. If a NoRoot error, "no root key," is returned, check the initial map key for a "#comment",
+//	      "#directive" or #procinst" key.
+func NewMapXmlSeqReader(xmlReader io.Reader, cast ...bool) (MapSeq, error) {
 	var r bool
 	if len(cast) == 1 {
 		r = cast[0]
@@ -105,9 +142,8 @@ func NewMapXmlSeqReader(xmlReader io.Reader, cast ...bool) (Map, error) {
 	return xmlSeqReaderToMap(xmlReader, r)
 }
 
-// This is only useful if you want to re-encode the Map as XML using mv.XmlSeq(), etc., to preserve the original structure.
-//
-// Get next XML doc from an io.Reader as a Map value.  Returns Map value and slice with the raw XML.
+// NewMapXmlSeqReaderRaw returns the  next XML doc from  an io.Reader as a MapSeq value.
+// Returns MapSeq value, slice with the raw XML, and any error.
 //	NOTES:
 //	   1. Due to the implementation of xml.Decoder, the raw XML off the reader is buffered to []byte
 //	      using a ByteReader. If the io.Reader is an os.File, there may be significant performance impact.
@@ -120,7 +156,11 @@ func NewMapXmlSeqReader(xmlReader io.Reader, cast ...bool) (Map, error) {
 //	    4. CoerceKeysToLower() is NOT recognized, since the intent here is to eventually call m.XmlSeq() to
 //	       re-encode the message in its original structure.
 //	    5. If CoerceKeysToSnakeCase() has been called, then all key values will be converted to snake case.
-func NewMapXmlSeqReaderRaw(xmlReader io.Reader, cast ...bool) (Map, []byte, error) {
+//
+//	ERRORS:
+//	    1. If a NoRoot error, "no root key," is returned, check if the initial map key is "#comment",
+//	       "#directive" or #procinst" key.
+func NewMapXmlSeqReaderRaw(xmlReader io.Reader, cast ...bool) (MapSeq, []byte, error) {
 	var r bool
 	if len(cast) == 1 {
 		r = cast[0]
@@ -193,13 +233,16 @@ func xmlSeqToMapParser(skey string, a []xml.Attr, p *xml.Decoder, r bool) (map[s
 				if snakeCaseKeys {
 					v.Name.Local = strings.Replace(v.Name.Local, "-", "_", -1)
 				}
+				if xmlEscapeCharsDecoder { // per issue#84
+					v.Value = escapeChars(v.Value)
+				}
 				if len(v.Name.Space) > 0 {
-					aa[v.Name.Space+`:`+v.Name.Local] = map[string]interface{}{"#text": cast(v.Value, r), "#seq": i}
+					aa[v.Name.Space+`:`+v.Name.Local] = map[string]interface{}{textK: cast(v.Value, r, ""), seqK: i}
 				} else {
-					aa[v.Name.Local] = map[string]interface{}{"#text": cast(v.Value, r), "#seq": i}
+					aa[v.Name.Local] = map[string]interface{}{textK: cast(v.Value, r, ""), seqK: i}
 				}
 			}
-			na["#attr"] = aa
+			na[attrK] = aa
 		}
 	}
 
@@ -267,10 +310,10 @@ func xmlSeqToMapParser(skey string, a []xml.Attr, p *xml.Decoder, r bool) (map[s
 			// where all the "list" subelements are decoded into an array.
 			switch val.(type) {
 			case map[string]interface{}:
-				val.(map[string]interface{})["#seq"] = seq
+				val.(map[string]interface{})[seqK] = seq
 				seq++
 			case interface{}: // a non-nil simple element: string, float64, bool
-				v := map[string]interface{}{"#text": val, "#seq": seq}
+				v := map[string]interface{}{textK: val, seqK: seq}
 				seq++
 				val = v
 			}
@@ -323,7 +366,10 @@ func xmlSeqToMapParser(skey string, a []xml.Attr, p *xml.Decoder, r bool) (map[s
 			return n, nil
 		case xml.CharData:
 			// clean up possible noise
-			tt := strings.Trim(string(t.(xml.CharData)), "\t\r\b\n ")
+			tt := strings.Trim(string(t.(xml.CharData)), trimRunes)
+			if xmlEscapeCharsDecoder { // issue#84
+				tt = escapeChars(tt)
+			}
 			if skey == "" {
 				// per Adrian (http://www.adrianlungu.com/) catch stray text
 				// in decoder stream -
@@ -334,42 +380,42 @@ func xmlSeqToMapParser(skey string, a []xml.Attr, p *xml.Decoder, r bool) (map[s
 			}
 			if len(tt) > 0 {
 				// every simple element is a #text and has #seq associated with it
-				na["#text"] = cast(tt, r)
-				na["#seq"] = seq
+				na[textK] = cast(tt, r, "")
+				na[seqK] = seq
 				seq++
 			}
 		case xml.Comment:
 			if n == nil { // no root 'key'
-				n = map[string]interface{}{"#comment": string(t.(xml.Comment))}
+				n = map[string]interface{}{commentK: string(t.(xml.Comment))}
 				return n, NoRoot
 			}
 			cm := make(map[string]interface{}, 2)
-			cm["#text"] = string(t.(xml.Comment))
-			cm["#seq"] = seq
+			cm[textK] = string(t.(xml.Comment))
+			cm[seqK] = seq
 			seq++
-			na["#comment"] = cm
+			na[commentK] = cm
 		case xml.Directive:
 			if n == nil { // no root 'key'
-				n = map[string]interface{}{"#directive": string(t.(xml.Directive))}
+				n = map[string]interface{}{directiveK: string(t.(xml.Directive))}
 				return n, NoRoot
 			}
 			dm := make(map[string]interface{}, 2)
-			dm["#text"] = string(t.(xml.Directive))
-			dm["#seq"] = seq
+			dm[textK] = string(t.(xml.Directive))
+			dm[seqK] = seq
 			seq++
-			na["#directive"] = dm
+			na[directiveK] = dm
 		case xml.ProcInst:
 			if n == nil {
-				na = map[string]interface{}{"#target": t.(xml.ProcInst).Target, "#inst": string(t.(xml.ProcInst).Inst)}
-				n = map[string]interface{}{"#procinst": na}
+				na = map[string]interface{}{targetK: t.(xml.ProcInst).Target, instK: string(t.(xml.ProcInst).Inst)}
+				n = map[string]interface{}{procinstK: na}
 				return n, NoRoot
 			}
 			pm := make(map[string]interface{}, 3)
-			pm["#target"] = t.(xml.ProcInst).Target
-			pm["#inst"] = string(t.(xml.ProcInst).Inst)
-			pm["#seq"] = seq
+			pm[targetK] = t.(xml.ProcInst).Target
+			pm[instK] = string(t.(xml.ProcInst).Inst)
+			pm[seqK] = seq
 			seq++
-			na["#procinst"] = pm
+			na[procinstK] = pm
 		default:
 			// noop - shouldn't ever get here, now, since we handle all token types
 		}
@@ -380,12 +426,9 @@ func xmlSeqToMapParser(skey string, a []xml.Attr, p *xml.Decoder, r bool) (map[s
 
 // --------------------- mv.XmlSeq & mv.XmlSeqWriter -------------------------
 
-// This should ONLY be used on Map values that were decoded using NewMapXmlSeq() & co.
-//
-// Encode a Map as XML with elements sorted on #seq.  The companion of NewMapXmlSeq().
+// Xml encodes a MapSeq as XML with elements sorted on #seq.  The companion of NewMapXmlSeq().
 // The following rules apply.
-//    - The key label "#text" is treated as the value for a simple element with attributes.
-//    - The "#seq" key is used to seqence the subelements or attributes but is ignored for writing.
+//    - The "#seq" key value is used to seqence the subelements or attributes only.
 //    - The "#attr" map key identifies the map of attribute map[string]interface{} values with "#text" key.
 //    - The "#comment" map key identifies a comment in the value "#text" map entry - <!--comment-->.
 //    - The "#directive" map key identifies a directive in the value "#text" map entry - <!directive>.
@@ -399,7 +442,7 @@ func xmlSeqToMapParser(skey string, a []xml.Attr, p *xml.Decoder, r bool) (map[s
 //    - Elements with only attribute values or are null are terminated using "/>" unless XmlGoEmptyElemSystax() called.
 //    - If len(mv) == 1 and no rootTag is provided, then the map key is used as the root tag, possible.
 //      Thus, `{ "key":"value" }` encodes as "<key>value</key>".
-func (mv Map) XmlSeq(rootTag ...string) ([]byte, error) {
+func (mv MapSeq) Xml(rootTag ...string) ([]byte, error) {
 	m := map[string]interface{}(mv)
 	var err error
 	s := new(string)
@@ -429,18 +472,28 @@ func (mv Map) XmlSeq(rootTag ...string) ([]byte, error) {
 		err = mapToXmlSeqIndent(false, s, DefaultRootTag, m, p)
 	}
 done:
+	if xmlCheckIsValid {
+		d := xml.NewDecoder(bytes.NewReader([]byte(*s)))
+		for {
+			_, err = d.Token()
+			if err == io.EOF {
+				err = nil
+				break
+			} else if err != nil {
+				return nil, err
+			}
+		}
+	}
 	return []byte(*s), err
 }
 
 // The following implementation is provided only for symmetry with NewMapXmlReader[Raw]
 // The names will also provide a key for the number of return arguments.
 
-// This should ONLY be used on Map values that were decoded using NewMapXmlSeq() & co.
-//
-// Writes the Map as  XML on the Writer.
-// See XmlSeq() for encoding rules.
-func (mv Map) XmlSeqWriter(xmlWriter io.Writer, rootTag ...string) error {
-	x, err := mv.XmlSeq(rootTag...)
+// XmlWriter Writes the MapSeq value as  XML on the Writer.
+// See MapSeq.Xml() for encoding rules.
+func (mv MapSeq) XmlWriter(xmlWriter io.Writer, rootTag ...string) error {
+	x, err := mv.Xml(rootTag...)
 	if err != nil {
 		return err
 	}
@@ -449,12 +502,11 @@ func (mv Map) XmlSeqWriter(xmlWriter io.Writer, rootTag ...string) error {
 	return err
 }
 
-// This should ONLY be used on Map values that were decoded using NewMapXmlSeq() & co.
-//
-// Writes the Map as  XML on the Writer. []byte is the raw XML that was written.
-// See XmlSeq() for encoding rules.
-func (mv Map) XmlSeqWriterRaw(xmlWriter io.Writer, rootTag ...string) ([]byte, error) {
-	x, err := mv.XmlSeq(rootTag...)
+// XmlWriteRaw writes the MapSeq value as XML on the Writer. []byte is the raw XML that was written.
+// See Map.XmlSeq() for encoding rules.
+/*
+func (mv MapSeq) XmlWriterRaw(xmlWriter io.Writer, rootTag ...string) ([]byte, error) {
+	x, err := mv.Xml(rootTag...)
 	if err != nil {
 		return x, err
 	}
@@ -462,13 +514,12 @@ func (mv Map) XmlSeqWriterRaw(xmlWriter io.Writer, rootTag ...string) ([]byte, e
 	_, err = xmlWriter.Write(x)
 	return x, err
 }
+*/
 
-// This should ONLY be used on Map values that were decoded using NewMapXmlSeq() & co.
-//
-// Writes the Map as pretty XML on the Writer.
-// See Xml() for encoding rules.
-func (mv Map) XmlSeqIndentWriter(xmlWriter io.Writer, prefix, indent string, rootTag ...string) error {
-	x, err := mv.XmlSeqIndent(prefix, indent, rootTag...)
+// XmlIndentWriter writes the MapSeq value as pretty XML on the Writer.
+// See MapSeq.Xml() for encoding rules.
+func (mv MapSeq) XmlIndentWriter(xmlWriter io.Writer, prefix, indent string, rootTag ...string) error {
+	x, err := mv.XmlIndent(prefix, indent, rootTag...)
 	if err != nil {
 		return err
 	}
@@ -477,11 +528,10 @@ func (mv Map) XmlSeqIndentWriter(xmlWriter io.Writer, prefix, indent string, roo
 	return err
 }
 
-// This should ONLY be used on Map values that were decoded using NewMapXmlSeq() & co.
-//
-// Writes the Map as pretty XML on the Writer. []byte is the raw XML that was written.
-// See XmlSeq() for encoding rules.
-func (mv Map) XmlSeqIndentWriterRaw(xmlWriter io.Writer, prefix, indent string, rootTag ...string) ([]byte, error) {
+// XmlIndentWriterRaw writes the Map as pretty XML on the Writer. []byte is the raw XML that was written.
+// See Map.XmlSeq() for encoding rules.
+/*
+func (mv MapSeq) XmlIndentWriterRaw(xmlWriter io.Writer, prefix, indent string, rootTag ...string) ([]byte, error) {
 	x, err := mv.XmlSeqIndent(prefix, indent, rootTag...)
 	if err != nil {
 		return x, err
@@ -490,16 +540,15 @@ func (mv Map) XmlSeqIndentWriterRaw(xmlWriter io.Writer, prefix, indent string, 
 	_, err = xmlWriter.Write(x)
 	return x, err
 }
+*/
 
 // -------------------- END: mv.Xml & mv.XmlWriter -------------------------------
 
 // ---------------------- XmlSeqIndent ----------------------------
 
-// This should ONLY be used on Map values that were decoded using NewMapXmlSeq() & co.
-//
-// Encode a map[string]interface{} as a pretty XML string.
-// See mv.XmlSeq() for encoding rules.
-func (mv Map) XmlSeqIndent(prefix, indent string, rootTag ...string) ([]byte, error) {
+// XmlIndent encodes a map[string]interface{} as a pretty XML string.
+// See MapSeq.XmlSeq() for encoding rules.
+func (mv MapSeq) XmlIndent(prefix, indent string, rootTag ...string) ([]byte, error) {
 	m := map[string]interface{}(mv)
 
 	var err error
@@ -523,6 +572,21 @@ func (mv Map) XmlSeqIndent(prefix, indent string, rootTag ...string) ([]byte, er
 	} else {
 		err = mapToXmlSeqIndent(true, s, DefaultRootTag, m, p)
 	}
+	if xmlCheckIsValid {
+		if _, err = NewMapXml([]byte(*s)); err != nil {
+			return nil, err
+		}
+		d := xml.NewDecoder(bytes.NewReader([]byte(*s)))
+		for {
+			_, err = d.Token()
+			if err == io.EOF {
+				err = nil
+				break
+			} else if err != nil {
+				return nil, err
+			}
+		}
+	}
 	return []byte(*s), err
 }
 
@@ -541,7 +605,7 @@ func mapToXmlSeqIndent(doIndent bool, s *string, key string, value interface{}, 
 		if doIndent {
 			*s += p.padding
 		}
-		if key != "#comment" && key != "#directive" && key != "#procinst" {
+		if key != commentK && key != directiveK && key != procinstK {
 			*s += `<` + key
 		}
 	}
@@ -549,27 +613,27 @@ func mapToXmlSeqIndent(doIndent bool, s *string, key string, value interface{}, 
 	case map[string]interface{}:
 		val := value.(map[string]interface{})
 
-		if key == "#comment" {
-			*s += `<!--` + val["#text"].(string) + `-->`
+		if key == commentK {
+			*s += `<!--` + val[textK].(string) + `-->`
 			noEndTag = true
 			break
 		}
 
-		if key == "#directive" {
-			*s += `<!` + val["#text"].(string) + `>`
+		if key == directiveK {
+			*s += `<!` + val[textK].(string) + `>`
 			noEndTag = true
 			break
 		}
 
-		if key == "#procinst" {
-			*s += `<?` + val["#target"].(string) + ` ` + val["#inst"].(string) + `?>`
+		if key == procinstK {
+			*s += `<?` + val[targetK].(string) + ` ` + val[instK].(string) + `?>`
 			noEndTag = true
 			break
 		}
 
 		haveAttrs := false
 		// process attributes first
-		if v, ok := val["#attr"].(map[string]interface{}); ok {
+		if v, ok := val[attrK].(map[string]interface{}); ok {
 			// First, unroll the map[string]interface{} into a []keyval array.
 			// Then sequence it.
 			kv := make([]keyval, len(v))
@@ -582,21 +646,21 @@ func mapToXmlSeqIndent(doIndent bool, s *string, key string, value interface{}, 
 			// Now encode the attributes in original decoding sequence, using keyval array.
 			for _, a := range kv {
 				vv := a.v.(map[string]interface{})
-				switch vv["#text"].(type) {
+				switch vv[textK].(type) {
 				case string:
 					if xmlEscapeChars {
-						ss = escapeChars(vv["#text"].(string))
+						ss = escapeChars(vv[textK].(string))
 					} else {
-						ss = vv["#text"].(string)
+						ss = vv[textK].(string)
 					}
 					*s += ` ` + a.k + `="` + ss + `"`
 				case float64, bool, int, int32, int64, float32:
-					*s += ` ` + a.k + `="` + fmt.Sprintf("%v", vv["#text"]) + `"`
+					*s += ` ` + a.k + `="` + fmt.Sprintf("%v", vv[textK]) + `"`
 				case []byte:
 					if xmlEscapeChars {
-						ss = escapeChars(string(vv["#text"].([]byte)))
+						ss = escapeChars(string(vv[textK].([]byte)))
 					} else {
-						ss = string(vv["#text"].([]byte))
+						ss = string(vv[textK].([]byte))
 					}
 					*s += ` ` + a.k + `="` + ss + `"`
 				default:
@@ -608,8 +672,8 @@ func mapToXmlSeqIndent(doIndent bool, s *string, key string, value interface{}, 
 
 		// simple element?
 		// every map value has, at least, "#seq" and, perhaps, "#text" and/or "#attr"
-		_, seqOK := val["#seq"] // have key
-		if v, ok := val["#text"]; ok && ((len(val) == 3 && haveAttrs) || (len(val) == 2 && !haveAttrs)) && seqOK {
+		_, seqOK := val[seqK] // have key
+		if v, ok := val[textK]; ok && ((len(val) == 3 && haveAttrs) || (len(val) == 2 && !haveAttrs)) && seqOK {
 			if stmp, ok := v.(string); ok && stmp != "" {
 				if xmlEscapeChars {
 					stmp = escapeChars(stmp)
@@ -630,10 +694,10 @@ func mapToXmlSeqIndent(doIndent bool, s *string, key string, value interface{}, 
 		// 'kv' will hold everything that needs to be written
 		kv := make([]keyval, 0)
 		for k, v := range val {
-			if k == "#attr" { // already processed
+			if k == attrK { // already processed
 				continue
 			}
-			if k == "#seq" { // ignore - just for sorting
+			if k == seqK { // ignore - just for sorting
 				continue
 			}
 			switch v.(type) {
@@ -804,13 +868,22 @@ func (e elemListSeq) Swap(i, j int) {
 
 func (e elemListSeq) Less(i, j int) bool {
 	var iseq, jseq int
+	var fiseq, fjseq float64
 	var ok bool
-	if iseq, ok = e[i].v.(map[string]interface{})["#seq"].(int); !ok {
-		iseq = 9999999
+	if iseq, ok = e[i].v.(map[string]interface{})[seqK].(int); !ok {
+		if fiseq, ok = e[i].v.(map[string]interface{})[seqK].(float64); ok {
+			iseq = int(fiseq)
+		} else {
+			iseq = 9999999
+		}
 	}
 
-	if jseq, ok = e[j].v.(map[string]interface{})["#seq"].(int); !ok {
-		jseq = 9999999
+	if jseq, ok = e[j].v.(map[string]interface{})[seqK].(int); !ok {
+		if fjseq, ok = e[j].v.(map[string]interface{})[seqK].(float64); ok {
+			jseq = int(fjseq)
+		} else {
+			jseq = 9999999
+		}
 	}
 
 	return iseq <= jseq
@@ -819,10 +892,11 @@ func (e elemListSeq) Less(i, j int) bool {
 // =============== https://groups.google.com/forum/#!topic/golang-nuts/lHPOHD-8qio
 
 // BeautifyXml (re)formats an XML doc similar to Map.XmlIndent().
+// It preserves comments, directives and process instructions,
 func BeautifyXml(b []byte, prefix, indent string) ([]byte, error) {
 	x, err := NewMapXmlSeq(b)
 	if err != nil {
 		return nil, err
 	}
-	return x.XmlSeqIndent(prefix, indent)
+	return x.XmlIndent(prefix, indent)
 }

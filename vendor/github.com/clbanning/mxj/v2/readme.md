@@ -3,9 +3,30 @@ Decode/encode XML to/from map[string]interface{} (or JSON) values, and extract/m
 
 mxj supplants the legacy x2j and j2x packages. If you want the old syntax, use mxj/x2j and mxj/j2x packages.
 
+<h4>Installation</h4>
+Using go.mod:
+<pre>
+go get github.com/clbanning/mxj/v2@v2.7	
+</pre>
+
+<pre>
+import "github.com/clbanning/mxj/v2"
+</pre>
+
+... or just vendor the package.
+
 <h4>Related Packages</h4>
 
 https://github.com/clbanning/checkxml provides functions for validating XML data.
+
+<h4>Refactor Encoder - 2020.05.01</h4>
+Issue #70 highlighted that encoding large maps does not scale well, since the original logic used string appends operations. Using bytes.Buffer results in linear scaling for very large XML docs. (Metrics based on MacBook Pro i7 w/ 16 GB.)
+
+	Nodes      m.XML() time
+	54809       12.53708ms
+	109780      32.403183ms
+	164678      59.826412ms
+	482598     109.358007ms
 
 <h4>Refactor Decoder - 2015.11.15</h4>
 For over a year I've wanted to refactor the XML-to-map[string]interface{} decoder to make it more performant.  I recently took the time to do that, since we were using github.com/clbanning/mxj in a production system that could be deployed on a Raspberry Pi.  Now the decoder is comparable to the stdlib JSON-to-map[string]interface{} decoder in terms of its additional processing overhead relative to decoding to a structure value.  As shown by:
@@ -21,6 +42,15 @@ For over a year I've wanted to refactor the XML-to-map[string]interface{} decode
 
 <h4>Notices</h4>
 
+	2022.11.28: v2.7 - add SetGlobalKeyMapPrefix to change default prefix, '#', for default keys
+	2022.11.20: v2.6 - add NewMapForattedXmlSeq for XML docs formatted with whitespace character
+	2021.02.02: v2.5 - add XmlCheckIsValid toggle to force checking that the encoded XML is valid
+	2020.12.14: v2.4 - add XMLEscapeCharsDecoder to preserve XML escaped characters in Map values
+	2020.10.28: v2.3 - add TrimWhiteSpace option
+	2020.05.01: v2.2 - optimize map to XML encoding for large XML docs.
+	2019.07.04: v2.0 - remove unnecessary methods - mv.XmlWriterRaw, mv.XmlIndentWriterRaw - for Map and MapSeq.
+	2019.07.04: Add MapSeq type and move associated functions and methods from Map to MapSeq.
+	2019.01.21: DecodeSimpleValuesAsMap - decode to map[<tag>:map["#text":<value>]] rather than map[<tag>:<value>]
 	2018.04.18: mv.Xml/mv.XmlIndent encodes non-map[string]interface{} map values - map[string]string, map[int]uint, etc.
 	2018.03.29: mv.Gob/NewMapGob support gob encoding/decoding of Maps.
 	2018.03.26: Added mxj/x2j-wrapper sub-package for migrating from legacy x2j package.

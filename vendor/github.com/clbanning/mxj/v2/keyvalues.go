@@ -21,7 +21,7 @@ const (
 
 var defaultArraySize int = minArraySize
 
-// Adjust the buffers for expected number of values to return from ValuesForKey() and ValuesForPath().
+// SetArraySize adjust the buffers for expected number of values to return from ValuesForKey() and ValuesForPath().
 // This can have the effect of significantly reducing memory allocation-copy functions for large data sets.
 // Returns the initial buffer size.
 func SetArraySize(size int) int {
@@ -33,11 +33,12 @@ func SetArraySize(size int) int {
 	return defaultArraySize
 }
 
-// Return all values in Map, 'mv', associated with a 'key'. If len(returned_values) == 0, then no match.
+// ValuesForKey return all values in Map, 'mv', associated with a 'key'. If len(returned_values) == 0, then no match.
 // On error, the returned slice is 'nil'. NOTE: 'key' can be wildcard, "*".
 //   'subkeys' (optional) are "key:val[:type]" strings representing attributes or elements in a list.
 //             - By default 'val' is of type string. "key:val:bool" and "key:val:float" to coerce them.
-//             - For attributes prefix the label with a hyphen, '-', e.g., "-seq:3".
+//             - For attributes prefix the label with the attribute prefix character, by default a 
+//               hyphen, '-', e.g., "-seq:3". (See SetAttrPrefix function.)
 //             - If the 'key' refers to a list, then "key:value" could select a list member of the list.
 //             - The subkey can be wildcarded - "key:*" - to require that it's there with some value.
 //             - If a subkey is preceeded with the '!' character, the key:value[:type] entry is treated as an
@@ -149,7 +150,7 @@ func hasKey(iv interface{}, key string, ret *[]interface{}, cnt *int, subkeys ma
 // of wildcards and unindexed arrays.  Embedding such logic into valuesForKeyPath() would have made the
 // code much more complicated; this wrapper is straightforward, easy to debug, and doesn't add significant overhead.
 
-// Retrieve all values for a path from the Map.  If len(returned_values) == 0, then no match.
+// ValuesForPatb retrieves all values for a path from the Map.  If len(returned_values) == 0, then no match.
 // On error, the returned array is 'nil'.
 //   'path' is a dot-separated path of key values.
 //          - If a node in the path is '*', then everything beyond is walked.
@@ -157,7 +158,8 @@ func hasKey(iv interface{}, key string, ret *[]interface{}, cnt *int, subkeys ma
 //            even "*[2].*[0].field".
 //   'subkeys' (optional) are "key:val[:type]" strings representing attributes or elements in a list.
 //             - By default 'val' is of type string. "key:val:bool" and "key:val:float" to coerce them.
-//             - For attributes prefix the label with a hyphen, '-', e.g., "-seq:3".
+//             - For attributes prefix the label with the attribute prefix character, by default a 
+//               hyphen, '-', e.g., "-seq:3". (See SetAttrPrefix function.)
 //             - If the 'path' refers to a list, then "tag:value" would return member of the list.
 //             - The subkey can be wildcarded - "key:*" - to require that it's there with some value.
 //             - If a subkey is preceeded with the '!' character, the key:value[:type] entry is treated as an
@@ -545,7 +547,7 @@ func getSubKeyMap(kv ...string) (map[string]interface{}, error) {
 
 //----------------------------- find all paths to a key --------------------------------
 
-// Get all paths through Map, 'mv', (in dot-notation) that terminate with the specified key.
+// PathsForKey returns all paths through Map, 'mv', (in dot-notation) that terminate with the specified key.
 // Results can be used with ValuesForPath.
 func (mv Map) PathsForKey(key string) []string {
 	m := map[string]interface{}(mv)
@@ -568,7 +570,7 @@ func (mv Map) PathsForKey(key string) []string {
 	return res
 }
 
-// Extract the shortest path from all possible paths - from PathsForKey() - in Map, 'mv'..
+// PathForKeyShortest extracts the shortest path from all possible paths - from PathsForKey() - in Map, 'mv'..
 // Paths are strings using dot-notation.
 func (mv Map) PathForKeyShortest(key string) string {
 	paths := mv.PathsForKey(key)
@@ -632,7 +634,7 @@ func hasKeyPath(crumbs string, iv interface{}, key string, basket map[string]boo
 
 var PathNotExistError = errors.New("Path does not exist")
 
-// ValueForPath wrap ValuesFor Path and returns the first value returned.
+// ValueForPath wraps ValuesFor Path and returns the first value returned.
 // If no value is found it returns 'nil' and PathNotExistError.
 func (mv Map) ValueForPath(path string) (interface{}, error) {
 	vals, err := mv.ValuesForPath(path)
@@ -645,7 +647,7 @@ func (mv Map) ValueForPath(path string) (interface{}, error) {
 	return vals[0], nil
 }
 
-// Returns the first found value for the path as a string.
+// ValuesForPathString returns the first found value for the path as a string.
 func (mv Map) ValueForPathString(path string) (string, error) {
 	vals, err := mv.ValuesForPath(path)
 	if err != nil {
@@ -655,15 +657,10 @@ func (mv Map) ValueForPathString(path string) (string, error) {
 		return "", errors.New("ValueForPath: path not found")
 	}
 	val := vals[0]
-	switch str := val.(type) {
-	case string:
-		return str, nil
-	default:
-		return "", fmt.Errorf("ValueForPath: unsupported type: %T", str)
-	}
+	return fmt.Sprintf("%v", val), nil
 }
 
-// Returns the first found value for the path as a string.
+// ValueOrEmptyForPathString returns the first found value for the path as a string.
 // If the path is not found then it returns an empty string.
 func (mv Map) ValueOrEmptyForPathString(path string) string {
 	str, _ := mv.ValueForPathString(path)

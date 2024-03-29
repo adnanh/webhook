@@ -6,13 +6,20 @@ import (
 )
 
 // RenameKey renames a key in a Map.
-// It works only for nested maps. It doesn't work for cases when it buried in a list.
+// It works only for nested maps. 
+// It doesn't work for cases when the key is in a list.
 func (mv Map) RenameKey(path string, newName string) error {
-	if !mv.Exists(path) {
+	var v bool
+	var err error
+	if v, err = mv.Exists(path); err == nil && !v {
 		return errors.New("RenameKey: path not found: " + path)
+	} else if err != nil {
+		return err
 	}
-	if mv.Exists(parentPath(path) + "." + newName) {
+	if v, err = mv.Exists(parentPath(path) + "." + newName); err == nil && v {
 		return errors.New("RenameKey: key already exists: " + newName)
+	} else if err != nil {
+		return err
 	}
 
 	m := map[string]interface{}(mv)

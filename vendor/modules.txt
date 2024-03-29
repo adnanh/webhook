@@ -1,6 +1,6 @@
-# github.com/clbanning/mxj v1.8.4
+# github.com/clbanning/mxj/v2 v2.7.0
 ## explicit
-github.com/clbanning/mxj
+github.com/clbanning/mxj/v2
 # github.com/dustin/go-humanize v1.0.1
 ## explicit
 github.com/dustin/go-humanize
@@ -16,6 +16,8 @@ github.com/go-chi/chi/v5/middleware
 # github.com/gofrs/uuid/v5 v5.0.0
 ## explicit
 github.com/gofrs/uuid/v5
+# github.com/google/go-cmp v0.6.0
+## explicit
 # github.com/gorilla/mux v1.8.1
 ## explicit
 github.com/gorilla/mux

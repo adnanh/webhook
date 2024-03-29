@@ -44,7 +44,7 @@ func (mv Map) LeafNodes(no_attr ...bool) []LeafNode {
 
 func getLeafNodes(path, node string, mv interface{}, l *[]LeafNode, noattr bool) {
 	// if stripping attributes, then also strip "#text" key
-	if !noattr || node != "#text" {
+	if !noattr || node != textK {
 		if path != "" && node[:1] != "[" {
 			path += "."
 		}
