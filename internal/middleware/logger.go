@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
-	"github.com/go-chi/chi/middleware"
+	"github.com/go-chi/chi/v5/middleware"
 )
 
 // Logger is a middleware that logs useful data about each HTTP request.
@@ -39,7 +39,7 @@ type LogEntry struct {
 }
 
 // Write constructs and writes the final log entry.
-func (l *LogEntry) Write(status, totalBytes int, elapsed time.Duration) {
+func (l *LogEntry) Write(status, totalBytes int, header http.Header, elapsed time.Duration, extra interface{}) {
 	rid := GetReqID(l.req.Context())
 	if rid != "" {
 		fmt.Fprintf(l.buf, "[%s] ", rid)

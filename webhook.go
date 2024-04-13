@@ -19,9 +19,9 @@ import (
 	"github.com/adnanh/webhook/internal/middleware"
 	"github.com/adnanh/webhook/internal/pidfile"
 
-	chimiddleware "github.com/go-chi/chi/middleware"
+	"github.com/fsnotify/fsnotify"
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/gorilla/mux"
-	fsnotify "gopkg.in/fsnotify.v1"
 )
 
 const (

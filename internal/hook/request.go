@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"unicode"
 
-	"github.com/clbanning/mxj"
+	"github.com/clbanning/mxj/v2"
 )
 
 // Request represents a webhook request.
