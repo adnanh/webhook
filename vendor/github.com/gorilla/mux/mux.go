@@ -5,6 +5,7 @@
 package mux
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -30,24 +31,26 @@ func NewRouter() *Router {
 // It implements the http.Handler interface, so it can be registered to serve
 // requests:
 //
-//     var router = mux.NewRouter()
+//	var router = mux.NewRouter()
 //
-//     func main() {
-//         http.Handle("/", router)
-//     }
+//	func main() {
+//	    http.Handle("/", router)
+//	}
 //
 // Or, for Google App Engine, register it in a init() function:
 //
-//     func init() {
-//         http.Handle("/", router)
-//     }
+//	func init() {
+//	    http.Handle("/", router)
+//	}
 //
 // This will send all incoming requests to the router.
 type Router struct {
 	// Configurable Handler to be used when no route matches.
+	// This can be used to render your own 404 Not Found errors.
 	NotFoundHandler http.Handler
 
 	// Configurable Handler to be used when the request method does not match the route.
+	// This can be used to render your own 405 Method Not Allowed errors.
 	MethodNotAllowedHandler http.Handler
 
 	// Routes to be matched, in order.
@@ -58,8 +61,7 @@ type Router struct {
 
 	// If true, do not clear the request context after handling the request.
 	//
-	// Deprecated: No effect when go1.7+ is used, since the context is stored
-	// on the request itself.
+	// Deprecated: No effect, since the context is stored on the request itself.
 	KeepContext bool
 
 	// Slice of middlewares to be called after a match is found
@@ -111,10 +113,8 @@ func copyRouteConf(r routeConf) routeConf {
 		c.regexp.queries = append(c.regexp.queries, copyRouteRegexp(q))
 	}
 
-	c.matchers = make([]matcher, 0, len(r.matchers))
-	for _, m := range r.matchers {
-		c.matchers = append(c.matchers, m)
-	}
+	c.matchers = make([]matcher, len(r.matchers))
+	copy(c.matchers, r.matchers)
 
 	return c
 }
@@ -197,8 +197,8 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	var handler http.Handler
 	if r.Match(req, &match) {
 		handler = match.Handler
-		req = setVars(req, match.Vars)
-		req = setCurrentRoute(req, match.Route)
+		req = requestWithVars(req, match.Vars)
+		req = requestWithRoute(req, match.Route)
 	}
 
 	if handler == nil && match.MatchErr == ErrMethodMismatch {
@@ -428,7 +428,7 @@ const (
 
 // Vars returns the route variables for the current request, if any.
 func Vars(r *http.Request) map[string]string {
-	if rv := contextGet(r, varsKey); rv != nil {
+	if rv := r.Context().Value(varsKey); rv != nil {
 		return rv.(map[string]string)
 	}
 	return nil
@@ -437,21 +437,22 @@ func Vars(r *http.Request) map[string]string {
 // CurrentRoute returns the matched route for the current request, if any.
 // This only works when called inside the handler of the matched route
 // because the matched route is stored in the request context which is cleared
-// after the handler returns, unless the KeepContext option is set on the
-// Router.
+// after the handler returns.
 func CurrentRoute(r *http.Request) *Route {
-	if rv := contextGet(r, routeKey); rv != nil {
+	if rv := r.Context().Value(routeKey); rv != nil {
 		return rv.(*Route)
 	}
 	return nil
 }
 
-func setVars(r *http.Request, val interface{}) *http.Request {
-	return contextSet(r, varsKey, val)
+func requestWithVars(r *http.Request, vars map[string]string) *http.Request {
+	ctx := context.WithValue(r.Context(), varsKey, vars)
+	return r.WithContext(ctx)
 }
 
-func setCurrentRoute(r *http.Request, val interface{}) *http.Request {
-	return contextSet(r, routeKey, val)
+func requestWithRoute(r *http.Request, route *Route) *http.Request {
+	ctx := context.WithValue(r.Context(), routeKey, route)
+	return r.WithContext(ctx)
 }
 
 // ----------------------------------------------------------------------------
