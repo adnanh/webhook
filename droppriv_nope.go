@@ -1,4 +1,4 @@
-// +build linux windows
+// +build windows
 
 package main
 
