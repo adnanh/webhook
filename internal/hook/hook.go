@@ -157,7 +157,7 @@ func ExtractCommaSeparatedValues(source, prefix string) []string {
 
 // ExtractSignatures will extract all the signatures from the source.
 func ExtractSignatures(source, prefix string) []string {
-	// If there are multiple possible matches, let the comma seperated extractor
+	// If there are multiple possible matches, let the comma separated extractor
 	// do it's work.
 	if strings.Contains(source, ",") {
 		return ExtractCommaSeparatedValues(source, prefix)
