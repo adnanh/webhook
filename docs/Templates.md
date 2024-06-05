@@ -4,6 +4,8 @@
 
 In additional to the [built-in Go template functions and features][tt], `webhook` provides a `getenv` template function for inserting environment variables into a templated configuration file.
 
+`secret` template function provides access to docker secrets. `secret secret_name` will insert content of `/run/secrets/secret_name` file into a templated configuration file.
+
 ## Example Usage
 
 In the example JSON template file below (YAML is also supported), the `payload-hmac-sha1` matching rule looks up the HMAC secret from the environment using the `getenv` template function.
