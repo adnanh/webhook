@@ -117,6 +117,7 @@ You can use one of the following Docker images, or create your own (please read 
 - [almir/webhook](https://github.com/almir/docker-webhook)
 - [roxedus/webhook](https://github.com/Roxedus/docker-webhook)
 - [thecatlady/webhook](https://github.com/thecatlady/docker-webhook)
+- [lwlook/webhook](https://hub.docker.com/r/lwlook/webhook) - This setup allows direct access to the Docker host, providing a streamlined and efficient way to manage webhooks.
 
 ## Examples
 Check out [Hook examples page](docs/Hook-Examples.md) for more complex examples of hooks.
