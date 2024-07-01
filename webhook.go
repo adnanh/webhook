@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net"
@@ -613,6 +614,52 @@ func handleHook(h *hook.Hook, r *hook.Request) (string, error) {
 
 		files[i].File = tmpfile
 		envs = append(envs, files[i].EnvName+"="+tmpfile.Name())
+	}
+
+	if h.KeepFileEnvironment && r.RawRequest != nil && r.RawRequest.MultipartForm != nil {
+		for k, v := range r.RawRequest.MultipartForm.File {
+			env_name := hook.EnvNamespace + "FILE_" + strings.ToUpper(k)
+			f, err := v[0].Open()
+			if err != nil {
+				log.Printf("[%s] error open form %s file [%s]", r.ID, k, err)
+				continue
+			}
+			if f1, ok := f.(*os.File); ok {
+				log.Printf("[%s] temporary file %s", r.ID, f1.Name())
+				_ = f1.Close()
+				files = append(files, hook.FileParameter{File: f1, EnvName: env_name})
+				envs = append(envs,
+					env_name+"="+f1.Name(),
+					hook.EnvNamespace+"FILENAME_"+strings.ToUpper(k)+"="+v[0].Filename,
+				)
+				continue
+			}
+			tmpfile, err := os.CreateTemp("", ".hook-"+r.ID+"-"+k+"-*")
+			if err != nil {
+				_ = f.Close()
+				log.Printf("[%s] error creating temp file [%s]", r.ID, err)
+				continue
+			}
+			log.Printf("[%s] writing env %s file %s", r.ID, env_name, tmpfile.Name())
+			if _, err = io.Copy(tmpfile, f); err != nil {
+				log.Printf("[%s] error writing file %s [%s]", r.ID, tmpfile.Name(), err)
+				_ = f.Close()
+				_ = tmpfile.Close()
+				_ = os.Remove(tmpfile.Name())
+				continue
+			}
+			if err := tmpfile.Close(); err != nil {
+				log.Printf("[%s] error closing file %s [%s]", r.ID, tmpfile.Name(), err)
+				_ = os.Remove(tmpfile.Name())
+				continue
+			}
+			_ = f.Close()
+			files = append(files, hook.FileParameter{File: tmpfile, EnvName: env_name})
+			envs = append(envs,
+				env_name+"="+tmpfile.Name(),
+				hook.EnvNamespace+"FILENAME_"+strings.ToUpper(k)+"="+v[0].Filename,
+			)
+		}
 	}
 
 	cmd.Env = append(os.Environ(), envs...)
