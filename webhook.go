@@ -61,6 +61,8 @@ var (
 	watcher *fsnotify.Watcher
 	signals chan os.Signal
 	pidFile *pidfile.PIDFile
+	socket  = ""
+	addr    = ""
 )
 
 func matchLoadedHook(id string) *hook.Hook {
@@ -85,6 +87,9 @@ func lenLoadedHooks() int {
 func main() {
 	flag.Var(&hooksFiles, "hooks", "path to the json file containing defined hooks the webhook should serve, use multiple times to load from different files")
 	flag.Var(&responseHeaders, "header", "response header to return, specified in format name=value, use multiple times to set multiple headers")
+
+	// register platform-specific flags
+	platformFlags()
 
 	flag.Parse()
 
@@ -120,13 +125,21 @@ func main() {
 	// log file opening prior to writing our first log message.
 	var logQueue []string
 
-	addr := fmt.Sprintf("%s:%d", *ip, *port)
+	// by default the listen address is ip:port (default 0.0.0.0:9000), but
+	// this may be modified by trySocketListener
+	addr = fmt.Sprintf("%s:%d", *ip, *port)
 
-	// Open listener early so we can drop privileges.
-	ln, err := net.Listen("tcp", addr)
+	ln, err := trySocketListener()
 	if err != nil {
-		logQueue = append(logQueue, fmt.Sprintf("error listening on port: %s", err))
+		logQueue = append(logQueue, fmt.Sprintf("error listening on socket: %s", err))
 		// we'll bail out below
+	} else if ln == nil {
+		// Open listener early so we can drop privileges.
+		ln, err = net.Listen("tcp", addr)
+		if err != nil {
+			logQueue = append(logQueue, fmt.Sprintf("error listening on port: %s", err))
+			// we'll bail out below
+		}
 	}
 
 	if *setUID != 0 {
@@ -276,7 +289,6 @@ func main() {
 
 	// Create common HTTP server settings
 	svr := &http.Server{
-		Addr:    addr,
 		Handler: r,
 	}
 

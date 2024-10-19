@@ -1,8 +1,11 @@
 module github.com/adnanh/webhook
 
-go 1.17
+go 1.21
+
+toolchain go1.22.0
 
 require (
+	github.com/Microsoft/go-winio v0.6.2
 	github.com/clbanning/mxj/v2 v2.7.0
 	github.com/dustin/go-humanize v1.0.1
 	github.com/fsnotify/fsnotify v1.7.0
