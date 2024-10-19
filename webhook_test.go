@@ -79,89 +79,122 @@ func TestWebhook(t *testing.T) {
 		configPath, cleanupConfigFn := genConfig(t, hookecho, hookTmpl)
 		defer cleanupConfigFn()
 
+		runTest := func(t *testing.T, tt hookHandlerTest, authority string, bindArgs []string, httpClient *http.Client) {
+			args := []string{fmt.Sprintf("-hooks=%s", configPath), "-debug"}
+			args = append(args, bindArgs...)
+
+			if len(tt.cliMethods) != 0 {
+				args = append(args, "-http-methods="+strings.Join(tt.cliMethods, ","))
+			}
+
+			// Setup a buffer for capturing webhook logs for later evaluation
+			b := &buffer{}
+
+			cmd := exec.Command(webhook, args...)
+			cmd.Stderr = b
+			cmd.Env = webhookEnv()
+			cmd.Args[0] = "webhook"
+			if err := cmd.Start(); err != nil {
+				t.Fatalf("failed to start webhook: %s", err)
+			}
+			defer killAndWait(cmd)
+
+			waitForServerReady(t, authority, httpClient)
+
+			url := fmt.Sprintf("http://%s/hooks/%s", authority, tt.id)
+
+			req, err := http.NewRequest(tt.method, url, ioutil.NopCloser(strings.NewReader(tt.body)))
+			if err != nil {
+				t.Errorf("New request failed: %s", err)
+			}
+
+			for k, v := range tt.headers {
+				req.Header.Add(k, v)
+			}
+
+			var res *http.Response
+
+			req.Header.Add("Content-Type", tt.contentType)
+			req.ContentLength = int64(len(tt.body))
+
+			res, err = httpClient.Do(req)
+			if err != nil {
+				t.Errorf("client.Do failed: %s", err)
+			}
+
+			body, err := ioutil.ReadAll(res.Body)
+			res.Body.Close()
+			if err != nil {
+				t.Errorf("POST %q: failed to ready body: %s", tt.desc, err)
+			}
+
+			// Test body
+			{
+				var bodyFailed bool
+
+				if tt.bodyIsRE {
+					bodyFailed = string(body) == tt.respBody
+				} else {
+					r := regexp.MustCompile(tt.respBody)
+					bodyFailed = !r.Match(body)
+				}
+
+				if res.StatusCode != tt.respStatus || bodyFailed {
+					t.Errorf("failed %q (id: %s):\nexpected status: %#v, response: %s\ngot status: %#v, response: %s\ncommand output:\n%s\n", tt.desc, tt.id, tt.respStatus, tt.respBody, res.StatusCode, body, b)
+				}
+			}
+
+			if tt.logMatch == "" {
+				return
+			}
+
+			// There's the potential for a race condition below where we
+			// try to read the logs buffer b before the logs have been
+			// flushed by the webhook process. Kill the process to flush
+			// the logs.
+			killAndWait(cmd)
+
+			matched, _ := regexp.MatchString(tt.logMatch, b.String())
+			if !matched {
+				t.Errorf("failed log match for %q (id: %s):\nmatch pattern: %q\ngot:\n%s", tt.desc, tt.id, tt.logMatch, b)
+			}
+		}
 		for _, tt := range hookHandlerTests {
+			ip, port := serverAddress(t)
+
 			t.Run(tt.desc+"@"+hookTmpl, func(t *testing.T) {
-				ip, port := serverAddress(t)
-				args := []string{fmt.Sprintf("-hooks=%s", configPath), fmt.Sprintf("-ip=%s", ip), fmt.Sprintf("-port=%s", port), "-debug"}
-
-				if len(tt.cliMethods) != 0 {
-					args = append(args, "-http-methods="+strings.Join(tt.cliMethods, ","))
-				}
-
-				// Setup a buffer for capturing webhook logs for later evaluation
-				b := &buffer{}
-
-				cmd := exec.Command(webhook, args...)
-				cmd.Stderr = b
-				cmd.Env = webhookEnv()
-				cmd.Args[0] = "webhook"
-				if err := cmd.Start(); err != nil {
-					t.Fatalf("failed to start webhook: %s", err)
-				}
-				defer killAndWait(cmd)
-
-				waitForServerReady(t, ip, port)
-
-				url := fmt.Sprintf("http://%s:%s/hooks/%s", ip, port, tt.id)
-
-				req, err := http.NewRequest(tt.method, url, ioutil.NopCloser(strings.NewReader(tt.body)))
-				if err != nil {
-					t.Errorf("New request failed: %s", err)
-				}
-
-				for k, v := range tt.headers {
-					req.Header.Add(k, v)
-				}
-
-				var res *http.Response
-
-				req.Header.Add("Content-Type", tt.contentType)
-				req.ContentLength = int64(len(tt.body))
-
-				client := &http.Client{}
-				res, err = client.Do(req)
-				if err != nil {
-					t.Errorf("client.Do failed: %s", err)
-				}
-
-				body, err := ioutil.ReadAll(res.Body)
-				res.Body.Close()
-				if err != nil {
-					t.Errorf("POST %q: failed to ready body: %s", tt.desc, err)
-				}
-
-				// Test body
-				{
-					var bodyFailed bool
-
-					if tt.bodyIsRE {
-						bodyFailed = string(body) == tt.respBody
-					} else {
-						r := regexp.MustCompile(tt.respBody)
-						bodyFailed = !r.Match(body)
-					}
-
-					if res.StatusCode != tt.respStatus || bodyFailed {
-						t.Errorf("failed %q (id: %s):\nexpected status: %#v, response: %s\ngot status: %#v, response: %s\ncommand output:\n%s\n", tt.desc, tt.id, tt.respStatus, tt.respBody, res.StatusCode, body, b)
-					}
-				}
-
-				if tt.logMatch == "" {
-					return
-				}
-
-				// There's the potential for a race condition below where we
-				// try to read the logs buffer b before the logs have been
-				// flushed by the webhook process. Kill the process to flush
-				// the logs.
-				killAndWait(cmd)
-
-				matched, _ := regexp.MatchString(tt.logMatch, b.String())
-				if !matched {
-					t.Errorf("failed log match for %q (id: %s):\nmatch pattern: %q\ngot:\n%s", tt.desc, tt.id, tt.logMatch, b)
-				}
+				runTest(t, tt, fmt.Sprintf("%s:%s", ip, port),
+					[]string{
+						fmt.Sprintf("-ip=%s", ip),
+						fmt.Sprintf("-port=%s", port),
+					},
+					&http.Client{},
+				)
 			})
 		}
+
+		// run a single test using socket rather than TCP binding - wrap in an
+		// anonymous function so the deferred cleanup happens at the right time
+		func() {
+			socketPath, transport, cleanup, err := prepareTestSocket(hookTmpl)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cleanup != nil {
+				defer cleanup()
+			}
+
+			tt := hookHandlerTests[0]
+			t.Run(tt.desc+":socket@"+hookTmpl, func(t *testing.T) {
+				runTest(t, tt, "socket",
+					[]string{
+						fmt.Sprintf("-socket=%s", socketPath),
+					},
+					&http.Client{
+						Transport: transport,
+					})
+			})
+		}()
 	}
 }
 
@@ -263,20 +296,21 @@ func serverAddress(t *testing.T) (string, string) {
 	return host, port
 }
 
-func waitForServerReady(t *testing.T, ip, port string) {
+func waitForServerReady(t *testing.T, authority string, httpClient *http.Client) {
 	waitForServer(t,
-		fmt.Sprintf("http://%v:%v/", ip, port),
+		httpClient,
+		fmt.Sprintf("http://%s/", authority),
 		http.StatusOK,
 		5*time.Second)
 }
 
 const pollInterval = 200 * time.Millisecond
 
-func waitForServer(t *testing.T, url string, status int, timeout time.Duration) {
+func waitForServer(t *testing.T, httpClient *http.Client, url string, status int, timeout time.Duration) {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		time.Sleep(pollInterval)
-		res, err := http.Get(url)
+		res, err := httpClient.Get(url)
 		if err != nil {
 			continue
 		}
@@ -308,7 +342,7 @@ func webhookEnv() (env []string) {
 	return
 }
 
-var hookHandlerTests = []struct {
+type hookHandlerTest struct {
 	desc        string
 	id          string
 	cliMethods  []string
@@ -321,7 +355,9 @@ var hookHandlerTests = []struct {
 	respStatus int
 	respBody   string
 	logMatch   string
-}{
+}
+
+var hookHandlerTests = []hookHandlerTest{
 	{
 		"github",
 		"github",
