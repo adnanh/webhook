@@ -214,7 +214,8 @@ func buildHookecho(t *testing.T) (binPath string, cleanupFn func()) {
 		binPath += ".exe"
 	}
 
-	cmd := exec.Command("go", "build", "-o", binPath, "test/hookecho.go")
+	gobin := filepath.Join(runtime.GOROOT(), "bin", "go")
+	cmd := exec.Command(gobin, "build", "-o", binPath, "test/hookecho.go")
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("Building hookecho: %v", err)
 	}
@@ -272,7 +273,8 @@ func buildWebhook(t *testing.T) (binPath string, cleanupFn func()) {
 		binPath += ".exe"
 	}
 
-	cmd := exec.Command("go", "build", "-o", binPath)
+	gobin := filepath.Join(runtime.GOROOT(), "bin", "go")
+	cmd := exec.Command(gobin, "build", "-o", binPath)
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("Building webhook: %v", err)
 	}
