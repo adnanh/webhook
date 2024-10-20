@@ -41,6 +41,7 @@ const (
 	SourceEntirePayload  string = "entire-payload"
 	SourceEntireQuery    string = "entire-query"
 	SourceEntireHeaders  string = "entire-headers"
+	SourceTemplate       string = "template"
 )
 
 const (
@@ -438,6 +439,76 @@ type Argument struct {
 	Name         string `json:"name,omitempty"`
 	EnvName      string `json:"envname,omitempty"`
 	Base64Decode bool   `json:"base64decode,omitempty"`
+
+	// if the Argument is SourceTemplate, this will be the compiled template,
+	// otherwise it will be nil
+	template *template.Template
+}
+
+// UnmarshalJSON parses an Argument in the normal way, and then allows the
+// newly-loaded Argument to do any necessary post-processing.
+func (ha *Argument) UnmarshalJSON(text []byte) error {
+	// First unmarshal as normal, skipping the custom unmarshaller
+	type jsonArgument Argument
+	if err := json.Unmarshal(text, (*jsonArgument)(ha)); err != nil {
+		return err
+	}
+
+	return ha.postProcess()
+}
+
+// postProcess does the necessary post-unmarshal processing for this argument.
+// If the argument is a SourceTemplate it compiles the template string into an
+// executable template.  This method is idempotent, i.e. it is safe to call
+// more than once on the same Argument
+func (ha *Argument) postProcess() error {
+	if ha.Source == SourceTemplate && ha.template == nil {
+		// now compile the template
+		var err error
+		ha.template, err = template.New("argument").Option("missingkey=zero").Parse(ha.Name)
+		return err
+	}
+
+	return nil
+}
+
+// templateContext is the context passed as "." to the template executed when
+// getting an Argument of type SourceTemplate
+type templateContext struct {
+	ID          string
+	ContentType string
+	Body        []byte
+	Headers     map[string]interface{}
+	Query       map[string]interface{}
+	Payload     map[string]interface{}
+	Method      string
+	RemoteAddr  string
+}
+
+// BodyText is a convenience to access the request Body as a string.  This means
+// you can just say {{ .BodyText }} instead of having to do a trick like
+// {{ printf "%s" .Body }}
+func (ctx *templateContext) BodyText() string {
+	return string(ctx.Body)
+}
+
+// GetHeader is a function to fetch a specific item out of the headers map
+// by its case insensitive name.  The header name is converted to canonical form
+// before being looked up in the header map, e.g. {{ .GetHeader "x-request-id" }}
+func (ctx *templateContext) GetHeader(name string) interface{} {
+	return ctx.Headers[textproto.CanonicalMIMEHeaderKey(name)]
+}
+
+func (ha *Argument) runTemplate(r *Request) (string, error) {
+	w := &strings.Builder{}
+	ctx := &templateContext{
+		r.ID, r.ContentType, r.Body, r.Headers, r.Query, r.Payload, r.RawRequest.Method, r.RawRequest.RemoteAddr,
+	}
+	err := ha.template.Execute(w, ctx)
+	if err == nil {
+		return w.String(), nil
+	}
+	return "", err
 }
 
 // Get Argument method returns the value for the Argument's key name
@@ -500,6 +571,9 @@ func (ha *Argument) Get(r *Request) (string, error) {
 		}
 
 		return string(res), nil
+
+	case SourceTemplate:
+		return ha.runTemplate(r)
 	}
 
 	if source != nil {
