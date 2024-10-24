@@ -39,6 +39,7 @@ var (
 	hooksURLPrefix     = flag.String("urlprefix", "hooks", "url prefix to use for served hooks (protocol://yourserver:port/PREFIX/:hook-id)")
 	secure             = flag.Bool("secure", false, "use HTTPS instead of HTTP")
 	asTemplate         = flag.Bool("template", false, "parse hooks file as a Go template")
+	templateDelimiters = flag.String("template-delims", "", "a comma-separated pair of delimiters, e.g. '((,))' or '[[,]]' to use instead of the standard '{{,}}' when parsing hooks file as a template, to avoid clashing with any \"source\": \"template\" arguments")
 	cert               = flag.String("cert", "cert.pem", "path to the HTTPS certificate pem file")
 	key                = flag.String("key", "key.pem", "path to the HTTPS certificate private key pem file")
 	justDisplayVersion = flag.Bool("version", false, "display webhook version and quit")
@@ -204,7 +205,7 @@ func main() {
 
 		newHooks := hook.Hooks{}
 
-		err := newHooks.LoadFromFile(hooksFilePath, *asTemplate)
+		err := newHooks.LoadFromFile(hooksFilePath, *asTemplate, *templateDelimiters)
 
 		if err != nil {
 			log.Printf("couldn't load hooks from file! %+v\n", err)
@@ -670,7 +671,7 @@ func reloadHooks(hooksFilePath string) {
 	// parse and swap
 	log.Printf("attempting to reload hooks from %s\n", hooksFilePath)
 
-	err := hooksInFile.LoadFromFile(hooksFilePath, *asTemplate)
+	err := hooksInFile.LoadFromFile(hooksFilePath, *asTemplate, *templateDelimiters)
 
 	if err != nil {
 		log.Printf("couldn't load hooks from file! %+v\n", err)

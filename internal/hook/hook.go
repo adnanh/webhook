@@ -818,7 +818,9 @@ type Hooks []Hook
 // LoadFromFile attempts to load hooks from the specified file, which
 // can be either JSON or YAML.  The asTemplate parameter causes the file
 // contents to be parsed as a Go text/template prior to unmarshalling.
-func (h *Hooks) LoadFromFile(path string, asTemplate bool) error {
+// The delimsStr parameter is a comma-separated pair of the left and right
+// template delimiters, or an empty string to use the default '{{,}}'.
+func (h *Hooks) LoadFromFile(path string, asTemplate bool, delimsStr string) error {
 	if path == "" {
 		return nil
 	}
@@ -832,8 +834,12 @@ func (h *Hooks) LoadFromFile(path string, asTemplate bool) error {
 
 	if asTemplate {
 		funcMap := template.FuncMap{"getenv": getenv}
+		left, right, found := strings.Cut(delimsStr, ",")
+		if !found && delimsStr != "" {
+			return fmt.Errorf("invalid delimiters %q - should be left and right delimiters separated by a comma", delimsStr)
+		}
 
-		tmpl, err := template.New("hooks").Funcs(funcMap).Parse(string(file))
+		tmpl, err := template.New("hooks").Funcs(funcMap).Delims(strings.TrimSpace(left), strings.TrimSpace(right)).Parse(string(file))
 		if err != nil {
 			return err
 		}

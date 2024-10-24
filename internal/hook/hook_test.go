@@ -433,7 +433,7 @@ func TestHooksLoadFromFile(t *testing.T) {
 
 	for _, tt := range hooksLoadFromFileTests {
 		h := &Hooks{}
-		err := h.LoadFromFile(tt.path, tt.asTemplate)
+		err := h.LoadFromFile(tt.path, tt.asTemplate, "")
 		if (err == nil) != tt.ok {
 			t.Errorf(err.Error())
 		}
@@ -450,7 +450,7 @@ func TestHooksTemplateLoadFromFile(t *testing.T) {
 		}
 
 		h := &Hooks{}
-		err := h.LoadFromFile(tt.path, tt.asTemplate)
+		err := h.LoadFromFile(tt.path, tt.asTemplate, "")
 		if (err == nil) != tt.ok {
 			t.Errorf(err.Error())
 			continue
