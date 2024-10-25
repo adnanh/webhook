@@ -523,6 +523,9 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if matchedHook.StreamCommandOutput {
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.Header().Set("Cache-Control", "no-cache")
+			w.Header().Set("Connection", "keep-alive")
 			handleHook(matchedHook, req, w)
 		} else if matchedHook.CaptureCommandOutput {
 			response, err := handleHook(matchedHook, req, nil)
