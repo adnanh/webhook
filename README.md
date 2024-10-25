@@ -26,7 +26,7 @@ Everything else is the responsibility of the command's author.
 # Getting started
 ## Installation
 ### Building from source
-To get started, first make sure you've properly set up your [Go](http://golang.org/doc/install) 1.14 or newer environment and then run
+To get started, first make sure you've properly set up your [Go](http://golang.org/doc/install) 1.21 or newer environment and then run
 ```bash
 $ go build github.com/adnanh/webhook
 ```
