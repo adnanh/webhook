@@ -1,6 +1,6 @@
 # Using systemd socket activation
 
-_New in v2.9.0_
+_New in v2.8.2_
 
 On platforms that use [systemd](https://systemd.io), [webhook][w] 
 supports the _socket activation_ mechanism.  In this mode, systemd itself is responsible for managing the listening socket, and it launches [webhook][w] the first time it receives a request on the socket.  This has a number of advantages over the standard mode:
