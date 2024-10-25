@@ -269,6 +269,8 @@ The IP can be IPv4- or IPv6-formatted, using [CIDR notation](https://en.wikipedi
 }
 ```
 
+Note this does not work if webhook is running behind a reverse proxy, as the "client IP" will either not be available at all (if webhook is using a Unix socket or named pipe) or it will be the address of the _proxy_, not of the real client.  You will probably need to enforce client IP restrictions in the reverse proxy itself, before forwarding the requests to webhook.
+
 ### Match scalr-signature
 
 The trigger rule checks the scalr signature and also checks that the request was signed less than 5 minutes before it was received. 

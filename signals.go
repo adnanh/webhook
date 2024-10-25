@@ -1,3 +1,4 @@
+//go:build !windows
 // +build !windows
 
 package main
@@ -6,6 +7,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 )
 
@@ -41,6 +43,15 @@ func watchForSignals() {
 				err := pidFile.Remove()
 				if err != nil {
 					log.Print(err)
+				}
+			}
+			if socket != "" && !strings.HasPrefix(socket, "@") {
+				// we've been listening on a named Unix socket, delete it
+				// before we exit so subsequent runs can re-bind the same
+				// socket path
+				err := os.Remove(socket)
+				if err != nil {
+					log.Printf("Failed to remove socket file %s: %v", socket, err)
 				}
 			}
 			os.Exit(0)
