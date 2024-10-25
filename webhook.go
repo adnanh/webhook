@@ -48,8 +48,6 @@ var (
 	useXRequestID      = flag.Bool("x-request-id", false, "use X-Request-Id header, if present, as request ID")
 	xRequestIDLimit    = flag.Int("x-request-id-limit", 0, "truncate X-Request-Id header to limit; default no limit")
 	maxMultipartMem    = flag.Int64("max-multipart-mem", 1<<20, "maximum memory in bytes for parsing multipart form data before disk caching")
-	setGID             = flag.Int("setgid", 0, "set group ID after opening listening port; must be used with setuid")
-	setUID             = flag.Int("setuid", 0, "set user ID after opening listening port; must be used with setgid")
 	httpMethods        = flag.String("http-methods", "", `set default allowed HTTP methods (ie. "POST"); separate methods with comma`)
 	pidPath            = flag.String("pidfile", "", "create PID file at the given path")
 
@@ -61,6 +59,8 @@ var (
 	watcher *fsnotify.Watcher
 	signals chan os.Signal
 	pidFile *pidfile.PIDFile
+	setUID  = 0
+	setGID  = 0
 	socket  = ""
 	addr    = ""
 )
@@ -107,7 +107,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	if (*setUID != 0 || *setGID != 0) && (*setUID == 0 || *setGID == 0) {
+	if (setUID != 0 || setGID != 0) && (setUID == 0 || setGID == 0) {
 		fmt.Println("error: setuid and setgid options must be used together")
 		os.Exit(1)
 	}
@@ -142,8 +142,8 @@ func main() {
 		}
 	}
 
-	if *setUID != 0 {
-		err := dropPrivileges(*setUID, *setGID)
+	if setUID != 0 {
+		err := dropPrivileges(setUID, setGID)
 		if err != nil {
 			logQueue = append(logQueue, fmt.Sprintf("error dropping privileges: %s", err))
 			// we'll bail out below
