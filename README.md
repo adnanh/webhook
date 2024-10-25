@@ -117,6 +117,9 @@ Note that when running in this mode the [`ip-whitelist`](docs/Hook-Rules.md#matc
 ## CORS Headers
 If you want to set CORS headers, you can use the `-header name=value` flag while starting [webhook][w] to set the appropriate CORS headers that will be returned with each response.
 
+## Running under `systemd`
+On platforms that use [systemd](https://systemd.io), [webhook][w] supports the _socket activation_ mechanism.  If [webhook][w] detects that it has been launched from a systemd-managed socket it will automatically use that instead of opening its own listening port.  See [the systemd page](docs/Systemd-Activation.md) for full details.
+
 ## Interested in running webhook inside of a Docker container?
 You can use one of the following Docker images, or create your own (please read [this discussion](https://github.com/adnanh/webhook/issues/63)):
 - [almir/webhook](https://github.com/almir/docker-webhook)
