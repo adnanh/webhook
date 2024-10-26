@@ -19,7 +19,7 @@ release: clean deps ## Generate releases for unix systems
 		do \
 			echo "Building $$os-$$arch"; \
 			mkdir -p build/webhook-$$os-$$arch/; \
-			GOOS=$$os GOARCH=$$arch go build -o build/webhook-$$os-$$arch/webhook; \
+			CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -o build/webhook-$$os-$$arch/webhook; \
 			tar cz -C build -f build/webhook-$$os-$$arch.tar.gz webhook-$$os-$$arch; \
 		done \
 	done
