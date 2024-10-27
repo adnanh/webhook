@@ -40,100 +40,6 @@ func TestGetParameter(t *testing.T) {
 	}
 }
 
-var checkPayloadSignatureTests = []struct {
-	payload   []byte
-	secret    string
-	signature string
-	mac       string
-	ok        bool
-}{
-	{[]byte(`{"a": "z"}`), "secret", "b17e04cbb22afa8ffbff8796fc1894ed27badd9e", "b17e04cbb22afa8ffbff8796fc1894ed27badd9e", true},
-	{[]byte(`{"a": "z"}`), "secret", "sha1=b17e04cbb22afa8ffbff8796fc1894ed27badd9e", "b17e04cbb22afa8ffbff8796fc1894ed27badd9e", true},
-	{[]byte(`{"a": "z"}`), "secret", "sha1=XXXe04cbb22afa8ffbff8796fc1894ed27badd9e,sha1=b17e04cbb22afa8ffbff8796fc1894ed27badd9e", "b17e04cbb22afa8ffbff8796fc1894ed27badd9e", true},
-	{[]byte(``), "secret", "25af6174a0fcecc4d346680a72b7ce644b9a88e8", "25af6174a0fcecc4d346680a72b7ce644b9a88e8", true},
-	// failures
-	{[]byte(`{"a": "z"}`), "secret", "XXXe04cbb22afa8ffbff8796fc1894ed27badd9e", "b17e04cbb22afa8ffbff8796fc1894ed27badd9e", false},
-	{[]byte(`{"a": "z"}`), "secret", "sha1=XXXe04cbb22afa8ffbff8796fc1894ed27badd9e", "b17e04cbb22afa8ffbff8796fc1894ed27badd9e", false},
-	{[]byte(`{"a": "z"}`), "secret", "sha1=XXXe04cbb22afa8ffbff8796fc1894ed27badd9e,sha1=XXXe04cbb22afa8ffbff8796fc1894ed27badd9e", "b17e04cbb22afa8ffbff8796fc1894ed27badd9e", false},
-	{[]byte(`{"a": "z"}`), "secreX", "b17e04cbb22afa8ffbff8796fc1894ed27badd9e", "900225703e9342328db7307692736e2f7cc7b36e", false},
-	{[]byte(`{"a": "z"}`), "", "b17e04cbb22afa8ffbff8796fc1894ed27badd9e", "", false},
-	{[]byte(``), "secret", "XXXf6174a0fcecc4d346680a72b7ce644b9a88e8", "25af6174a0fcecc4d346680a72b7ce644b9a88e8", false},
-}
-
-func TestCheckPayloadSignature(t *testing.T) {
-	for _, tt := range checkPayloadSignatureTests {
-		mac, err := CheckPayloadSignature(tt.payload, tt.secret, tt.signature)
-		if (err == nil) != tt.ok || mac != tt.mac {
-			t.Errorf("failed to check payload signature {%q, %q, %q}:\nexpected {mac:%#v, ok:%#v},\ngot {mac:%#v, ok:%#v}", tt.payload, tt.secret, tt.signature, tt.mac, tt.ok, mac, (err == nil))
-		}
-
-		if err != nil && tt.mac != "" && strings.Contains(err.Error(), tt.mac) {
-			t.Errorf("error message should not disclose expected mac: %s", err)
-		}
-	}
-}
-
-var checkPayloadSignature256Tests = []struct {
-	payload   []byte
-	secret    string
-	signature string
-	mac       string
-	ok        bool
-}{
-	{[]byte(`{"a": "z"}`), "secret", "f417af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89", "f417af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89", true},
-	{[]byte(`{"a": "z"}`), "secret", "sha256=f417af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89", "f417af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89", true},
-	{[]byte(`{"a": "z"}`), "secret", "sha256=XXX7af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89,sha256=f417af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89", "f417af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89", true},
-	{[]byte(``), "secret", "f9e66e179b6747ae54108f82f8ade8b3c25d76fd30afde6c395822c530196169", "f9e66e179b6747ae54108f82f8ade8b3c25d76fd30afde6c395822c530196169", true},
-	// failures
-	{[]byte(`{"a": "z"}`), "secret", "XXX7af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89", "f417af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89", false},
-	{[]byte(`{"a": "z"}`), "secret", "sha256=XXX7af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89", "f417af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89", false},
-	{[]byte(`{"a": "z"}`), "secret", "sha256=XXX7af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89,sha256=XXX7af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89", "f417af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89", false},
-	{[]byte(`{"a": "z"}`), "", "XXX7af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89", "", false},
-	{[]byte(``), "secret", "XXX66e179b6747ae54108f82f8ade8b3c25d76fd30afde6c395822c530196169", "f9e66e179b6747ae54108f82f8ade8b3c25d76fd30afde6c395822c530196169", false},
-}
-
-func TestCheckPayloadSignature256(t *testing.T) {
-	for _, tt := range checkPayloadSignature256Tests {
-		mac, err := CheckPayloadSignature256(tt.payload, tt.secret, tt.signature)
-		if (err == nil) != tt.ok || mac != tt.mac {
-			t.Errorf("failed to check payload signature {%q, %q, %q}:\nexpected {mac:%#v, ok:%#v},\ngot {mac:%#v, ok:%#v}", tt.payload, tt.secret, tt.signature, tt.mac, tt.ok, mac, (err == nil))
-		}
-
-		if err != nil && tt.mac != "" && strings.Contains(err.Error(), tt.mac) {
-			t.Errorf("error message should not disclose expected mac: %s", err)
-		}
-	}
-}
-
-var checkPayloadSignature512Tests = []struct {
-	payload   []byte
-	secret    string
-	signature string
-	mac       string
-	ok        bool
-}{
-	{[]byte(`{"a": "z"}`), "secret", "4ab17cc8ec668ead8bf498f87f8f32848c04d5ca3c9bcfcd3db9363f0deb44e580b329502a7fdff633d4d8fca301cc5c94a55a2fec458c675fb0ff2655898324", "4ab17cc8ec668ead8bf498f87f8f32848c04d5ca3c9bcfcd3db9363f0deb44e580b329502a7fdff633d4d8fca301cc5c94a55a2fec458c675fb0ff2655898324", true},
-	{[]byte(`{"a": "z"}`), "secret", "sha512=4ab17cc8ec668ead8bf498f87f8f32848c04d5ca3c9bcfcd3db9363f0deb44e580b329502a7fdff633d4d8fca301cc5c94a55a2fec458c675fb0ff2655898324", "4ab17cc8ec668ead8bf498f87f8f32848c04d5ca3c9bcfcd3db9363f0deb44e580b329502a7fdff633d4d8fca301cc5c94a55a2fec458c675fb0ff2655898324", true},
-	{[]byte(``), "secret", "b0e9650c5faf9cd8ae02276671545424104589b3656731ec193b25d01b07561c27637c2d4d68389d6cf5007a8632c26ec89ba80a01c77a6cdd389ec28db43901", "b0e9650c5faf9cd8ae02276671545424104589b3656731ec193b25d01b07561c27637c2d4d68389d6cf5007a8632c26ec89ba80a01c77a6cdd389ec28db43901", true},
-	// failures
-	{[]byte(`{"a": "z"}`), "secret", "74a0081f5b5988f4f3e8b8dd34dadc6291611f2e6260635a7e1535f8e95edb97ff520ba8b152e8ca5760ac42639854f3242e29efc81be73a8bf52d474d31ffea", "4ab17cc8ec668ead8bf498f87f8f32848c04d5ca3c9bcfcd3db9363f0deb44e580b329502a7fdff633d4d8fca301cc5c94a55a2fec458c675fb0ff2655898324", false},
-	{[]byte(`{"a": "z"}`), "", "74a0081f5b5988f4f3e8b8dd34dadc6291611f2e6260635a7e1535f8e95edb97ff520ba8b152e8ca5760ac42639854f3242e29efc81be73a8bf52d474d31ffea", "", false},
-	{[]byte(``), "secret", "XXX9650c5faf9cd8ae02276671545424104589b3656731ec193b25d01b07561c27637c2d4d68389d6cf5007a8632c26ec89ba80a01c77a6cdd389ec28db43901", "b0e9650c5faf9cd8ae02276671545424104589b3656731ec193b25d01b07561c27637c2d4d68389d6cf5007a8632c26ec89ba80a01c77a6cdd389ec28db43901", false},
-}
-
-func TestCheckPayloadSignature512(t *testing.T) {
-	for _, tt := range checkPayloadSignature512Tests {
-		mac, err := CheckPayloadSignature512(tt.payload, tt.secret, tt.signature)
-		if (err == nil) != tt.ok || mac != tt.mac {
-			t.Errorf("failed to check payload signature {%q, %q, %q}:\nexpected {mac:%#v, ok:%#v},\ngot {mac:%#v, ok:%#v}", tt.payload, tt.secret, tt.signature, tt.mac, tt.ok, mac, (err == nil))
-		}
-
-		if err != nil && tt.mac != "" && strings.Contains(err.Error(), tt.mac) {
-			t.Errorf("error message should not disclose expected mac: %s", err)
-		}
-	}
-}
-
 var checkScalrSignatureTests = []struct {
 	description       string
 	headers           map[string]interface{}
@@ -456,7 +362,7 @@ func TestHooksTemplateLoadFromFile(t *testing.T) {
 			continue
 		}
 
-		s := (*h.Match("webhook").TriggerRule.And)[0].Match.Secret
+		s := (*h.Match("webhook").TriggerRule.And)[0].Signature.Secret
 		if s != secret {
 			t.Errorf("Expected secret of %q, got %q", secret, s)
 		}
@@ -492,22 +398,12 @@ var matchRuleTests = []struct {
 }{
 	{"value", "", "", "z", "", Argument{"header", "a", "", false, nil}, map[string]interface{}{"A": "z"}, nil, nil, []byte{}, "", true, false},
 	{"regex", "^z", "", "z", "", Argument{"header", "a", "", false, nil}, map[string]interface{}{"A": "z"}, nil, nil, []byte{}, "", true, false},
-	{"payload-hmac-sha1", "", "secret", "", "", Argument{"header", "a", "", false, nil}, map[string]interface{}{"A": "b17e04cbb22afa8ffbff8796fc1894ed27badd9e"}, nil, nil, []byte(`{"a": "z"}`), "", true, false},
-	{"payload-hash-sha1", "", "secret", "", "", Argument{"header", "a", "", false, nil}, map[string]interface{}{"A": "b17e04cbb22afa8ffbff8796fc1894ed27badd9e"}, nil, nil, []byte(`{"a": "z"}`), "", true, false},
-	{"payload-hmac-sha256", "", "secret", "", "", Argument{"header", "a", "", false, nil}, map[string]interface{}{"A": "f417af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89"}, nil, nil, []byte(`{"a": "z"}`), "", true, false},
-	{"payload-hash-sha256", "", "secret", "", "", Argument{"header", "a", "", false, nil}, map[string]interface{}{"A": "f417af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89"}, nil, nil, []byte(`{"a": "z"}`), "", true, false},
 	// failures
 	{"value", "", "", "X", "", Argument{"header", "a", "", false, nil}, map[string]interface{}{"A": "z"}, nil, nil, []byte{}, "", false, false},
 	{"regex", "^X", "", "", "", Argument{"header", "a", "", false, nil}, map[string]interface{}{"A": "z"}, nil, nil, []byte{}, "", false, false},
 	{"value", "", "2", "X", "", Argument{"header", "a", "", false, nil}, map[string]interface{}{"Y": "z"}, nil, nil, []byte{}, "", false, true}, // reference invalid header
 	// errors
-	{"regex", "*", "", "", "", Argument{"header", "a", "", false, nil}, map[string]interface{}{"A": "z"}, nil, nil, []byte{}, "", false, true},                   // invalid regex
-	{"payload-hmac-sha1", "", "secret", "", "", Argument{"header", "a", "", false, nil}, map[string]interface{}{"A": ""}, nil, nil, []byte{}, "", false, true},   // invalid hmac
-	{"payload-hash-sha1", "", "secret", "", "", Argument{"header", "a", "", false, nil}, map[string]interface{}{"A": ""}, nil, nil, []byte{}, "", false, true},   // invalid hmac
-	{"payload-hmac-sha256", "", "secret", "", "", Argument{"header", "a", "", false, nil}, map[string]interface{}{"A": ""}, nil, nil, []byte{}, "", false, true}, // invalid hmac
-	{"payload-hash-sha256", "", "secret", "", "", Argument{"header", "a", "", false, nil}, map[string]interface{}{"A": ""}, nil, nil, []byte{}, "", false, true}, // invalid hmac
-	{"payload-hmac-sha512", "", "secret", "", "", Argument{"header", "a", "", false, nil}, map[string]interface{}{"A": ""}, nil, nil, []byte{}, "", false, true}, // invalid hmac
-	{"payload-hash-sha512", "", "secret", "", "", Argument{"header", "a", "", false, nil}, map[string]interface{}{"A": ""}, nil, nil, []byte{}, "", false, true}, // invalid hmac
+	{"regex", "*", "", "", "", Argument{"header", "a", "", false, nil}, map[string]interface{}{"A": "z"}, nil, nil, []byte{}, "", false, true}, // invalid regex
 	// IP whitelisting, valid cases
 	{"ip-whitelist", "", "", "", "192.168.0.1/24", Argument{}, nil, nil, nil, []byte{}, "192.168.0.2:9000", true, false}, // valid IPv4, with range
 	{"ip-whitelist", "", "", "", "192.168.0.1/24", Argument{}, nil, nil, nil, []byte{}, "192.168.0.2:9000", true, false}, // valid IPv4, with range
@@ -533,6 +429,55 @@ func TestMatchRule(t *testing.T) {
 			Body:    tt.body,
 			RawRequest: &http.Request{
 				RemoteAddr: tt.remoteAddr,
+			},
+		}
+		ok, err := r.Evaluate(req)
+		if ok != tt.ok || (err != nil) != tt.err {
+			t.Errorf("%d failed to match %#v:\nexpected ok: %#v, err: %v\ngot ok: %#v, err: %v", i, r, tt.ok, tt.err, ok, err)
+		}
+	}
+}
+
+var signatureRuleTests = []struct {
+	algorithm, secret       string
+	sigSource               Argument
+	stringToSign            *Argument
+	headers, query, payload map[string]interface{}
+	body                    []byte
+	ok                      bool
+	err                     bool
+}{
+	{"sha1", "secret", Argument{"header", "a", "", false, nil}, nil, map[string]interface{}{"A": "b17e04cbb22afa8ffbff8796fc1894ed27badd9e"}, nil, nil, []byte(`{"a": "z"}`), true, false},
+	{"sha1", "secret", Argument{"header", "a", "", false, nil}, nil, map[string]interface{}{"A": "b17e04cbb22afa8ffbff8796fc1894ed27badd9e"}, nil, nil, []byte(`{"a": "z"}`), true, false},
+	{"sha256", "secret", Argument{"header", "a", "", false, nil}, nil, map[string]interface{}{"A": "f417af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89"}, nil, nil, []byte(`{"a": "z"}`), true, false},
+	{"sha256", "secret", Argument{"header", "a", "", false, nil}, nil, map[string]interface{}{"A": "f417af3a21bd70379b5796d5f013915e7029f62c580fb0f500f59a35a6f04c89"}, nil, nil, []byte(`{"a": "z"}`), true, false},
+	// errors
+	{"sha1", "secret", Argument{"header", "a", "", false, nil}, nil, map[string]interface{}{"A": ""}, nil, nil, []byte{}, false, true},   // invalid hmac
+	{"sha1", "secret", Argument{"header", "a", "", false, nil}, nil, map[string]interface{}{"A": ""}, nil, nil, []byte{}, false, true},   // invalid hmac
+	{"sha256", "secret", Argument{"header", "a", "", false, nil}, nil, map[string]interface{}{"A": ""}, nil, nil, []byte{}, false, true}, // invalid hmac
+	{"sha256", "secret", Argument{"header", "a", "", false, nil}, nil, map[string]interface{}{"A": ""}, nil, nil, []byte{}, false, true}, // invalid hmac
+	{"sha512", "secret", Argument{"header", "a", "", false, nil}, nil, map[string]interface{}{"A": ""}, nil, nil, []byte{}, false, true}, // invalid hmac
+	{"sha512", "secret", Argument{"header", "a", "", false, nil}, nil, map[string]interface{}{"A": ""}, nil, nil, []byte{}, false, true}, // invalid hmac
+
+	// template to build custom string-to-sign
+	{"sha256", "secret", Argument{"header", "a", "", false, nil}, &Argument{"template", "{{ printf \"%s\\n%s\" .BodyText (.GetHeader \"x-id\") }}", "", false, nil}, map[string]interface{}{"A": "sha256=4f1d62e6e6de1e31537a5faefabeffd7dce115bc499584feefbf8db6d2da4027", "X-Id": "test"}, nil, nil, []byte(`{"a": "z"}`), true, false},
+	{"sha256", "secret", Argument{"header", "a", "", false, nil}, &Argument{"template", "{{ printf \"%s\\n%s\" .BodyText (.GetHeader \"x-id\") }}", "", false, nil}, map[string]interface{}{"A": "sha256=4f1d62e6e6de1e31537a5faefabeffd7dce115bc499584feefbf8db6d2da4027", "X-Id": "unexpected"}, nil, nil, []byte(`{"a": "z"}`), false, true},
+}
+
+func TestSignatureRule(t *testing.T) {
+	for i, tt := range signatureRuleTests {
+		if tt.stringToSign != nil {
+			// post process the argument, as it would have been if it were loaded from a hooks file
+			tt.stringToSign.postProcess()
+		}
+		r := SignatureRule{tt.algorithm, tt.secret, tt.sigSource, "", tt.stringToSign}
+		req := &Request{
+			Headers: tt.headers,
+			Query:   tt.query,
+			Payload: tt.payload,
+			Body:    tt.body,
+			RawRequest: &http.Request{
+				RemoteAddr: "",
 			},
 		}
 		ok, err := r.Evaluate(req)
