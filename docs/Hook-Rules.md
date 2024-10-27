@@ -9,11 +9,12 @@
 * [Match](#match)
   * [Match value](#match-value)
   * [Match regex](#match-regex)
+  * [Match Whitelisted IP range](#match-whitelisted-ip-range)
+  * [Match scalr-signature](#match-scalr-signature)
+* [Check signature](#check-signature)
   * [Match payload-hmac-sha1](#match-payload-hmac-sha1)
   * [Match payload-hmac-sha256](#match-payload-hmac-sha256)
   * [Match payload-hmac-sha512](#match-payload-hmac-sha512)
-  * [Match Whitelisted IP range](#match-whitelisted-ip-range)
-  * [Match scalr-signature](#match-scalr-signature)
 
 ## And
 *And rule* will evaluate to _true_, if and only if all of the sub rules evaluate to _true_.
@@ -183,78 +184,6 @@ For the regex syntax, check out <http://golang.org/pkg/regexp/syntax/>
 }
 ```
 
-### Match payload-hmac-sha1
-Validate the HMAC of the payload using the SHA1 hash and the given *secret*.
-```json
-{
-  "match":
-  {
-    "type": "payload-hmac-sha1",
-    "secret": "yoursecret",
-    "parameter":
-    {
-      "source": "header",
-      "name": "X-Hub-Signature"
-    }
-  }
-}
-```
-
-Note that if multiple signatures were passed via a comma separated string, each
-will be tried unless a match is found. For example:
-
-```
-X-Hub-Signature: sha1=the-first-signature,sha1=the-second-signature
-```
-
-### Match payload-hmac-sha256
-Validate the HMAC of the payload using the SHA256 hash and the given *secret*.
-```json
-{
-  "match":
-  {
-    "type": "payload-hmac-sha256",
-    "secret": "yoursecret",
-    "parameter":
-    {
-      "source": "header",
-      "name": "X-Signature"
-    }
-  }
-}
-```
-
-Note that if multiple signatures were passed via a comma separated string, each
-will be tried unless a match is found. For example:
-
-```
-X-Hub-Signature: sha256=the-first-signature,sha256=the-second-signature
-```
-
-### Match payload-hmac-sha512
-Validate the HMAC of the payload using the SHA512 hash and the given *secret*.
-```json
-{
-  "match":
-  {
-    "type": "payload-hmac-sha512",
-    "secret": "yoursecret",
-    "parameter":
-    {
-      "source": "header",
-      "name": "X-Signature"
-    }
-  }
-}
-```
-
-Note that if multiple signatures were passed via a comma separated string, each
-will be tried unless a match is found. For example:
-
-```
-X-Hub-Signature: sha512=the-first-signature,sha512=the-second-signature
-```
-
 ### Match Whitelisted IP range
 
 The IP can be IPv4- or IPv6-formatted, using [CIDR notation](https://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing#CIDR_blocks).  To match a single IP address only, use `/32`.
@@ -283,6 +212,92 @@ Given the time check make sure that NTP is enabled on both your Scalr and webhoo
   {
     "type": "scalr-signature",
     "secret": "Scalr-provided signing key"
+  }
+}
+```
+
+## Check Signature
+
+Many webhook protocols involve the hook sender computing an [HMAC](https://en.wikipedia.org/wiki/HMAC) _signature_ over the request content using a shared secret key, and sending the expected signature value as part of the webhook call.  The webhook recipient can then compute their own value for the signature using the same secret key and verify that value against the one supplied by the sender.  Since the sender and receiver are (or at least _should be_) the only parties that have knowledge of the secret, a matching signature guarantees that the payload is valid and was created by the legitimate sender.
+
+The `"check-signature"` rule type is used to validate these kinds of signatures.  In its simplest form you just specify the _algorithm_ (`sha1`, `sha256` or `sha512`), the _secret_, and where in the request to find the signature (typically a header or a query parameter).  Webhook will compute the HMAC over the whole of the request body using the supplied secret, and compare the result to the one taken from the request
+
+```json
+{
+  "check-signature":
+  {
+    "algorithm": "sha256",
+    "secret": "yoursecret",
+    "signature":
+    {
+      "source": "header",
+      "name": "X-Hub-Signature"
+    }
+  }
+}
+```
+
+Note that if multiple signatures were passed via a comma separated string, each
+will be tried unless a match is found, and any `algorithm=` prefix is stripped off
+each signature value before comparison.  This allows for cases where the sender includes
+several signatures with different algorithms in the same header, e.g.:
+
+```
+X-Hub-Signature: sha1=the-sha1-signature,sha256=the-sha256-signature
+```
+
+If the sender computes the signature over something other than just the request body then you can optionally provide a `"string-to-sign"` argument.  Usually this will be a template that assembles the string-to-sign from different parts of the request (one of which could be the body).  For example this would compute a signature over the values of the `X-Request-Id` header, `Date` header, and request body, separated by line breaks:
+
+```yaml
+check-signature:
+  algorithm: sha512
+  secret: 5uper5eecret
+  signature:
+    source: header
+    name: X-Hook-Signature
+  string-to-sign:
+    source: template
+    name: |
+      {{- printf "%s\r\n" (.GetHeader "x-request-id") -}}
+      {{- printf "%s\r\n" (.GetHeader "date") -}}
+      {{- .BodyText -}}
+```
+
+Note that signature algorithms can be very particular about whether "line breaks" are unix style LF or Windows-style CR+LF.  It is safest to be explicit, as in the above example, using `{{- -}}` blocks (that ignore the white space within the template itself either side of the block) and `printf` with `\n` or `\r\n`, to ensure the template generates the correct style of line endings whatever platform you created it on.
+
+### Legacy "match" rules for signatures
+In previous versions of webhook signature verification was handled by a set of specific "match" rule types named `payload-hmac-<algorithm>` - the legacy format is still understood but you may wish to update your existing configurations to the new format.
+
+The legacy configuration
+
+```json
+{
+  "match":
+  {
+    "type": "payload-hmac-<type>",
+    "secret": "secret",
+    "parameter":
+    {
+      "source": "header",
+      "name": "X-Signature"
+    }
+  }
+}
+```
+
+is equivalent to the new style
+
+```json
+{
+  "check-signature":
+  {
+    "algorithm": "<type>",
+    "secret": "secret",
+    "signature":
+    {
+      "source": "header",
+      "name": "X-Signature"
+    }
   }
 }
 ```
