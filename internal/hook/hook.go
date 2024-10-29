@@ -1092,7 +1092,7 @@ func (r SignatureRule) Evaluate(req *Request) (bool, error) {
 	// find the signature
 	sig, err := r.Signature.Get(req)
 	if err != nil {
-		return false, fmt.Errorf("could not extract signature string: %w", err)
+		return false, err
 	}
 
 	// determine the payload that is signed
