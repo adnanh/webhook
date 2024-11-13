@@ -132,3 +132,79 @@ and for query variables you can use
   "source": "entire-query"
 }
 ```
+
+# Using a template
+If the above source types do not provide sufficient flexibility for your needs, it is possible to provide a [Go template][tt] to compute the value.  The template _context_ provides access to the headers, query parameters, parsed payload, and the complete request body content.  For clarity, the following examples show the YAML form of the definition rather than JSON, since template strings will often contain double quotes, line breaks, etc. that need to be specially encoded in JSON.
+
+## Examples
+
+Extract a value from the payload, if it is present, otherwise from the query string (this allows for a hook that may be called with either a POST request with the form data in the payload, or a GET request with the same data in the URL):
+
+```yaml
+- source: template
+  name: |-
+    {{- with .Payload.requestId -}}
+      {{- . -}}
+    {{- else -}}
+      {{- .Query.requestId -}}
+    {{- end -}}
+```
+
+Given the following JSON payload describing multiple commits:
+
+```json
+{
+  "commits": [
+    {
+      "commit": {
+        "commit-id": 1
+      }
+    }, {
+      "commit": {
+        "commit-id": 2
+      }
+    }
+  ]
+}
+```
+
+this template would generate a semicolon-separated list of all the commit IDs:
+
+```yaml
+- source: template
+  name: |-
+    {{- range $i, $c := .Payload.commits -}}
+      {{- if gt $i 0 -}};{{- end -}}
+      {{- index $c.commit "commit-id" -}}
+    {{- end -}}
+```
+
+Here `.Payload.commits` is the array of objects, each of these has a field `commit`, which in turn has a field `commit-id`.  The `range` operator iterates over the commits array, setting `$i` to the (zero-based) index and `$c` to the object.  The template then prints a semicolon if this is not the first iteration, then we extract the `commit` field from that object, then in turn the `commit-id`.  Note how the first level can be extracted with just `$c.commit` because the field name is a valid identifier, but for the second level we must use the `index` function.
+
+To access request _header_ values, use the `.GetHeader` function:
+
+```yaml
+- source: template
+  name: |-
+    {{- .GetHeader "x-request-id" }}:{{ index .Query "app-id" -}}
+```
+
+## Template context
+
+The following items are available to templates, in addition to the [standard functions](https://pkg.go.dev/text/template#hdr-Functions) provided by Go:
+
+- `.Payload` - the parsed request payload, which may be JSON, XML or form data.
+- `.Query` - the query string parameters from the hook URL.
+- `.GetHeader "header-name"` - function that returns the value of the given request header, case-insensitive
+- `.ContentType` - the request content type
+- `.ID` - request ID assigned by webhook itself
+- `.Method` - the HTTP request method (`GET`, `POST`, etc.)
+- `.RemoteAddr` - IP address of the client (though this may not be accurate if webhook is behind a [reverse proxy](Hook-Rules.md#match-whitelisted-ip-range))
+- `.BodyText` - the complete raw content of the request body, as a string
+
+The following are also available but less frequently needed:
+
+- `.Body` - complete body content, but as a slice of bytes rather than as a string
+- `.Headers` - the map of HTTP headers.  Useful if you need to `range` over the headers, but to look up keys directly in this map you must use the canonical form - the `.GetHeader` function performs a case-insensitive lookup.
+
+[tt]: https://golang.org/pkg/text/template/

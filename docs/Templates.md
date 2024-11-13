@@ -73,5 +73,33 @@ Additionally, the result is piped through the built-in Go template function `js`
 
 ```
 
+## Changing the template delimiters
+
+If your hook configuration includes lookup arguments of type `{"source": "template"}`, and you also need to parse the hooks file _as_ a template, you can use the `-template-delims` parameter to change the template delimiter used when processing the hook file so it does not clash with the standard `{{ ... }}` delimiters used for template lookups.  The parameter is a comma-separated pair of the left and right delimiter strings, e.g. `-template-delims='[[,]]'` would use square brackets.  For a configuration like this:
+
+```json
+[
+  {
+    "id": "example",
+    "trigger-rule": {
+      "check-signature": {
+        "algorithm": "sha256",
+        "secret": "[[ getenv `XXXTEST_SECRET` | js ]]",
+        "signature": {
+          "source": "header",
+          "name": "X-Signature"
+        },
+        "string-to-sign": {
+          "source": "template",
+          "name": "{{ .BodyText }}{{ .GetHeader `date` }}"
+        }
+      }
+    }
+  }
+]
+```
+
+the `-template-delims='[[,]]'` setting would cause the `getenv` part to be interpreted when parsing the hook file, whereas the string-to-sign template would be executed when evaluating the trigger rule against each request.
+
 [w]: https://github.com/adnanh/webhook
 [tt]: https://golang.org/pkg/text/template/

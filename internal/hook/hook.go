@@ -41,6 +41,7 @@ const (
 	SourceEntirePayload  string = "entire-payload"
 	SourceEntireQuery    string = "entire-query"
 	SourceEntireHeaders  string = "entire-headers"
+	SourceTemplate       string = "template"
 )
 
 const (
@@ -193,45 +194,6 @@ func ValidateMAC(payload []byte, mac hash.Hash, signatures []string) (string, er
 	}
 
 	return actualMAC, e
-}
-
-// CheckPayloadSignature calculates and verifies SHA1 signature of the given payload
-func CheckPayloadSignature(payload []byte, secret, signature string) (string, error) {
-	if secret == "" {
-		return "", errors.New("signature validation secret can not be empty")
-	}
-
-	// Extract the signatures.
-	signatures := ExtractSignatures(signature, "sha1=")
-
-	// Validate the MAC.
-	return ValidateMAC(payload, hmac.New(sha1.New, []byte(secret)), signatures)
-}
-
-// CheckPayloadSignature256 calculates and verifies SHA256 signature of the given payload
-func CheckPayloadSignature256(payload []byte, secret, signature string) (string, error) {
-	if secret == "" {
-		return "", errors.New("signature validation secret can not be empty")
-	}
-
-	// Extract the signatures.
-	signatures := ExtractSignatures(signature, "sha256=")
-
-	// Validate the MAC.
-	return ValidateMAC(payload, hmac.New(sha256.New, []byte(secret)), signatures)
-}
-
-// CheckPayloadSignature512 calculates and verifies SHA512 signature of the given payload
-func CheckPayloadSignature512(payload []byte, secret, signature string) (string, error) {
-	if secret == "" {
-		return "", errors.New("signature validation secret can not be empty")
-	}
-
-	// Extract the signatures.
-	signatures := ExtractSignatures(signature, "sha512=")
-
-	// Validate the MAC.
-	return ValidateMAC(payload, hmac.New(sha512.New, []byte(secret)), signatures)
 }
 
 func CheckScalrSignature(r *Request, signingKey string, checkDate bool) (bool, error) {
@@ -438,6 +400,76 @@ type Argument struct {
 	Name         string `json:"name,omitempty"`
 	EnvName      string `json:"envname,omitempty"`
 	Base64Decode bool   `json:"base64decode,omitempty"`
+
+	// if the Argument is SourceTemplate, this will be the compiled template,
+	// otherwise it will be nil
+	template *template.Template
+}
+
+// UnmarshalJSON parses an Argument in the normal way, and then allows the
+// newly-loaded Argument to do any necessary post-processing.
+func (ha *Argument) UnmarshalJSON(text []byte) error {
+	// First unmarshal as normal, skipping the custom unmarshaller
+	type jsonArgument Argument
+	if err := json.Unmarshal(text, (*jsonArgument)(ha)); err != nil {
+		return err
+	}
+
+	return ha.postProcess()
+}
+
+// postProcess does the necessary post-unmarshal processing for this argument.
+// If the argument is a SourceTemplate it compiles the template string into an
+// executable template.  This method is idempotent, i.e. it is safe to call
+// more than once on the same Argument
+func (ha *Argument) postProcess() error {
+	if ha.Source == SourceTemplate && ha.template == nil {
+		// now compile the template
+		var err error
+		ha.template, err = template.New("argument").Option("missingkey=zero").Parse(ha.Name)
+		return err
+	}
+
+	return nil
+}
+
+// templateContext is the context passed as "." to the template executed when
+// getting an Argument of type SourceTemplate
+type templateContext struct {
+	ID          string
+	ContentType string
+	Body        []byte
+	Headers     map[string]interface{}
+	Query       map[string]interface{}
+	Payload     map[string]interface{}
+	Method      string
+	RemoteAddr  string
+}
+
+// BodyText is a convenience to access the request Body as a string.  This means
+// you can just say {{ .BodyText }} instead of having to do a trick like
+// {{ printf "%s" .Body }}
+func (ctx *templateContext) BodyText() string {
+	return string(ctx.Body)
+}
+
+// GetHeader is a function to fetch a specific item out of the headers map
+// by its case insensitive name.  The header name is converted to canonical form
+// before being looked up in the header map, e.g. {{ .GetHeader "x-request-id" }}
+func (ctx *templateContext) GetHeader(name string) interface{} {
+	return ctx.Headers[textproto.CanonicalMIMEHeaderKey(name)]
+}
+
+func (ha *Argument) runTemplate(r *Request) (string, error) {
+	w := &strings.Builder{}
+	ctx := &templateContext{
+		r.ID, r.ContentType, r.Body, r.Headers, r.Query, r.Payload, r.RawRequest.Method, r.RawRequest.RemoteAddr,
+	}
+	err := ha.template.Execute(w, ctx)
+	if err == nil {
+		return w.String(), nil
+	}
+	return "", err
 }
 
 // Get Argument method returns the value for the Argument's key name
@@ -500,6 +532,9 @@ func (ha *Argument) Get(r *Request) (string, error) {
 		}
 
 		return string(res), nil
+
+	case SourceTemplate:
+		return ha.runTemplate(r)
 	}
 
 	if source != nil {
@@ -744,7 +779,9 @@ type Hooks []Hook
 // LoadFromFile attempts to load hooks from the specified file, which
 // can be either JSON or YAML.  The asTemplate parameter causes the file
 // contents to be parsed as a Go text/template prior to unmarshalling.
-func (h *Hooks) LoadFromFile(path string, asTemplate bool) error {
+// The delimsStr parameter is a comma-separated pair of the left and right
+// template delimiters, or an empty string to use the default '{{,}}'.
+func (h *Hooks) LoadFromFile(path string, asTemplate bool, delimsStr string) error {
 	if path == "" {
 		return nil
 	}
@@ -758,8 +795,12 @@ func (h *Hooks) LoadFromFile(path string, asTemplate bool) error {
 
 	if asTemplate {
 		funcMap := template.FuncMap{"getenv": getenv}
+		left, right, found := strings.Cut(delimsStr, ",")
+		if !found && delimsStr != "" {
+			return fmt.Errorf("invalid delimiters %q - should be left and right delimiters separated by a comma", delimsStr)
+		}
 
-		tmpl, err := template.New("hooks").Funcs(funcMap).Parse(string(file))
+		tmpl, err := template.New("hooks").Funcs(funcMap).Delims(strings.TrimSpace(left), strings.TrimSpace(right)).Parse(string(file))
 		if err != nil {
 			return err
 		}
@@ -774,7 +815,12 @@ func (h *Hooks) LoadFromFile(path string, asTemplate bool) error {
 		file = buf.Bytes()
 	}
 
-	return yaml.Unmarshal(file, h)
+	err := yaml.Unmarshal(file, h)
+	if err != nil {
+		return err
+	}
+
+	return h.postProcess()
 }
 
 // Append appends hooks unless the new hooks contain a hook with an ID that already exists
@@ -802,12 +848,81 @@ func (h *Hooks) Match(id string) *Hook {
 	return nil
 }
 
+func (h *Hooks) postProcess() error {
+	for i := range *h {
+		rules := (*h)[i].TriggerRule
+		if rules != nil {
+			if err := postProcess(rules); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 // Rules is a structure that contains one of the valid rule types
 type Rules struct {
-	And   *AndRule   `json:"and,omitempty"`
-	Or    *OrRule    `json:"or,omitempty"`
-	Not   *NotRule   `json:"not,omitempty"`
-	Match *MatchRule `json:"match,omitempty"`
+	And       *AndRule       `json:"and,omitempty"`
+	Or        *OrRule        `json:"or,omitempty"`
+	Not       *NotRule       `json:"not,omitempty"`
+	Match     *MatchRule     `json:"match,omitempty"`
+	Signature *SignatureRule `json:"check-signature,omitempty"`
+}
+
+// postProcess is called on each Rules instance after loading it from JSON/YAML,
+// to replace any legacy constructs with their modern equivalents.
+func postProcess(r *Rules) error {
+	if r.And != nil {
+		for i := range *(r.And) {
+			if err := postProcess(&(*r.And)[i]); err != nil {
+				return err
+			}
+		}
+	}
+	if r.Or != nil {
+		for i := range *(r.Or) {
+			if err := postProcess(&(*r.Or)[i]); err != nil {
+				return err
+			}
+		}
+	}
+	if r.Not != nil {
+		return postProcess((*Rules)(r.Not))
+	}
+	if r.Match != nil {
+		// convert any signature matching rules to the equivalent SignatureRule
+		if r.Match.Type == MatchHashSHA1 || r.Match.Type == MatchHMACSHA1 {
+			log.Printf(`warn: use of deprecated match type %s; use a check-signature rule instead`, r.Match.Type)
+			r.Signature = &SignatureRule{
+				Algorithm: AlgorithmSHA1,
+				Secret:    r.Match.Secret,
+				Signature: r.Match.Parameter,
+			}
+			r.Match = nil
+			return nil
+		}
+		if r.Match.Type == MatchHashSHA256 || r.Match.Type == MatchHMACSHA256 {
+			log.Printf(`warn: use of deprecated match type %s; use a check-signature rule instead`, r.Match.Type)
+			r.Signature = &SignatureRule{
+				Algorithm: AlgorithmSHA256,
+				Secret:    r.Match.Secret,
+				Signature: r.Match.Parameter,
+			}
+			r.Match = nil
+			return nil
+		}
+		if r.Match.Type == MatchHashSHA512 || r.Match.Type == MatchHMACSHA512 {
+			log.Printf(`warn: use of deprecated match type %s; use a check-signature rule instead`, r.Match.Type)
+			r.Signature = &SignatureRule{
+				Algorithm: AlgorithmSHA512,
+				Secret:    r.Match.Secret,
+				Signature: r.Match.Parameter,
+			}
+			r.Match = nil
+			return nil
+		}
+	}
+	return nil
 }
 
 // Evaluate finds the first rule property that is not nil and returns the value
@@ -822,6 +937,8 @@ func (r Rules) Evaluate(req *Request) (bool, error) {
 		return r.Not.Evaluate(req)
 	case r.Match != nil:
 		return r.Match.Evaluate(req)
+	case r.Signature != nil:
+		return r.Signature.Evaluate(req)
 	}
 
 	return false, nil
@@ -896,16 +1013,19 @@ type MatchRule struct {
 
 // Constants for the MatchRule type
 const (
-	MatchValue      string = "value"
-	MatchRegex      string = "regex"
+	MatchValue     string = "value"
+	MatchRegex     string = "regex"
+	IPWhitelist    string = "ip-whitelist"
+	ScalrSignature string = "scalr-signature"
+
+	// legacy match types that have migrated to SignatureRule
+
 	MatchHMACSHA1   string = "payload-hmac-sha1"
 	MatchHMACSHA256 string = "payload-hmac-sha256"
 	MatchHMACSHA512 string = "payload-hmac-sha512"
 	MatchHashSHA1   string = "payload-hash-sha1"
 	MatchHashSHA256 string = "payload-hash-sha256"
 	MatchHashSHA512 string = "payload-hash-sha512"
-	IPWhitelist     string = "ip-whitelist"
-	ScalrSignature  string = "scalr-signature"
 )
 
 // Evaluate MatchRule will return based on the type
@@ -924,27 +1044,72 @@ func (r MatchRule) Evaluate(req *Request) (bool, error) {
 			return compare(arg, r.Value), nil
 		case MatchRegex:
 			return regexp.MatchString(r.Regex, arg)
-		case MatchHashSHA1:
-			log.Print(`warn: use of deprecated option payload-hash-sha1; use payload-hmac-sha1 instead`)
-			fallthrough
-		case MatchHMACSHA1:
-			_, err := CheckPayloadSignature(req.Body, r.Secret, arg)
-			return err == nil, err
-		case MatchHashSHA256:
-			log.Print(`warn: use of deprecated option payload-hash-sha256: use payload-hmac-sha256 instead`)
-			fallthrough
-		case MatchHMACSHA256:
-			_, err := CheckPayloadSignature256(req.Body, r.Secret, arg)
-			return err == nil, err
-		case MatchHashSHA512:
-			log.Print(`warn: use of deprecated option payload-hash-sha512: use payload-hmac-sha512 instead`)
-			fallthrough
-		case MatchHMACSHA512:
-			_, err := CheckPayloadSignature512(req.Body, r.Secret, arg)
-			return err == nil, err
 		}
 	}
 	return false, err
+}
+
+type SignatureRule struct {
+	Algorithm    string    `json:"algorithm,omitempty"`
+	Secret       string    `json:"secret,omitempty"`
+	Signature    Argument  `json:"signature,omitempty"`
+	Prefix       string    `json:"prefix,omitempty"`
+	StringToSign *Argument `json:"string-to-sign,omitempty"`
+}
+
+// Constants for the SignatureRule type
+const (
+	AlgorithmSHA1   string = "sha1"
+	AlgorithmSHA256 string = "sha256"
+	AlgorithmSHA512 string = "sha512"
+)
+
+// Evaluate extracts the signature payload and signature value from the request
+// and checks whether the signature matches
+func (r SignatureRule) Evaluate(req *Request) (bool, error) {
+	if r.Secret == "" {
+		return false, errors.New("signature validation secret can not be empty")
+	}
+
+	var hashConstructor func() hash.Hash
+	switch r.Algorithm {
+	case AlgorithmSHA1:
+		hashConstructor = sha1.New
+	case AlgorithmSHA256:
+		hashConstructor = sha256.New
+	case AlgorithmSHA512:
+		hashConstructor = sha512.New
+	default:
+		return false, fmt.Errorf("unknown hash algorithm %s", r.Algorithm)
+	}
+
+	prefix := r.Prefix
+	if prefix == "" {
+		// default prefix is "sha1=" for SHA1, etc.
+		prefix = fmt.Sprintf("%s=", r.Algorithm)
+	}
+
+	// find the signature
+	sig, err := r.Signature.Get(req)
+	if err != nil {
+		return false, err
+	}
+
+	// determine the payload that is signed
+	payload := req.Body
+	if r.StringToSign != nil {
+		payloadStr, err := r.StringToSign.Get(req)
+		if err != nil {
+			return false, fmt.Errorf("could not build string-to-sign: %w", err)
+		}
+		payload = []byte(payloadStr)
+	}
+
+	// check the signature
+	signatures := ExtractSignatures(sig, prefix)
+	_, err = ValidateMAC(payload, hmac.New(hashConstructor, []byte(r.Secret)), signatures)
+
+	return err == nil, err
 }
 
 // compare is a helper function for constant time string comparisons.

@@ -25,7 +25,7 @@ although the examples on this page all use the JSON format.
 
 ## Incoming Github webhook
 
-This example works on 2.8+ versions of Webhook - if you are on a previous series, change `payload-hmac-sha1` to `payload-hash-sha1`.
+This example works on 2.9+ versions of Webhook - if you are on a previous series, change the `check-signature` block to an equivalent `match` block, see the [Hook-Rules](Hook-Rules.md#legacy-match-rules-for-signatures) page for full details.
 
 ```json
 [
@@ -53,11 +53,11 @@ This example works on 2.8+ versions of Webhook - if you are on a previous series
       "and":
       [
         {
-          "match":
+          "check-signature":
           {
-            "type": "payload-hmac-sha1",
+            "algorithm": "sha1",
             "secret": "mysecret",
-            "parameter":
+            "signature":
             {
               "source": "header",
               "name": "X-Hub-Signature"
@@ -185,11 +185,11 @@ Values in the request body can be accessed in the command or to the match rule b
       "and":
       [
         {
-          "match":
+          "check-signature":
           {
-            "type": "payload-hmac-sha256",
+            "algorithm": "sha256",
             "secret": "mysecret",
-            "parameter":
+            "signature":
             {
               "source": "header",
               "name": "X-Gogs-Signature"
