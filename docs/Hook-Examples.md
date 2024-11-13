@@ -498,7 +498,8 @@ A reference to the second item in the array would look like this:
 [
   {
     "id": "sendgrid",
-    "execute-command": "{{ .Hookecho }}",
+    "execute-command": "/root/my-server/deployment.sh",
+    "command-working-directory": "/root/my-server",
     "trigger-rule": {
       "match": {
         "type": "value",
