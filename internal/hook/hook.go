@@ -18,6 +18,7 @@ import (
 	"net"
 	"net/textproto"
 	"os"
+	"path"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -756,7 +757,11 @@ func (h *Hooks) LoadFromFile(path string, asTemplate bool) error {
 	}
 
 	if asTemplate {
-		funcMap := template.FuncMap{"getenv": getenv}
+		funcMap := template.FuncMap{
+			"cat":        cat,
+			"credential": credential,
+			"getenv":     getenv,
+		}
 
 		tmpl, err := template.New("hooks").Funcs(funcMap).Parse(string(file))
 		if err != nil {
@@ -954,4 +959,28 @@ func compare(a, b string) bool {
 // getenv provides a template function to retrieve OS environment variables.
 func getenv(s string) string {
 	return os.Getenv(s)
+}
+
+// cat provides a template function to retrieve content of files
+// Similarly to getenv, if no file is found, it returns the empty string
+func cat(s string) string {
+	data, e := os.ReadFile(s)
+
+	if e != nil {
+		return ""
+	}
+
+	return string(data)
+}
+
+// credential provides a template function to retreive secrets using systemd's LoadCredential mechanism
+func credential(s string) string {
+	dir := getenv("CREDENTIALS_DIRECTORY")
+
+	// If no credential directory is found, fallback to the env variable
+	if dir == "" {
+		return getenv(s)
+	}
+
+	return cat(path.Join(dir, s))
 }
