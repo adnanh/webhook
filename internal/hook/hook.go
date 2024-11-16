@@ -13,7 +13,6 @@ import (
 	"errors"
 	"fmt"
 	"hash"
-	"io/ioutil"
 	"log"
 	"math"
 	"net"
@@ -750,7 +749,7 @@ func (h *Hooks) LoadFromFile(path string, asTemplate bool) error {
 	}
 
 	// parse hook file for hooks
-	file, e := ioutil.ReadFile(path)
+	file, e := os.ReadFile(path)
 
 	if e != nil {
 		return e
