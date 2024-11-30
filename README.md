@@ -18,9 +18,9 @@ If you use Mattermost or Slack, you can set up an "Outgoing webhook integration"
 Everything else is the responsibility of the command's author.
 
 ## Not what you're looking for?
-| <a href="https://www.hookdoo.com/?github"><img src="https://hookdoo.com/img/Hookdoo_Logo_1.png" height="48" alt="hookdoo" /></a> | <a href="https://www.hookdeck.com/?ref=adnanh-webhook"><img src="http://hajdarevic.net/hookdeck-logo.svg" height="17" alt="hookdeck" /></a> |
+| <a href="https://www.hookdoo.com/?github"><img src="https://hookdoo.com/img/Hookdoo_Logo_1.png" height="48" alt="hookdoo" /></a> | <picture><source media="(prefers-color-scheme: dark)" srcset="images/hookdeck-white.svg"><img height="36" alt="hookdeck" src="images/hookdeck-black.svg"></picture></a> |
 | :-: | :-: |
-| Scriptable webhook gateway to safely run your custom builds, deploys, and proxy scripts on your servers.                                      | Inspect, monitor and replay webhooks without the back and forth troubleshooting. |
+| Scriptable webhook gateway to safely run your custom builds, deploys, and proxy scripts on your servers.                                      | An event gateway to reliably ingest, verify, queue, transform, filter, inspect, monitor, and replay webhooks. |
  
 
 # Getting started
