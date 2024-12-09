@@ -19,8 +19,10 @@ import (
 	"net"
 	"net/textproto"
 	"os"
+	"path/filepath"
 	"reflect"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"text/template"
@@ -757,8 +759,10 @@ func (h *Hooks) LoadFromFile(path string, asTemplate bool) error {
 	}
 
 	if asTemplate {
-		funcMap := template.FuncMap{"getenv": getenv}
-
+		funcMap := template.FuncMap{
+			"getenv": getenv,
+			"secret": dockerSecret,
+		}
 		tmpl, err := template.New("hooks").Funcs(funcMap).Parse(string(file))
 		if err != nil {
 			return err
@@ -955,4 +959,20 @@ func compare(a, b string) bool {
 // getenv provides a template function to retrieve OS environment variables.
 func getenv(s string) string {
 	return os.Getenv(s)
+}
+
+// dockerSecret provides a template function to retrieve Docker secret.
+func dockerSecret(name string) string {
+	_, file := filepath.Split(name)
+	if runtime.GOOS == "windows" {
+		file = filepath.Join("C:\\ProgramData\\Docker\\secrets", file)
+	} else {
+		file = filepath.Join("/run/secrets", file)
+	}
+	b, err := ioutil.ReadFile(file)
+	if err != nil {
+		log.Printf("error reading docker secret from %s %s", file, err)
+		return ""
+	}
+	return string(b)
 }
