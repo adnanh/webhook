@@ -970,7 +970,7 @@ func cat(s string) string {
 		return ""
 	}
 
-	return string(data)
+	return strings.TrimSuffix(string(data), "\n")
 }
 
 // credential provides a template function to retreive secrets using systemd's LoadCredential mechanism
