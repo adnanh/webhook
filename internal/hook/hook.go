@@ -581,6 +581,7 @@ type Hook struct {
 	IncomingPayloadContentType          string          `json:"incoming-payload-content-type,omitempty"`
 	SuccessHttpResponseCode             int             `json:"success-http-response-code,omitempty"`
 	HTTPMethods                         []string        `json:"http-methods"`
+	KeepFileEnvironment                 bool            `json:"keep-file-environment,omitempty"`
 }
 
 // ParseJSONParameters decodes specified arguments to JSON objects and replaces the
