@@ -676,9 +676,9 @@ Webhooks feature introduced in DSM 7.x seems to be incomplete & broken, but you 
 ```
 ## Incoming Azure Container Registry (ACR) webhook
 
-On ACR you can configure webhooks for images push events, below the hooks.json format to handle those events.
+ACR can send webhooks on image push events.  The `hooks.json` below will handle those events and pass relevant properties as environment variables to a command.
 
-Here is an example of a working docker webhook container used to handle the hooks and fill the cache of a local registry [ACR Harbor local cache feeder](https://github.com/tomdess/registry-cache-feeder).
+Here is an example of a working docker webhook container used to handle the webhooks and fill the cache of a local registry: [ACR Harbor local cache feeder](https://github.com/tomdess/registry-cache-feeder).
 
 
 ```json
