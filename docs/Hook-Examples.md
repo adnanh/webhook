@@ -22,6 +22,7 @@ although the examples on this page all use the JSON format.
 * [Multipart Form Data](#multipart-form-data)
 * [Pass string arguments to command](#pass-string-arguments-to-command)
 * [Receive Synology DSM notifications](#receive-synology-notifications)
+* [Incoming Azure Container Registry (ACR) webhook](#incoming-acr-webhook)
 
 ## Incoming Github webhook
 
@@ -669,6 +670,75 @@ Webhooks feature introduced in DSM 7.x seems to be incomplete & broken, but you 
           "name": "api_key"
         }
       }
+    }
+  }
+]
+```
+## Incoming Azure Container Registry (ACR) webhook
+
+ACR can send webhooks on image push events.  The `hooks.json` below will handle those events and pass relevant properties as environment variables to a command.
+
+Here is an example of a working docker webhook container used to handle the webhooks and fill the cache of a local registry: [ACR Harbor local cache feeder](https://github.com/tomdess/registry-cache-feeder).
+
+
+```json
+[
+  {
+    "id": "acr-push-event",
+    "execute-command": "/config/script-acr.sh",
+    "command-working-directory": "/config",
+    "pass-environment-to-command": 
+    [
+      {
+	"envname": "ACTION",
+        "source": "payload",
+        "name": "action"
+      },
+      {
+	"envname": "REPO",
+        "source": "payload",
+        "name": "target.repository"
+      },
+      {
+	"envname": "TAG",
+        "source": "payload",
+        "name": "target.tag"
+      },
+      {
+	"envname": "DIGEST",
+        "source": "payload",
+        "name": "target.digest"
+      }
+    ],
+    "trigger-rule":
+    {
+      "and":
+      [
+        {
+          "match":
+          {
+            "type": "value",
+            "value": "mysecretToken",
+            "parameter":
+            {
+              "source": "header",
+              "name": "X-Static-Token"
+            }
+          }
+        },
+        {
+          "match":
+          {
+            "type": "value",
+            "value": "push",
+            "parameter":
+            {
+              "source": "payload",
+              "name": "action"
+            }
+          }
+        }
+      ]
     }
   }
 ]
