@@ -141,7 +141,7 @@ Check out [Hook examples page](docs/Hook-Examples.md) for more complex examples 
  - [Using Prometheus to Automatically Scale WebLogic Clusters on Kubernetes](https://blogs.oracle.com/weblogicserver/using-prometheus-to-automatically-scale-weblogic-clusters-on-kubernetes-v5) by [Marina Kogan](https://blogs.oracle.com/author/9a4fe754-1cc2-4c64-95fc-360642b62927)
  - [Github Pages and Jekyll - A New Platform for LACNIC Labs](https://labs.lacnic.net/a-new-platform-for-lacniclabs/) by [Carlos Martínez Cagnazzo](https://twitter.com/carlosm3011)
  - [How to Deploy React Apps Using Webhooks and Integrating Slack on Ubuntu](https://www.alibabacloud.com/blog/how-to-deploy-react-apps-using-webhooks-and-integrating-slack-on-ubuntu_594116) by Arslan Ud Din Shafiq
- - [Private webhooks](https://ihateithe.re/2018/01/private-webhooks/) by [Thomas](https://ihateithe.re/colophon/)
+ - [Private webhooks](https://tmertz.com/2018/01/private-webhooks/) by [Thomas](https://tmertz.com)
  - [Adventures in webhooks](https://medium.com/@draketech/adventures-in-webhooks-2d6584501c62) by [Drake](https://medium.com/@draketech)
  - [GitHub pro tips](http://notes.spencerlyon.com/2016/01/04/github-pro-tips/) by [Spencer Lyon](http://notes.spencerlyon.com/)
  - [XiaoMi Vacuum + Amazon Button = Dash Cleaning](https://www.instructables.com/id/XiaoMi-Vacuum-Amazon-Button-Dash-Cleaning/) by [c0mmensal](https://www.instructables.com/member/c0mmensal/)
