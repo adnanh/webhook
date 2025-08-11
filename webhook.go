@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -172,7 +172,7 @@ func main() {
 	}
 
 	if !*verbose {
-		log.SetOutput(ioutil.Discard)
+		log.SetOutput(io.Discard)
 	}
 
 	// Create pidfile
@@ -379,7 +379,7 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 	isMultipart := strings.HasPrefix(req.ContentType, "multipart/form-data;")
 
 	if !isMultipart {
-		req.Body, err = ioutil.ReadAll(r.Body)
+		req.Body, err = io.ReadAll(r.Body)
 		if err != nil {
 			log.Printf("[%s] error reading the request body: %+v\n", req.ID, err)
 		}
@@ -608,7 +608,7 @@ func handleHook(h *hook.Hook, r *hook.Request) (string, error) {
 	}
 
 	for i := range files {
-		tmpfile, err := ioutil.TempFile(h.CommandWorkingDirectory, files[i].EnvName)
+		tmpfile, err := os.CreateTemp(h.CommandWorkingDirectory, files[i].EnvName)
 		if err != nil {
 			log.Printf("[%s] error creating temp file [%s]", r.ID, err)
 			continue
