@@ -214,7 +214,11 @@ Values in the request body can be accessed in the command or to the match rule b
   }
 ]
 ```
+
 ## Incoming Gitea webhook
+
+JSON version:
+
 ```json
 [
   {
@@ -229,7 +233,7 @@ Values in the request body can be accessed in the command or to the match rule b
       },
       {
         "source": "payload",
-        "name": "pusher.name"
+        "name": "pusher.full_name"
       },
       {
         "source": "payload",
@@ -243,12 +247,12 @@ Values in the request body can be accessed in the command or to the match rule b
         {
           "match":
           {
-            "type": "value",
-            "value": "mysecret",
+            "type": "payload-hmac-sha256",
+            "secret": "mysecret",
             "parameter":
             {
-              "source": "payload",
-              "name": "secret"
+              "source": "header",
+              "name": "X-Gitea-Signature"
             }
           }
         },
@@ -256,7 +260,7 @@ Values in the request body can be accessed in the command or to the match rule b
           "match":
           {
             "type": "value",
-            "value": "refs/heads/master",
+            "value": "refs/heads/main",
             "parameter":
             {
               "source": "payload",
@@ -268,6 +272,35 @@ Values in the request body can be accessed in the command or to the match rule b
     }
   }
 ]
+```
+
+YAML version:
+
+```yaml
+- id: webhook
+  execute-command: /home/adnan/redeploy-go-webhook.sh
+  command-working-directory: /home/adnan/go
+  pass-arguments-to-command:
+    - source: payload
+      name: head_commit.id
+    - source: payload
+      name: pusher.full_name
+    - source: payload
+      name: pusher.email
+  trigger-rule:
+    and:
+      - match:
+          type: payload-hmac-sha256
+          secret: mysecret
+          parameter:
+            source: header
+            name: X-Gitea-Signature
+      - match:
+          type: value
+          value: refs/heads/main
+          parameter:
+            source: payload
+            name: ref
 ```
 
 ## Slack slash command
