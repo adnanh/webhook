@@ -248,7 +248,7 @@ JSON version:
           "match":
           {
             "type": "payload-hmac-sha256",
-            "value": "mysecret",
+            "secret": "mysecret",
             "parameter":
             {
               "source": "header",
