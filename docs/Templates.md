@@ -82,8 +82,8 @@ In addition to the [built-in Go template functions and features][tt], `webhook` 
 The `getenv` template function can be used for inserting environment variables into a templated configuration file.
 
 Example: 
-```json
-"Secret": "{{getenv \"TEST_secret\" | js}}"
+```
+"Secret": "{{getenv TEST_secret | js}}"
 ```
 
 ### `cat`
@@ -91,7 +91,7 @@ Example:
 The `cat` template function can be used to read a file from the local filesystem. This is useful for reading secrets from files. If the file doesn't exist, it returns an empty string.
 
 Example:
-```json
+```
 "secret": "{{ cat "/run/secrets/my-secret" | js }}"
 ```
 
@@ -102,7 +102,7 @@ The `credential` template function provides a way to retrieve secrets using [sys
 If `CREDENTIALS_DIRECTORY` is not set, it will fall back to using `getenv` to read the secret from an environment variable of the given name.
 
 Example:
-```json
+```
 "secret": "{{ credential "my-secret" | js }}"
 ```
 
