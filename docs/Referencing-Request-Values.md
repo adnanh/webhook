@@ -20,6 +20,11 @@ There are four types of request values:
     ```
 
 3. HTTP Request parameters
+    #### Valid `name` Parameters:
+    - `"name": "method"`
+    - `"name": "remote-addr"`
+
+    *Note* Anything other than above mentioned `name` Parameters would be Invalid!
 
     ```json
     {
