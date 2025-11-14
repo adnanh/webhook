@@ -111,6 +111,16 @@ If you are referencing values for environment, you can use `envname` property to
 ``` 
 to get the QUERY environment variable set to the `q` parameter passed in the query string.
 
+If you need a default value, you can use `default` property to set a value used in case the value is not found or is empty like so
+```json
+{
+  "source": "url",
+  "name": "q",
+  "default": "123"
+}
+```
+**Note**: The `default` property is ignored when the `source` is set to `string`, `entire-payload`, `entire-headers` or `entire-query`.
+
 # Special cases
 If you want to pass the entire payload as JSON string to your command you can use
 ```json

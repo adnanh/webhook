@@ -355,7 +355,7 @@ func ReplaceParameter(s string, params, value interface{}) bool {
 }
 
 // GetParameter extracts interface{} value based on the passed string
-func GetParameter(s string, params interface{}) (interface{}, error) {
+func GetParameter(s string, params interface{}, defaultValue string) (interface{}, error) {
 	if params == nil {
 		return nil, errors.New("no parameters")
 	}
@@ -374,16 +374,26 @@ func GetParameter(s string, params interface{}) (interface{}, error) {
 					return nil, &ParameterNodeError{s}
 				}
 
-				return GetParameter(p[1], params.([]interface{})[index])
+				return GetParameter(p[1], params.([]interface{})[index], defaultValue)
 			}
 
 			index, err := strconv.ParseUint(s, 10, 64)
 
 			if err != nil || paramsValueSliceLength <= int(index) {
+				// Return default value if nothing found and defaultValue is set
+				if defaultValue != "" {
+					return defaultValue, nil
+				}
+
 				return nil, &ParameterNodeError{s}
 			}
 
 			return params.([]interface{})[index], nil
+		}
+
+		// Return default value if nothing found and defaultValue is set
+		if defaultValue != "" {
+			return defaultValue, nil
 		}
 
 		return nil, &ParameterNodeError{s}
@@ -391,18 +401,33 @@ func GetParameter(s string, params interface{}) (interface{}, error) {
 	case reflect.Map:
 		// Check for raw key
 		if v, ok := params.(map[string]interface{})[s]; ok {
+			// Return default value if found value is empty and defaultValue is set
+			if (v == "" || v == nil) && defaultValue != "" {
+				return defaultValue, nil
+			}
+
 			return v, nil
+		}
+
+		// Return default value if no dot inside the string and defaultValue is set
+		if !strings.Contains(s, ".") && defaultValue != "" {
+			return defaultValue, nil
 		}
 
 		// Checked for dotted references
 		p := strings.SplitN(s, ".", 2)
 		if pValue, ok := params.(map[string]interface{})[p[0]]; ok {
 			if len(p) > 1 {
-				return GetParameter(p[1], pValue)
+				return GetParameter(p[1], pValue, defaultValue)
 			}
 
 			return pValue, nil
 		}
+	}
+
+	// Return default value if nothing found and defaultValue is set
+	if defaultValue != "" {
+		return defaultValue, nil
 	}
 
 	return nil, &ParameterNodeError{s}
@@ -411,8 +436,8 @@ func GetParameter(s string, params interface{}) (interface{}, error) {
 // ExtractParameterAsString extracts value from interface{} as string based on
 // the passed string.  Complex data types are rendered as JSON instead of the Go
 // Stringer format.
-func ExtractParameterAsString(s string, params interface{}) (string, error) {
-	pValue, err := GetParameter(s, params)
+func ExtractParameterAsString(s string, params interface{}, defaultValue string) (string, error) {
+	pValue, err := GetParameter(s, params, defaultValue)
 	if err != nil {
 		return "", err
 	}
@@ -436,6 +461,7 @@ func ExtractParameterAsString(s string, params interface{}) (string, error) {
 type Argument struct {
 	Source       string `json:"source,omitempty"`
 	Name         string `json:"name,omitempty"`
+	DefaultValue string `json:"default,omitempty"`
 	EnvName      string `json:"envname,omitempty"`
 	Base64Decode bool   `json:"base64decode,omitempty"`
 }
@@ -503,7 +529,7 @@ func (ha *Argument) Get(r *Request) (string, error) {
 	}
 
 	if source != nil {
-		return ExtractParameterAsString(key, *source)
+		return ExtractParameterAsString(key, *source, ha.DefaultValue)
 	}
 
 	return "", errors.New("no source for value retrieval")
