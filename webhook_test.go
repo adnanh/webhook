@@ -58,7 +58,7 @@ func TestStaticParams(t *testing.T) {
 		ID:      "test",
 		Headers: spHeaders,
 	}
-	_, err = handleHook(spHook, r)
+	_, err = handleHook(spHook, r, nil)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v\n", err)
 	}
