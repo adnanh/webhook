@@ -53,7 +53,7 @@ func getTLSCipherSuites(v string) []uint16 {
 	supported := tls.CipherSuites()
 
 	if v == "" {
-		suites := make([]uint16, len(supported))
+		suites := make([]uint16, 0, len(supported))
 
 		for _, cs := range supported {
 			suites = append(suites, cs.ID)
@@ -64,7 +64,7 @@ func getTLSCipherSuites(v string) []uint16 {
 
 	var found bool
 	txts := strings.Split(v, ",")
-	suites := make([]uint16, len(txts))
+	suites := make([]uint16, 0, len(txts))
 
 	for _, want := range txts {
 		found = false
