@@ -566,6 +566,7 @@ func (h *HooksFiles) Set(value string) error {
 type Hook struct {
 	ID                                  string          `json:"id,omitempty"`
 	ExecuteCommand                      string          `json:"execute-command,omitempty"`
+	RunAs                               string          `json:"run-as,omitempty"`
 	CommandWorkingDirectory             string          `json:"command-working-directory,omitempty"`
 	ResponseMessage                     string          `json:"response-message,omitempty"`
 	ResponseHeaders                     ResponseHeaders `json:"response-headers,omitempty"`
