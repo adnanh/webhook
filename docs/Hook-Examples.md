@@ -24,6 +24,24 @@ although the examples on this page all use the JSON format.
 * [Receive Synology DSM notifications](#receive-synology-notifications)
 * [Incoming Azure Container Registry (ACR) webhook](#incoming-acr-webhook)
 
+## Printing the Raw Webhook Payload to Standard Output
+
+This hook configuration receives incoming webhook requests and prints the raw request body (payload) directly to the server's standard output (visible in the webhook process logs when running with -verbose). It is particularly useful for debugging and verifying webhook deliveries from external services.
+
+```json
+[
+  {
+    "id": "print-payload",
+    "execute-command": "/bin/echo",
+    "pass-arguments-to-command": [
+      {
+        "source": "entire-payload",
+      }
+    ]
+  }
+]
+```
+
 ## Incoming Github webhook
 
 This example works on 2.8+ versions of Webhook - if you are on a previous series, change `payload-hmac-sha1` to `payload-hash-sha1`.
