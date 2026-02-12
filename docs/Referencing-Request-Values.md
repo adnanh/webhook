@@ -24,7 +24,7 @@ There are four types of request values:
     - `"name": "method"`
     - `"name": "remote-addr"`
 
-    *Note* Anything other than above mentioned `name` Parameters would be Invalid!
+    *Note* Anything other than above mentioned `name` parameters would be invalid!
 
     ```json
     {
