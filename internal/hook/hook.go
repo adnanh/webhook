@@ -394,14 +394,22 @@ func GetParameter(s string, params interface{}) (interface{}, error) {
 			return v, nil
 		}
 
-		// Checked for dotted references
-		p := strings.SplitN(s, ".", 2)
-		if pValue, ok := params.(map[string]interface{})[p[0]]; ok {
-			if len(p) > 1 {
-				return GetParameter(p[1], pValue)
+		// Check for dotted references
+		p := strings.Split(s, ".")
+		ref := ""
+		for i := range p {
+			if i == 0 {
+				ref = p[i]
+			} else {
+				ref += "." + p[i]
 			}
-
-			return pValue, nil
+			if pValue, ok := params.(map[string]interface{})[ref]; ok {
+				if i == len(p)-1 {
+					return pValue, nil
+				} else {
+					return GetParameter(strings.Join(p[i+1:], "."), pValue)
+				}
+			}
 		}
 	}
 
