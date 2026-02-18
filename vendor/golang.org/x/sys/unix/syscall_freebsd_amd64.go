@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// +build amd64,freebsd
+//go:build amd64 && freebsd
 
 package unix
 
@@ -41,6 +41,10 @@ func (cmsg *Cmsghdr) SetLen(length int) {
 	cmsg.Len = uint32(length)
 }
 
+func (d *PtraceIoDesc) SetLen(length int) {
+	d.Len = uint64(length)
+}
+
 func sendfile(outfd int, infd int, offset *int64, count int) (written int, err error) {
 	var writtenOut uint64 = 0
 	_, _, e1 := Syscall9(SYS_SENDFILE, uintptr(infd), uintptr(outfd), uintptr(*offset), uintptr(count), 0, uintptr(unsafe.Pointer(&writtenOut)), 0, 0, 0)
@@ -54,3 +58,7 @@ func sendfile(outfd int, infd int, offset *int64, count int) (written int, err e
 }
 
 func Syscall9(num, a1, a2, a3, a4, a5, a6, a7, a8, a9 uintptr) (r1, r2 uintptr, err syscall.Errno)
+
+func PtraceGetFsBase(pid int, fsbase *int64) (err error) {
+	return ptracePtr(PT_GETFSBASE, pid, unsafe.Pointer(fsbase), 0)
+}

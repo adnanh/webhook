@@ -14,7 +14,7 @@ Usage of webhook:
   -hotreload
         watch hooks file for changes and reload them automatically
   -http-methods string
-        globally restrict allowed HTTP methods; separate methods with comma
+        set default allowed HTTP methods (ie. "POST"); separate methods with comma
   -ip string
         ip the webhook should serve hooks on (default "0.0.0.0")
   -key string
@@ -23,6 +23,8 @@ Usage of webhook:
         list available TLS cipher suites
   -logfile string
         send log output to a file; implicitly enables verbose logging
+  -max-multipart-mem int
+        maximum memory in bytes for parsing multipart form data before disk caching (default 1048576)
   -nopanic
         do not panic if hooks cannot be loaded when webhook is not running in verbose mode
   -pidfile string
@@ -35,6 +37,8 @@ Usage of webhook:
         set group ID after opening listening port; must be used with setuid
   -setuid int
         set user ID after opening listening port; must be used with setgid
+  -socket string
+        path to a Unix socket (e.g. /tmp/webhook.sock) or Windows named pipe (e.g. \\.\pipe\webhook) to use instead of listening on an ip and port; if specified, the ip and port options are ignored
   -template
         parse hooks file as a Go template
   -tls-min-version string

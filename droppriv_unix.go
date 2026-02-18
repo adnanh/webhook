@@ -1,4 +1,4 @@
-// +build !windows,!linux
+// +build linux !windows
 
 package main
 
@@ -7,7 +7,12 @@ import (
 )
 
 func dropPrivileges(uid, gid int) error {
-	err := syscall.Setgid(gid)
+	err := syscall.Setgroups([]int{})
+	if err != nil {
+		return err
+	}
+
+	err = syscall.Setgid(gid)
 	if err != nil {
 		return err
 	}

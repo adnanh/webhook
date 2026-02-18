@@ -7,7 +7,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 )
 
 // Key to use when setting the request ID.

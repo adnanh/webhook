@@ -1,13 +1,12 @@
 # gorilla/mux
 
-[![GoDoc](https://godoc.org/github.com/gorilla/mux?status.svg)](https://godoc.org/github.com/gorilla/mux)
-[![Build Status](https://travis-ci.org/gorilla/mux.svg?branch=master)](https://travis-ci.org/gorilla/mux)
-[![CircleCI](https://circleci.com/gh/gorilla/mux.svg?style=svg)](https://circleci.com/gh/gorilla/mux)
-[![Sourcegraph](https://sourcegraph.com/github.com/gorilla/mux/-/badge.svg)](https://sourcegraph.com/github.com/gorilla/mux?badge)
+![testing](https://github.com/gorilla/mux/actions/workflows/test.yml/badge.svg)
+[![codecov](https://codecov.io/github/gorilla/mux/branch/main/graph/badge.svg)](https://codecov.io/github/gorilla/mux)
+[![godoc](https://godoc.org/github.com/gorilla/mux?status.svg)](https://godoc.org/github.com/gorilla/mux)
+[![sourcegraph](https://sourcegraph.com/github.com/gorilla/mux/-/badge.svg)](https://sourcegraph.com/github.com/gorilla/mux?badge)
 
-![Gorilla Logo](http://www.gorillatoolkit.org/static/images/gorilla-icon-64.png)
 
-https://www.gorillatoolkit.org/pkg/mux
+![Gorilla Logo](https://github.com/gorilla/.github/assets/53367916/d92caabf-98e0-473e-bfbf-ab554ba435e5)
 
 Package `gorilla/mux` implements a request router and dispatcher for matching incoming requests to
 their respective handler.
@@ -26,6 +25,7 @@ The name mux stands for "HTTP request multiplexer". Like the standard `http.Serv
 * [Examples](#examples)
 * [Matching Routes](#matching-routes)
 * [Static Files](#static-files)
+* [Serving Single Page Applications](#serving-single-page-applications) (e.g. React, Vue, Ember.js, etc.)
 * [Registered URLs](#registered-urls)
 * [Walking Routes](#walking-routes)
 * [Graceful Shutdown](#graceful-shutdown)
@@ -212,6 +212,86 @@ func main() {
 }
 ```
 
+### Serving Single Page Applications
+
+Most of the time it makes sense to serve your SPA on a separate web server from your API,
+but sometimes it's desirable to serve them both from one place. It's possible to write a simple
+handler for serving your SPA (for use with React Router's [BrowserRouter](https://reacttraining.com/react-router/web/api/BrowserRouter) for example), and leverage
+mux's powerful routing for your API endpoints.
+
+```go
+package main
+
+import (
+	"encoding/json"
+	"log"
+	"net/http"
+	"os"
+	"path/filepath"
+	"time"
+
+	"github.com/gorilla/mux"
+)
+
+// spaHandler implements the http.Handler interface, so we can use it
+// to respond to HTTP requests. The path to the static directory and
+// path to the index file within that static directory are used to
+// serve the SPA in the given static directory.
+type spaHandler struct {
+	staticPath string
+	indexPath  string
+}
+
+// ServeHTTP inspects the URL path to locate a file within the static dir
+// on the SPA handler. If a file is found, it will be served. If not, the
+// file located at the index path on the SPA handler will be served. This
+// is suitable behavior for serving an SPA (single page application).
+func (h spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Join internally call path.Clean to prevent directory traversal
+	path := filepath.Join(h.staticPath, r.URL.Path)
+
+	// check whether a file exists or is a directory at the given path
+	fi, err := os.Stat(path)
+	if os.IsNotExist(err) || fi.IsDir() {
+		// file does not exist or path is a directory, serve index.html
+		http.ServeFile(w, r, filepath.Join(h.staticPath, h.indexPath))
+		return
+	}
+
+	if err != nil {
+		// if we got an error (that wasn't that the file doesn't exist) stating the
+		// file, return a 500 internal server error and stop
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+	}
+
+	// otherwise, use http.FileServer to serve the static file
+	http.FileServer(http.Dir(h.staticPath)).ServeHTTP(w, r)
+}
+
+func main() {
+	router := mux.NewRouter()
+
+	router.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
+		// an example API handler
+		json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+	})
+
+	spa := spaHandler{staticPath: "build", indexPath: "index.html"}
+	router.PathPrefix("/").Handler(spa)
+
+	srv := &http.Server{
+		Handler: router,
+		Addr:    "127.0.0.1:8000",
+		// Good practice: enforce timeouts for servers you create!
+		WriteTimeout: 15 * time.Second,
+		ReadTimeout:  15 * time.Second,
+	}
+
+	log.Fatal(srv.ListenAndServe())
+}
+```
+
 ### Registered URLs
 
 Now let's see how to build registered URLs.
@@ -288,6 +368,19 @@ url, err := r.Get("article").URL("subdomain", "news",
                                  "id", "42")
 ```
 
+To find all the required variables for a given route when calling `URL()`, the method `GetVarNames()` is available:
+```go
+r := mux.NewRouter()
+r.Host("{domain}").
+    Path("/{group}/{item_id}").
+    Queries("some_data1", "{some_data1}").
+    Queries("some_data2", "{some_data2}").
+    Name("article")
+
+// Will print [domain group item_id some_data1 some_data2] <nil>
+fmt.Println(r.Get("article").GetVarNames())
+
+```
 ### Walking Routes
 
 The `Walk` function on `mux.Router` can be used to visit all of the routes that are registered on a router. For example,
@@ -485,7 +578,7 @@ func (amw *authenticationMiddleware) Middleware(next http.Handler) http.Handler 
 r := mux.NewRouter()
 r.HandleFunc("/", handler)
 
-amw := authenticationMiddleware{}
+amw := authenticationMiddleware{tokenUsers: make(map[string]string)}
 amw.Populate()
 
 r.Use(amw.Middleware)
@@ -671,7 +764,8 @@ func TestMetricsHandler(t *testing.T) {
 
         rr := httptest.NewRecorder()
 	
-	// Need to create a router that we can pass the request through so that the vars will be added to the context
+	// To add the vars to the context, 
+	// we need to create a router through which we can pass the request.
 	router := mux.NewRouter()
         router.HandleFunc("/metrics/{type}", MetricsHandler)
         router.ServeHTTP(rr, req)

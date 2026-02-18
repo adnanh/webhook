@@ -21,6 +21,26 @@ although the examples on this page all use the JSON format.
 * [XML Payload](#xml-payload)
 * [Multipart Form Data](#multipart-form-data)
 * [Pass string arguments to command](#pass-string-arguments-to-command)
+* [Receive Synology DSM notifications](#receive-synology-notifications)
+* [Incoming Azure Container Registry (ACR) webhook](#incoming-acr-webhook)
+
+## Printing the Raw Webhook Payload to Standard Output
+
+This hook configuration receives incoming webhook requests and prints the raw request body (payload) directly to the server's standard output (visible in the webhook process logs when running with -verbose). It is particularly useful for debugging and verifying webhook deliveries from external services.
+
+```json
+[
+  {
+    "id": "print-payload",
+    "execute-command": "/bin/echo",
+    "pass-arguments-to-command": [
+      {
+        "source": "entire-payload",
+      }
+    ]
+  }
+]
+```
 
 ## Incoming Github webhook
 
@@ -212,7 +232,11 @@ Values in the request body can be accessed in the command or to the match rule b
   }
 ]
 ```
+
 ## Incoming Gitea webhook
+
+JSON version:
+
 ```json
 [
   {
@@ -227,7 +251,7 @@ Values in the request body can be accessed in the command or to the match rule b
       },
       {
         "source": "payload",
-        "name": "pusher.name"
+        "name": "pusher.full_name"
       },
       {
         "source": "payload",
@@ -241,12 +265,12 @@ Values in the request body can be accessed in the command or to the match rule b
         {
           "match":
           {
-            "type": "value",
-            "value": "mysecret",
+            "type": "payload-hmac-sha256",
+            "secret": "mysecret",
             "parameter":
             {
-              "source": "payload",
-              "name": "secret"
+              "source": "header",
+              "name": "X-Gitea-Signature"
             }
           }
         },
@@ -254,7 +278,7 @@ Values in the request body can be accessed in the command or to the match rule b
           "match":
           {
             "type": "value",
-            "value": "refs/heads/master",
+            "value": "refs/heads/main",
             "parameter":
             {
               "source": "payload",
@@ -266,6 +290,35 @@ Values in the request body can be accessed in the command or to the match rule b
     }
   }
 ]
+```
+
+YAML version:
+
+```yaml
+- id: webhook
+  execute-command: /home/adnan/redeploy-go-webhook.sh
+  command-working-directory: /home/adnan/go
+  pass-arguments-to-command:
+    - source: payload
+      name: head_commit.id
+    - source: payload
+      name: pusher.full_name
+    - source: payload
+      name: pusher.email
+  trigger-rule:
+    and:
+      - match:
+          type: payload-hmac-sha256
+          secret: mysecret
+          parameter:
+            source: header
+            name: X-Gitea-Signature
+      - match:
+          type: value
+          value: refs/heads/main
+          parameter:
+            source: payload
+            name: ref
 ```
 
 ## Slack slash command
@@ -330,7 +383,7 @@ __Not recommended in production due to low security__
 
 ### Webhook configuration
 
-<pre>
+```json
 [
   {
     "id": "test-file-webhook",
@@ -349,29 +402,29 @@ __Not recommended in production due to low security__
     "include-command-output-in-response": true
   }
 ]
-</pre>
+```
 
 ### Sample client usage 
 
 Store the following file as `testRequest.json`. 
 
-<pre>
+```json
 {"binary":"iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAA2lpVFh0WE1MOmNvbS5hZG9iZS54bXAAAAAAADw/eHBhY2tldCBiZWdpbj0i77u/IiBpZD0iVzVNME1wQ2VoaUh6cmVTek5UY3prYzlkIj8+IDx4OnhtcG1ldGEgeG1sbnM6eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IkFkb2JlIFhNUCBDb3JlIDUuMC1jMDYwIDYxLjEzNDc3NywgMjAxMC8wMi8xMi0xNzozMjowMCAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wUmlnaHRzPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvcmlnaHRzLyIgeG1sbnM6eG1wTU09Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9tbS8iIHhtbG5zOnN0UmVmPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvc1R5cGUvUmVzb3VyY2VSZWYjIiB4bWxuczp4bXA9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC8iIHhtcFJpZ2h0czpNYXJrZWQ9IkZhbHNlIiB4bXBNTTpEb2N1bWVudElEPSJ4bXAuZGlkOjEzMTA4RDI0QzMxQjExRTBCMzYzRjY1QUQ1Njc4QzFBIiB4bXBNTTpJbnN0YW5jZUlEPSJ4bXAuaWlkOjEzMTA4RDIzQzMxQjExRTBCMzYzRjY1QUQ1Njc4QzFBIiB4bXA6Q3JlYXRvclRvb2w9IkFkb2JlIFBob3Rvc2hvcCBDUzMgV2luZG93cyI+IDx4bXBNTTpEZXJpdmVkRnJvbSBzdFJlZjppbnN0YW5jZUlEPSJ1dWlkOkFDMUYyRTgzMzI0QURGMTFBQUI4QzUzOTBEODVCNUIzIiBzdFJlZjpkb2N1bWVudElEPSJ1dWlkOkM5RDM0OTY2NEEzQ0REMTFCMDhBQkJCQ0ZGMTcyMTU2Ii8+IDwvcmRmOkRlc2NyaXB0aW9uPiA8L3JkZjpSREY+IDwveDp4bXBtZXRhPiA8P3hwYWNrZXQgZW5kPSJyIj8+IBFgEwAAAmJJREFUeNqkk89rE1EQx2d/NNq0xcYYayPYJDWC9ODBsKIgAREjBmvEg2cvHnr05KHQ9iB49SL+/BMEfxBQKHgwCEbTNNIYaqgaoanFJi+rcXezye4689jYkIMIDnx47837zrx583YFx3Hgf0xA6/dJyAkkgUy4vgryAnmNWH9L4EVmotFoKplMHgoGg6PkrFarjXQ6/bFcLj/G5W1E+3NaX4KZeDx+dX5+7kg4HBlmrC6JoiDFYrGhROLM/mp1Y6JSqdCd3/SW0GUqEAjkl5ZyHTSHKBQKnO6a9khD2m5cr91IJBJ1VVWdiM/n6LruNJtNDs3JR3ukIW03SHTHi8iVsbG9I51OG1bW16HVasHQZopDc/JZVgdIQ1o3BmTkEnJXURS/KIpgGAYPkCQJPi0u8uzDKQN0XQPbtgE1MmrHs9nsfSqAEjxCNtHxZHLy4G4smUQgyzL4LzOegDGGp1ucVqsNqKVrpJCM7F4hg6iaZvhqtZrg8XjA4xnAU3XeKLqWaRImoIZeQXVjQO5pYp4xNVirsR1erxer2O4yfa227WCwhtWoJmn7m0h270NxmemFW4706zMm8GCgxBGEASCfhnukIW03iFdQnOPz0LNKp3362JqQzSw4u2LXBe+Bs3xD+/oc1NxN55RiC9fOme0LEQiRf2rBzaKEeJJ37ZWTVunBeGN2WmQjg/DeLTVP89nzAive2dMwlo9bpFVC2xWMZr+A720FVn88fAUb3wDMOjyN7YNc6TvUSHQ4AH6TOUdLL7em68UtWPsJqxgTpgeiLu1EBt1R+Me/mF7CQPTfAgwAGxY2vOTrR3oAAAAASUVORK5CYII="}
-</pre>
+```
 
 use then the curl tool to execute a request to the webhook.
 
-<pre>
+```sh
 #!/bin/bash
 curl -H "Content-Type:application/json" -X POST -d @testRequest.json \
 http://localhost:9000/hooks/test-file-webhook
-</pre>
+```
 
 or in a single line, using https://github.com/jpmens/jo to generate the JSON code
-<pre>
+```console
 jo binary=%filename.zip | curl -H "Content-Type:application/json" -X POST -d @- \
 http://localhost:9000/hooks/test-file-webhook
-</pre>
+```
 
 
 ## Incoming Scalr Webhook
@@ -379,7 +432,7 @@ http://localhost:9000/hooks/test-file-webhook
 Scalr makes webhook calls based on an event to a configured webhook endpoint (for example Host Down, Host Up). Webhook endpoints are URLs where Scalr will deliver Webhook notifications.  
 Scalr assigns a unique signing key for every configured webhook endpoint.
 Refer to this URL for information on how to setup the webhook call on the Scalr side: [Scalr Wiki Webhooks](https://scalr-wiki.atlassian.net/wiki/spaces/docs/pages/6193173/Webhooks)
-In order to leverage the Signing Key for addtional authentication/security you must configure the trigger rule with a match type of "scalr-signature".
+In order to leverage the Signing Key for additional authentication/security you must configure the trigger rule with a match type of "scalr-signature".
 
 ```json
 [
@@ -497,7 +550,8 @@ A reference to the second item in the array would look like this:
 [
   {
     "id": "sendgrid",
-    "execute-command": "{{ .Hookecho }}",
+    "execute-command": "/root/my-server/deployment.sh",
+    "command-working-directory": "/root/my-server",
     "trigger-rule": {
       "match": {
         "type": "value",
@@ -593,7 +647,6 @@ We only care about the payload part.
     }
   }
 ]
-
 ```
 
 Each part of a multipart form data body will have a `Content-Disposition` header.
@@ -633,6 +686,111 @@ The following example will pass two static string parameters ("-e 123123") to th
         "name": "pusher.email"
       }
     ]
+  }
+]
+```
+
+## Receive Synology DSM notifications
+
+It's possible to securely receive Synology push notifications via webhooks.
+Webhooks feature introduced in DSM 7.x seems to be incomplete & broken, but you can use Synology SMS notification service to push webhooks. To configure SMS notifications on DSM follow instructions found here: https://github.com/ryancurrah/synology-notifications this will allow you to set up everything needed for webhook to accept any and all notifications sent by Synology. During setup an 'api_key' is specified - you can generate your own 32-char string and use it as an authentication mechanism to secure your webhook. Additionally, you can specify what notifications to receive via this method by going and selecting the "SMS" checkboxes under topics of interes in DSM: Control Panel -> Notification -> Rules
+
+```json
+[
+  {
+    "id": "synology",
+    "execute-command": "do-something.sh",
+    "command-working-directory": "/opt/webhook-linux-amd64/synology",
+    "response-message": "Request accepted",
+    "pass-arguments-to-command":
+    [
+      {
+        "source": "payload",
+        "name": "message"
+      }
+    ],
+    "trigger-rule":
+    {
+      "match":
+      {
+        "type": "value",
+        "value": "PUT_YOUR_API_KEY_HERE",
+        "parameter":
+        {
+          "source": "header",
+          "name": "api_key"
+        }
+      }
+    }
+  }
+]
+```
+## Incoming Azure Container Registry (ACR) webhook
+
+ACR can send webhooks on image push events.  The `hooks.json` below will handle those events and pass relevant properties as environment variables to a command.
+
+Here is an example of a working docker webhook container used to handle the webhooks and fill the cache of a local registry: [ACR Harbor local cache feeder](https://github.com/tomdess/registry-cache-feeder).
+
+
+```json
+[
+  {
+    "id": "acr-push-event",
+    "execute-command": "/config/script-acr.sh",
+    "command-working-directory": "/config",
+    "pass-environment-to-command": 
+    [
+      {
+	"envname": "ACTION",
+        "source": "payload",
+        "name": "action"
+      },
+      {
+	"envname": "REPO",
+        "source": "payload",
+        "name": "target.repository"
+      },
+      {
+	"envname": "TAG",
+        "source": "payload",
+        "name": "target.tag"
+      },
+      {
+	"envname": "DIGEST",
+        "source": "payload",
+        "name": "target.digest"
+      }
+    ],
+    "trigger-rule":
+    {
+      "and":
+      [
+        {
+          "match":
+          {
+            "type": "value",
+            "value": "mysecretToken",
+            "parameter":
+            {
+              "source": "header",
+              "name": "X-Static-Token"
+            }
+          }
+        },
+        {
+          "match":
+          {
+            "type": "value",
+            "value": "push",
+            "parameter":
+            {
+              "source": "payload",
+              "name": "action"
+            }
+          }
+        }
+      ]
+    }
   }
 ]
 ```

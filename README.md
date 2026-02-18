@@ -17,19 +17,16 @@ If you use Mattermost or Slack, you can set up an "Outgoing webhook integration"
 
 Everything else is the responsibility of the command's author.
 
-# Hookdoo
-<a href="https://www.hookdoo.com/?github"><img src="https://www.hookdoo.com/logo/logo.svg" height="96" alt="hookdoo" align="left" /></a>
-
-If you don't have time to waste configuring, hosting, debugging and maintaining your webhook instance, we offer a __SaaS__ solution that has all of the capabilities webhook provides, plus a lot more, and all that packaged in a nice friendly web interface. If you are interested, find out more at [hookdoo website](https://www.hookdoo.com/?ref=github-webhook-readme). If you have any questions, you can contact us at info@hookdoo.com
-
-#
-
-<a href="https://www.hookdeck.com/?ref=adnanh-webhook"><img src="http://hajdarevic.net/hookdeck-logo.svg" height="17" alt="hookdeck" align="left" /></a> If you need a way of inspecting, monitoring and replaying webhooks without the back and forth troubleshooting, [give Hookdeck a try!](https://www.hookdeck.com/?ref=adnanh-webhook)
+## Not what you're looking for?
+| <a href="https://www.hookdoo.com/?github"><img src="https://hookdoo.com/img/Hookdoo_Logo_1.png" height="48" alt="hookdoo" /></a> | <picture><source media="(prefers-color-scheme: dark)" srcset="images/hookdeck-white.svg"><img height="36" alt="hookdeck" src="images/hookdeck-black.svg"></picture></a> |
+| :-: | :-: |
+| Scriptable webhook gateway to safely run your custom builds, deploys, and proxy scripts on your servers.                                      | An event gateway to reliably ingest, verify, queue, transform, filter, inspect, monitor, and replay webhooks. |
+ 
 
 # Getting started
 ## Installation
 ### Building from source
-To get started, first make sure you've properly set up your [Go](http://golang.org/doc/install) 1.14 or newer environment and then run
+To get started, first make sure you've properly set up your [Go](http://golang.org/doc/install) 1.21 or newer environment and then run
 ```bash
 $ go build github.com/adnanh/webhook
 ```
@@ -44,6 +41,9 @@ If you are using Ubuntu linux (17.04 or later), you can install webhook using `s
 
 #### Debian
 If you are using Debian linux ("stretch" or later), you can install webhook using `sudo apt-get install webhook` which will install community packaged version (thanks [@freeekanayaka](https://github.com/freeekanayaka)) from https://packages.debian.org/sid/webhook
+
+#### FreeBSD
+If you are using FreeBSD, you can install webhook using `pkg install webhook`.
 
 ### Download prebuilt binaries
 Prebuilt binaries for different architectures are available at [GitHub Releases](https://github.com/adnanh/webhook/releases).
@@ -109,14 +109,23 @@ In either case, the given file part will be parsed as JSON and added to the `pay
 
 TLS version and cipher suite selection flags are available from the command line. To list available cipher suites, use the `-list-cipher-suites` flag.  The `-tls-min-version` flag can be used with `-list-cipher-suites`.
 
+## Running behind a reverse proxy
+[webhook][w] may be run behind a "reverse proxy" - another web-facing server such as [Apache httpd](https://httpd.apache.org) or [Nginx](https://nginx.org) that accepts requests from clients and forwards them on to [webhook][h].  You can have [webhook][w] listen on a regular TCP port or on a Unix domain socket (with the `-socket` flag), then configure your proxy to send requests for a specific host name or sub-path over that port or socket to [webhook][w].
+
+Note that when running in this mode the [`ip-whitelist`](docs/Hook-Rules.md#match-whitelisted-ip-range) trigger rule will not work as expected, since it will be checking the address of the _proxy_, not the _client_.  Client IP restrictions will need to be enforced within the proxy, before it decides whether to forward the request to [webhook][w].
+
 ## CORS Headers
 If you want to set CORS headers, you can use the `-header name=value` flag while starting [webhook][w] to set the appropriate CORS headers that will be returned with each response.
+
+## Running under `systemd`
+On platforms that use [systemd](https://systemd.io), [webhook][w] supports the _socket activation_ mechanism.  If [webhook][w] detects that it has been launched from a systemd-managed socket it will automatically use that instead of opening its own listening port.  See [the systemd page](docs/Systemd-Activation.md) for full details.
 
 ## Interested in running webhook inside of a Docker container?
 You can use one of the following Docker images, or create your own (please read [this discussion](https://github.com/adnanh/webhook/issues/63)):
 - [almir/webhook](https://github.com/almir/docker-webhook)
 - [roxedus/webhook](https://github.com/Roxedus/docker-webhook)
 - [thecatlady/webhook](https://github.com/thecatlady/docker-webhook)
+- [lwlook/webhook](https://hub.docker.com/r/lwlook/webhook) - This setup allows direct access to the Docker host, providing a streamlined and efficient way to manage webhooks.
 
 ## Examples
 Check out [Hook examples page](docs/Hook-Examples.md) for more complex examples of hooks.
@@ -132,14 +141,16 @@ Check out [Hook examples page](docs/Hook-Examples.md) for more complex examples 
  - [Using Prometheus to Automatically Scale WebLogic Clusters on Kubernetes](https://blogs.oracle.com/weblogicserver/using-prometheus-to-automatically-scale-weblogic-clusters-on-kubernetes-v5) by [Marina Kogan](https://blogs.oracle.com/author/9a4fe754-1cc2-4c64-95fc-360642b62927)
  - [Github Pages and Jekyll - A New Platform for LACNIC Labs](https://labs.lacnic.net/a-new-platform-for-lacniclabs/) by [Carlos Martínez Cagnazzo](https://twitter.com/carlosm3011)
  - [How to Deploy React Apps Using Webhooks and Integrating Slack on Ubuntu](https://www.alibabacloud.com/blog/how-to-deploy-react-apps-using-webhooks-and-integrating-slack-on-ubuntu_594116) by Arslan Ud Din Shafiq
- - [Private webhooks](https://ihateithe.re/2018/01/private-webhooks/) by [Thomas](https://ihateithe.re/colophon/)
+ - [Private webhooks](https://tmertz.com/2018/01/private-webhooks/) by [Thomas](https://tmertz.com)
  - [Adventures in webhooks](https://medium.com/@draketech/adventures-in-webhooks-2d6584501c62) by [Drake](https://medium.com/@draketech)
  - [GitHub pro tips](http://notes.spencerlyon.com/2016/01/04/github-pro-tips/) by [Spencer Lyon](http://notes.spencerlyon.com/)
  - [XiaoMi Vacuum + Amazon Button = Dash Cleaning](https://www.instructables.com/id/XiaoMi-Vacuum-Amazon-Button-Dash-Cleaning/) by [c0mmensal](https://www.instructables.com/member/c0mmensal/)
  - [Set up Automated Deployments From Github With Webhook](https://maximorlov.com/automated-deployments-from-github-with-webhook/) by [Maxim Orlov](https://twitter.com/_maximization)
+ - [Kick Me Now with Webhooks](https://freebsdfoundation.org/kick-me-now-with-webhooks/) By Dave Cottlehuber
  - VIDEO: [Gitlab CI/CD configuration using Docker and adnanh/webhook to deploy on VPS - Tutorial #1](https://www.youtube.com/watch?v=Qhn-lXjyrZA&feature=youtu.be) by [Yes! Let's Learn Software Engineering](https://www.youtube.com/channel/UCH4XJf2BZ_52fbf8fOBMF3w)
  - [Integrate automatic deployment in 20 minutes using webhooks + Nginx setup](https://anksus.me/blog/integrate-automatic-deployment-in-20-minutes-using-webhooks) by [Anksus](https://github.com/Anksus)
  - [Automatically redeploy your static blog with Gitea, Uberspace & Webhook](https://by.arran.nz/posts/code/webhook-deploy/) by [Arran](https://arran.nz)
+- [Automatically Updating My Zola Site Using a Webhook](https://osc.garden/blog/updating-site-with-webhook/) by [Óscar Fernández](https://osc.garden/)
  - ...
  - Want to add your own? Open an Issue or create a PR :-)
  

@@ -19,13 +19,13 @@ import (
 	"github.com/adnanh/webhook/internal/middleware"
 	"github.com/adnanh/webhook/internal/pidfile"
 
-	chimiddleware "github.com/go-chi/chi/middleware"
+	"github.com/fsnotify/fsnotify"
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/gorilla/mux"
-	fsnotify "gopkg.in/fsnotify.v1"
 )
 
 const (
-	version = "2.8.0"
+	version = "2.8.3"
 )
 
 var (
@@ -48,8 +48,6 @@ var (
 	useXRequestID      = flag.Bool("x-request-id", false, "use X-Request-Id header, if present, as request ID")
 	xRequestIDLimit    = flag.Int("x-request-id-limit", 0, "truncate X-Request-Id header to limit; default no limit")
 	maxMultipartMem    = flag.Int64("max-multipart-mem", 1<<20, "maximum memory in bytes for parsing multipart form data before disk caching")
-	setGID             = flag.Int("setgid", 0, "set group ID after opening listening port; must be used with setuid")
-	setUID             = flag.Int("setuid", 0, "set user ID after opening listening port; must be used with setgid")
 	httpMethods        = flag.String("http-methods", "", `set default allowed HTTP methods (ie. "POST"); separate methods with comma`)
 	pidPath            = flag.String("pidfile", "", "create PID file at the given path")
 
@@ -61,6 +59,10 @@ var (
 	watcher *fsnotify.Watcher
 	signals chan os.Signal
 	pidFile *pidfile.PIDFile
+	setUID  = 0
+	setGID  = 0
+	socket  = ""
+	addr    = ""
 )
 
 func matchLoadedHook(id string) *hook.Hook {
@@ -86,6 +88,9 @@ func main() {
 	flag.Var(&hooksFiles, "hooks", "path to the json file containing defined hooks the webhook should serve, use multiple times to load from different files")
 	flag.Var(&responseHeaders, "header", "response header to return, specified in format name=value, use multiple times to set multiple headers")
 
+	// register platform-specific flags
+	platformFlags()
+
 	flag.Parse()
 
 	if *justDisplayVersion {
@@ -102,7 +107,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	if (*setUID != 0 || *setGID != 0) && (*setUID == 0 || *setGID == 0) {
+	if (setUID != 0 || setGID != 0) && (setUID == 0 || setGID == 0) {
 		fmt.Println("error: setuid and setgid options must be used together")
 		os.Exit(1)
 	}
@@ -120,17 +125,25 @@ func main() {
 	// log file opening prior to writing our first log message.
 	var logQueue []string
 
-	addr := fmt.Sprintf("%s:%d", *ip, *port)
+	// by default the listen address is ip:port (default 0.0.0.0:9000), but
+	// this may be modified by trySocketListener
+	addr = fmt.Sprintf("%s:%d", *ip, *port)
 
-	// Open listener early so we can drop privileges.
-	ln, err := net.Listen("tcp", addr)
+	ln, err := trySocketListener()
 	if err != nil {
-		logQueue = append(logQueue, fmt.Sprintf("error listening on port: %s", err))
+		logQueue = append(logQueue, fmt.Sprintf("error listening on socket: %s", err))
 		// we'll bail out below
+	} else if ln == nil {
+		// Open listener early so we can drop privileges.
+		ln, err = net.Listen("tcp", addr)
+		if err != nil {
+			logQueue = append(logQueue, fmt.Sprintf("error listening on port: %s", err))
+			// we'll bail out below
+		}
 	}
 
-	if *setUID != 0 {
-		err := dropPrivileges(*setUID, *setGID)
+	if setUID != 0 {
+		err := dropPrivileges(setUID, setGID)
 		if err != nil {
 			logQueue = append(logQueue, fmt.Sprintf("error dropping privileges: %s", err))
 			// we'll bail out below
@@ -265,6 +278,10 @@ func main() {
 	hooksURL := makeRoutePattern(hooksURLPrefix)
 
 	r.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
+		for _, responseHeader := range responseHeaders {
+			w.Header().Set(responseHeader.Name, responseHeader.Value)
+		}
+
 		fmt.Fprint(w, "OK")
 	})
 
@@ -272,7 +289,6 @@ func main() {
 
 	// Create common HTTP server settings
 	svr := &http.Server{
-		Addr:    addr,
 		Handler: r,
 	}
 

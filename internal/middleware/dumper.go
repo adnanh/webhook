@@ -1,6 +1,6 @@
 package middleware
 
-// Derived from from the Goa project, MIT Licensed
+// Derived from the Goa project, MIT Licensed
 // https://github.com/goadesign/goa/blob/v3/http/middleware/debug.go
 
 import (
