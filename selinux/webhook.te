@@ -1,0 +1,86 @@
+policy_module(webhook, 1.0.0)
+
+########################################
+#
+# Declarations
+#
+
+gen_require(`
+    type etc_t;
+')
+
+type webhook_t;
+type webhook_exec_t;
+init_daemon_domain(webhook_t, webhook_exec_t)
+
+type webhook_conf_t;
+files_config_file(webhook_conf_t)
+
+# Custom entrypoint type for commands that run unconfined
+type webhook_unconfined_t;
+type webhook_unconfined_exec_t;
+domain_type(webhook_unconfined_t)
+corecmd_executable_file(webhook_unconfined_exec_t)
+domain_entry_file(webhook_unconfined_t, webhook_unconfined_exec_t)
+unconfined_domain(webhook_unconfined_t)
+role system_r types webhook_unconfined_t;
+
+# permissive webhook_t;
+
+########################################
+#
+# Booleans
+#
+
+## <desc>
+## <p>
+## Allow webhook_t to execute any file and transition to unconfined_t.
+## When disabled, webhook_t can only execute files labeled
+## webhook_unconfined_exec_t and transition to unconfined_t.
+## </p>
+## </desc>
+gen_tunable(webhook_unconfined_exec_any, true)
+
+########################################
+#
+# webhook local policy
+#
+
+domain_use_interactive_fds(webhook_t)
+
+read_files_pattern(webhook_t, etc_t, webhook_conf_t)
+
+allow webhook_t cgroup_t:file read;
+fs_search_cgroup_dirs(webhook_t)
+
+allow webhook_t self:tcp_socket { create accept listen bind setopt getattr read write };
+kernel_read_net_sysctls(webhook_t)
+kernel_search_network_sysctl(webhook_t)
+corenet_sendrecv_http_server_packets(webhook_t)
+corenet_tcp_bind_http_port(webhook_t)
+corenet_tcp_sendrecv_http_port(webhook_t)
+corenet_tcp_bind_generic_node(webhook_t)
+
+########################################
+#
+# Command execution and domain transition to webhook_unconfined_t
+#
+
+# Always: webhook_t can execute files labeled webhook_unconfined_exec_t
+# and transition to webhook_unconfined_t
+
+allow webhook_t webhook_unconfined_t:process2 { nnp_transition nosuid_transition };
+allow webhook_t webhook_unconfined_t:process { noatsecure rlimitinh siginh };
+
+domtrans_pattern(webhook_t, webhook_unconfined_exec_t, webhook_unconfined_t)
+corecmd_exec_shell(webhook_t)
+corecmd_exec_bin(webhook_t)
+
+
+# Optional (boolean on, default true): webhook_t can execute ANY file
+# and transition to webhook_unconfined_t
+
+corecmd_bin_entry_type(webhook_unconfined_t)
+tunable_policy(`webhook_unconfined_exec_any',`
+    corecmd_bin_domtrans(webhook_t, webhook_unconfined_t)
+')

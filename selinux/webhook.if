@@ -1,0 +1,40 @@
+
+## <summary>policy for webhook</summary>
+
+########################################
+## <summary>
+##	Execute webhook_exec_t in the webhook domain.
+## </summary>
+## <param name="domain">
+## <summary>
+##	Domain allowed to transition.
+## </summary>
+## </param>
+#
+interface(`webhook_domtrans',`
+	gen_require(`
+		type webhook_t, webhook_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, webhook_exec_t, webhook_t)
+')
+
+######################################
+## <summary>
+##	Execute webhook in the caller domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`webhook_exec',`
+	gen_require(`
+		type webhook_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	can_exec($1, webhook_exec_t)
+')

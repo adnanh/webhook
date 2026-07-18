@@ -1,0 +1,2 @@
+/usr/bin/webhook		--	gen_context(system_u:object_r:webhook_exec_t,s0)
+/etc/webhook.conf           gen_context(system_u:object_r:webhook_conf_t,s0)
