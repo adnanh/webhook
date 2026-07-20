@@ -633,7 +633,9 @@ func handleHook(h *hook.Hook, r *hook.Request) (string, error) {
 
 	out, err := cmd.CombinedOutput()
 
-	log.Printf("[%s] command output: %s\n", r.ID, out)
+	if err != nil || !h.DisableCommandOutputLogging {
+		log.Printf("[%s] command output: %s\n", r.ID, out)
+	}
 
 	if err != nil {
 		log.Printf("[%s] error occurred: %+v\n", r.ID, err)
