@@ -226,10 +226,28 @@ func TestWebhookMaxBodySize(t *testing.T) {
 		}
 	})
 
+	t.Run("rejects negative read timeout at startup", func(t *testing.T) {
+		cmd := exec.Command(webhook,
+			fmt.Sprintf("-hooks=%s", configPath),
+			"-read-timeout=-1s",
+		)
+		cmd.Env = webhookEnv()
+		cmd.Args[0] = "webhook"
+
+		output, err := cmd.CombinedOutput()
+		if err == nil {
+			t.Fatalf("expected webhook to reject negative read timeout, got success\noutput:\n%s", output)
+		}
+
+		if !strings.Contains(string(output), "error: read-timeout must be greater than or equal to 0") {
+			t.Fatalf("expected negative read timeout error, got:\n%s", output)
+		}
+	})
+
 	t.Run("default is unlimited and warns", func(t *testing.T) {
 		ip, port := serverAddress(t)
 		authority := fmt.Sprintf("%s:%s", ip, port)
-		logs, stop := startWebhookForMaxBodyTest(t, webhook, configPath, ip, port, "")
+		logs, stop := startWebhookForMaxBodyTest(t, webhook, configPath, ip, port, "", "")
 		defer stop()
 
 		body := fmt.Sprintf(`{"payload":%q}`, strings.Repeat("a", 33*1024*1024))
@@ -257,7 +275,7 @@ func TestWebhookMaxBodySize(t *testing.T) {
 	t.Run("rejects oversized body", func(t *testing.T) {
 		ip, port := serverAddress(t)
 		authority := fmt.Sprintf("%s:%s", ip, port)
-		logs, stop := startWebhookForMaxBodyTest(t, webhook, configPath, ip, port, "16")
+		logs, stop := startWebhookForMaxBodyTest(t, webhook, configPath, ip, port, "16", "")
 		defer stop()
 
 		req, err := http.NewRequest("POST", fmt.Sprintf("http://%s/hooks/github", authority), strings.NewReader(`{"payload":"too large"}`))
@@ -285,7 +303,7 @@ func TestWebhookMaxBodySize(t *testing.T) {
 	t.Run("allows body within limit", func(t *testing.T) {
 		ip, port := serverAddress(t)
 		authority := fmt.Sprintf("%s:%s", ip, port)
-		logs, stop := startWebhookForMaxBodyTest(t, webhook, configPath, ip, port, "1048576")
+		logs, stop := startWebhookForMaxBodyTest(t, webhook, configPath, ip, port, "1048576", "5s")
 		defer stop()
 
 		tt := hookHandlerTests[0]
@@ -317,7 +335,7 @@ func TestWebhookMaxBodySize(t *testing.T) {
 	})
 }
 
-func startWebhookForMaxBodyTest(t *testing.T, webhook, configPath, ip, port, maxBodySize string) (*buffer, func()) {
+func startWebhookForMaxBodyTest(t *testing.T, webhook, configPath, ip, port, maxBodySize, readTimeout string) (*buffer, func()) {
 	t.Helper()
 
 	logs := &buffer{}
@@ -328,6 +346,9 @@ func startWebhookForMaxBodyTest(t *testing.T, webhook, configPath, ip, port, max
 	}
 	if maxBodySize != "" {
 		args = append(args, fmt.Sprintf("-max-body-size=%s", maxBodySize))
+	}
+	if readTimeout != "" {
+		args = append(args, fmt.Sprintf("-read-timeout=%s", readTimeout))
 	}
 
 	cmd := exec.Command(webhook, args...)

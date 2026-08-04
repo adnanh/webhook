@@ -51,6 +51,7 @@ var (
 	useXRequestID      = flag.Bool("x-request-id", false, "use X-Request-Id header, if present, as request ID")
 	xRequestIDLimit    = flag.Int("x-request-id-limit", 0, "truncate X-Request-Id header to limit; default no limit")
 	maxBodySize        = flag.Int64("max-body-size", defaultMaxBodySize, "maximum request body size in bytes, use 0 for unlimited")
+	readTimeout        = flag.Duration("read-timeout", 0, "maximum duration for reading the entire request, including body; use 0 for no timeout")
 	maxMultipartMem    = flag.Int64("max-multipart-mem", 1<<20, "maximum memory in bytes for parsing multipart form data before disk caching")
 	httpMethods        = flag.String("http-methods", "", `set default allowed HTTP methods (ie. "POST"); separate methods with comma`)
 	pidPath            = flag.String("pidfile", "", "create PID file at the given path")
@@ -118,6 +119,10 @@ func main() {
 
 	if *maxBodySize < 0 {
 		fmt.Println("error: max-body-size must be greater than or equal to 0")
+		os.Exit(1)
+	}
+	if *readTimeout < 0 {
+		fmt.Println("error: read-timeout must be greater than or equal to 0")
 		os.Exit(1)
 	}
 
@@ -302,7 +307,8 @@ func main() {
 
 	// Create common HTTP server settings
 	svr := &http.Server{
-		Handler: r,
+		Handler:     r,
+		ReadTimeout: *readTimeout,
 	}
 
 	// Serve HTTP
