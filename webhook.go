@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -26,6 +27,8 @@ import (
 
 const (
 	version = "2.8.3"
+	// Keep the default unlimited to preserve existing deployments.
+	defaultMaxBodySize int64 = 0
 )
 
 var (
@@ -47,6 +50,7 @@ var (
 	tlsCipherSuites    = flag.String("cipher-suites", "", "comma-separated list of supported TLS cipher suites")
 	useXRequestID      = flag.Bool("x-request-id", false, "use X-Request-Id header, if present, as request ID")
 	xRequestIDLimit    = flag.Int("x-request-id-limit", 0, "truncate X-Request-Id header to limit; default no limit")
+	maxBodySize        = flag.Int64("max-body-size", defaultMaxBodySize, "maximum request body size in bytes, use 0 for unlimited")
 	maxMultipartMem    = flag.Int64("max-multipart-mem", 1<<20, "maximum memory in bytes for parsing multipart form data before disk caching")
 	httpMethods        = flag.String("http-methods", "", `set default allowed HTTP methods (ie. "POST"); separate methods with comma`)
 	pidPath            = flag.String("pidfile", "", "create PID file at the given path")
@@ -112,6 +116,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	if *maxBodySize < 0 {
+		fmt.Println("error: max-body-size must be greater than or equal to 0")
+		os.Exit(1)
+	}
+
 	if *debug || *logPath != "" {
 		*verbose = true
 	}
@@ -169,6 +178,10 @@ func main() {
 		}
 
 		os.Exit(1)
+	}
+
+	if *maxBodySize == 0 {
+		log.Println("warn: request body size is unlimited; set -max-body-size to a positive byte value to limit request body reads")
 	}
 
 	if !*verbose {
@@ -368,6 +381,10 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set(responseHeader.Name, responseHeader.Value)
 	}
 
+	if *maxBodySize > 0 {
+		r.Body = http.MaxBytesReader(w, r.Body, *maxBodySize)
+	}
+
 	var err error
 
 	// set contentType to IncomingPayloadContentType or header value
@@ -381,7 +398,16 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 	if !isMultipart {
 		req.Body, err = ioutil.ReadAll(r.Body)
 		if err != nil {
+			if isRequestBodyTooLarge(err) {
+				w.WriteHeader(http.StatusRequestEntityTooLarge)
+				fmt.Fprint(w, "Request body too large.")
+				return
+			}
+
 			log.Printf("[%s] error reading the request body: %+v\n", req.ID, err)
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprint(w, "Error occurred while reading the request body.")
+			return
 		}
 	}
 
@@ -410,6 +436,12 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 	case isMultipart:
 		err = r.ParseMultipartForm(*maxMultipartMem)
 		if err != nil {
+			if isRequestBodyTooLarge(err) {
+				w.WriteHeader(http.StatusRequestEntityTooLarge)
+				fmt.Fprint(w, "Request body too large.")
+				return
+			}
+
 			msg := fmt.Sprintf("[%s] error parsing multipart form: %+v\n", req.ID, err)
 			log.Println(msg)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -652,6 +684,11 @@ func handleHook(h *hook.Hook, r *hook.Request) (string, error) {
 	log.Printf("[%s] finished handling %s\n", r.ID, h.ID)
 
 	return string(out), err
+}
+
+func isRequestBodyTooLarge(err error) bool {
+	var maxBytesErr *http.MaxBytesError
+	return errors.As(err, &maxBytesErr)
 }
 
 func writeHttpResponseCode(w http.ResponseWriter, rid, hookId string, responseCode int) {
