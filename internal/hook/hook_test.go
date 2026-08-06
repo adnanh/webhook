@@ -192,6 +192,70 @@ func TestCheckScalrSignature(t *testing.T) {
 	}
 }
 
+var checkMSTeamsSignatureTests = []struct {
+	description       string
+	headers           map[string]interface{}
+	body              []byte
+	secret            string
+	expectedSignature string
+	ok                bool
+}{
+	{
+		"Valid signature",
+		map[string]interface{}{"Authorization": "HMAC gpjdTlOlaReTBLRFdwqdXhLqG7hFXVYTBorGDpaW5UE="},
+		[]byte(`{"a": "b"}`), "bmV2ZXJnb25uYWdpdmV5b3V1cA==",
+		"gpjdTlOlaReTBLRFdwqdXhLqG7hFXVYTBorGDpaW5UE=", true,
+	},
+	{
+		"Wrong signature",
+		map[string]interface{}{"Authorization": "HMAC 1337TlOlaReTBLRFdwqdXhLqG7hFXVYTBorGDpaW5UE="},
+		[]byte(`{"a": "b"}`), "bmV2ZXJnb25uYWdpdmV5b3V1cA==",
+		"gpjdTlOlaReTBLRFdwqdXhLqG7hFXVYTBorGDpaW5UE=", false,
+	},
+	{
+		"Missing Authorization header",
+		map[string]interface{}{"Different-Header": "HMAC wrong"},
+		[]byte(`{"a": "b"}`), "bmV2ZXJnb25uYWdpdmV5b3V1cA==",
+		"gpjdTlOlaReTBLRFdwqdXhLqG7hFXVYTBorGDpaW5UE=", false,
+	},
+	{
+		"Malformed Authorization header",
+		map[string]interface{}{"Authorization": "HMAC 123---"},
+		[]byte(`{"a": "b"}`), "bmV2ZXJnb25uYWdpdmV5b3V1cA==",
+		"gpjdTlOlaReTBLRFdwqdXhLqG7hFXVYTBorGDpaW5UE=", false,
+	},
+	{
+		"Missing signing key",
+		map[string]interface{}{"Authorization": "HMAC gpjdTlOlaReTBLRFdwqdXhLqG7hFXVYTBorGDpaW5UE="},
+		[]byte(`{"a": "b"}`), "",
+		"gpjdTlOlaReTBLRFdwqdXhLqG7hFXVYTBorGDpaW5UE=", false,
+	},
+	{
+		"Malformed signing key",
+		map[string]interface{}{"Authorization": "HMAC gpjdTlOlaReTBLRFdwqdXhLqG7hFXVYTBorGDpaW5UE="},
+		[]byte(`{"a": "b"}`), "---2ZXJnb25uYWdpdmV5b3V1cA==",
+		"gpjdTlOlaReTBLRFdwqdXhLqG7hFXVYTBorGDpaW5UE=", false,
+	},
+}
+
+func TestCheckMSTeamsSignature(t *testing.T) {
+	for _, testCase := range checkMSTeamsSignatureTests {
+		r := &Request{
+			Headers: testCase.headers,
+			Body:    testCase.body,
+		}
+		valid, err := CheckMSTeamsSignature(r, testCase.secret)
+		if valid != testCase.ok {
+			t.Errorf("failed to check MS Teams signature fot test case: %s\nexpected ok:%#v, got ok:%#v}",
+				testCase.description, testCase.ok, valid)
+		}
+
+		if err != nil && testCase.secret != "" && strings.Contains(err.Error(), testCase.expectedSignature) {
+			t.Errorf("error message should not disclose expected mac: %s on test case %s", err, testCase.description)
+		}
+	}
+}
+
 var checkIPWhitelistTests = []struct {
 	addr    string
 	ipRange string
