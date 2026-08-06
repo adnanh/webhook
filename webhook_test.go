@@ -68,6 +68,70 @@ func TestStaticParams(t *testing.T) {
 	}
 }
 
+func TestDisableCommandOutputLogging(t *testing.T) {
+	hookecho, cleanHookecho := buildHookecho(t)
+	defer cleanHookecho()
+
+	tests := []struct {
+		name    string
+		hook    *hook.Hook
+		wantLog bool
+		wantErr bool
+	}{
+		{
+			name: "logs command output on success by default",
+			hook: &hook.Hook{
+				ExecuteCommand: hookecho,
+				PassArgumentsToCommand: []hook.Argument{
+					{Source: "string", Name: "passed"},
+				},
+			},
+			wantLog: true,
+		},
+		{
+			name: "does not log command output on success when disabled",
+			hook: &hook.Hook{
+				ExecuteCommand:              hookecho,
+				DisableCommandOutputLogging: true,
+				PassArgumentsToCommand: []hook.Argument{
+					{Source: "string", Name: "passed"},
+				},
+			},
+			wantLog: false,
+		},
+		{
+			name: "still logs command output on error when disabled",
+			hook: &hook.Hook{
+				ExecuteCommand:              hookecho,
+				DisableCommandOutputLogging: true,
+				PassArgumentsToCommand: []hook.Argument{
+					{Source: "string", Name: "exit=1"},
+				},
+			},
+			wantLog: true,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b := &bytes.Buffer{}
+			log.SetOutput(b)
+			t.Cleanup(func() { log.SetOutput(os.Stderr) })
+
+			_, err := handleHook(tt.hook, &hook.Request{ID: "test"})
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("handleHook() error = %v, wantErr %v", err, tt.wantErr)
+			}
+
+			gotLog := strings.Contains(b.String(), "command output:")
+			if gotLog != tt.wantLog {
+				t.Fatalf("command output logged = %v, want %v\nlog output:\n%s", gotLog, tt.wantLog, b.String())
+			}
+		})
+	}
+}
+
 func TestWebhook(t *testing.T) {
 	hookecho, cleanupHookecho := buildHookecho(t)
 	defer cleanupHookecho()
