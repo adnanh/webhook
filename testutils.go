@@ -5,7 +5,6 @@ package main
 
 import (
 	"context"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -13,7 +12,7 @@ import (
 )
 
 func prepareTestSocket(_ string) (socketPath string, transport *http.Transport, cleanup func(), err error) {
-	tmp, err := ioutil.TempDir("", "webhook-socket-")
+	tmp, err := os.MkdirTemp("", "webhook-socket-")
 	if err != nil {
 		return "", nil, nil, err
 	}
