@@ -194,8 +194,6 @@ This project exists thanks to all the people who contribute. [Contribute!](CONTR
  - [OpenCollective Sponsor](https://opencollective.com/webhook#sponsor)
  - [PayPal](https://paypal.me/hookdoo)
  - [Patreon](https://www.patreon.com/webhook)
- - [Faircode](https://faircode.io/product/webhook?utm_source=badge&utm_medium=badgelarge&utm_campaign=webhook)
- - [Flattr](https://flattr.com/submit/auto?user_id=adnanh&url=https%3A%2F%2Fwww.github.com%2Fadnanh%2Fwebhook)
 
 ---
 
