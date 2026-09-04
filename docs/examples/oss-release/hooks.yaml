@@ -1,0 +1,33 @@
+# 上传 Web 资源并发布到 OSS 的 webhook 示例。
+# 生产使用前，请把占位符替换为实际值。
+- id: dev/web
+  # 必填：替换为服务器上 update.web-dev.sh 的绝对路径。
+  execute-command: /path/to/docs/examples/oss-release/update.web-dev.sh
+  # 必填：替换为服务器上的示例目录路径，.env.update-web 和临时缓存会放在这里。
+  command-working-directory: /path/to/docs/examples/oss-release
+  http-methods:
+  - POST
+
+  keep-file-environment: true
+
+  pass-environment-to-command:
+  - source: payload
+    name: app
+    envname: APP
+  - source: payload
+    name: code
+    envname: CODE
+
+  trigger-rule:
+    and:
+    - match:
+        type: value
+        # 必填：替换为实际 query token。
+        value: CHANGE_ME_QUERY_TOKEN
+        parameter:
+          source: url
+          name: token
+    - match:
+        type: ip-whitelist
+        # 必填：替换为实际允许访问的 CIDR 网段。
+        ip-range: 192.0.2.10/32

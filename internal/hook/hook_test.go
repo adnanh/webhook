@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestGetParameter(t *testing.T) {
@@ -351,20 +352,21 @@ func TestHookExtractCommandArguments(t *testing.T) {
 // we test both cases where the name of the data is used as the name of the
 // env key & the case where the hook definition sets the env var name to a
 // fixed value using the envname construct like so::
-//    [
-//      {
-//        "id": "push",
-//        "execute-command": "bb2mm",
-//        "command-working-directory": "/tmp",
-//        "pass-environment-to-command":
-//        [
-//          {
-//            "source": "entire-payload",
-//            "envname": "PAYLOAD"
-//          },
-//        ]
-//      }
-//    ]
+//
+//	[
+//	  {
+//	    "id": "push",
+//	    "execute-command": "bb2mm",
+//	    "command-working-directory": "/tmp",
+//	    "pass-environment-to-command":
+//	    [
+//	      {
+//	        "source": "entire-payload",
+//	        "envname": "PAYLOAD"
+//	      },
+//	    ]
+//	  }
+//	]
 var hookExtractCommandArgumentsForEnvTests = []struct {
 	exec                    string
 	args                    []Argument
@@ -408,6 +410,108 @@ func TestHookExtractCommandArgumentsForEnv(t *testing.T) {
 		value, err := h.ExtractCommandArgumentsForEnv(r)
 		if (err == nil) != tt.ok || !reflect.DeepEqual(value, tt.value) {
 			t.Errorf("failed to extract args for env {cmd=%q, args=%v}:\nexpected %#v, ok: %v\ngot %#v, ok: %v", tt.exec, tt.args, tt.value, tt.ok, value, (err == nil))
+		}
+	}
+}
+
+func intPtr(v int) *int {
+	return &v
+}
+
+func TestHookValidateExecutionSettings(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		hook    Hook
+		wantErr bool
+	}{
+		{
+			name: "valid values",
+			hook: Hook{CommandTimeout: "250ms", MaxConcurrency: intPtr(2)},
+		},
+		{
+			name: "explicit unlimited values",
+			hook: Hook{CommandTimeout: "0", MaxConcurrency: intPtr(0)},
+		},
+		{
+			name:    "invalid timeout",
+			hook:    Hook{CommandTimeout: "not-a-duration"},
+			wantErr: true,
+		},
+		{
+			name:    "invalid concurrency",
+			hook:    Hook{MaxConcurrency: intPtr(-1)},
+			wantErr: true,
+		},
+	} {
+		err := tt.hook.ValidateExecutionSettings()
+		if (err != nil) != tt.wantErr {
+			t.Fatalf("%s: expected error=%v, got err=%v", tt.name, tt.wantErr, err)
+		}
+	}
+}
+
+func TestHookEffectiveExecutionSettings(t *testing.T) {
+	for _, tt := range []struct {
+		name               string
+		hook               Hook
+		defaultTimeout     time.Duration
+		defaultConcurrency int
+		wantTimeout        time.Duration
+		wantConcurrency    int
+		wantTimeoutErr     bool
+		wantConcurrencyErr bool
+	}{
+		{
+			name:               "inherits defaults",
+			hook:               Hook{},
+			defaultTimeout:     5 * time.Second,
+			defaultConcurrency: 3,
+			wantTimeout:        5 * time.Second,
+			wantConcurrency:    3,
+		},
+		{
+			name:               "hook overrides defaults",
+			hook:               Hook{CommandTimeout: "250ms", MaxConcurrency: intPtr(1)},
+			defaultTimeout:     5 * time.Second,
+			defaultConcurrency: 3,
+			wantTimeout:        250 * time.Millisecond,
+			wantConcurrency:    1,
+		},
+		{
+			name:               "hook disables defaults",
+			hook:               Hook{CommandTimeout: "0", MaxConcurrency: intPtr(0)},
+			defaultTimeout:     5 * time.Second,
+			defaultConcurrency: 3,
+			wantTimeout:        0,
+			wantConcurrency:    0,
+		},
+		{
+			name:            "invalid timeout override",
+			hook:            Hook{CommandTimeout: "bogus"},
+			wantTimeoutErr:  true,
+			wantConcurrency: 0,
+		},
+		{
+			name:               "invalid default concurrency",
+			hook:               Hook{},
+			defaultConcurrency: -1,
+			wantConcurrencyErr: true,
+		},
+	} {
+		timeout, timeoutErr := tt.hook.EffectiveCommandTimeout(tt.defaultTimeout)
+		if (timeoutErr != nil) != tt.wantTimeoutErr {
+			t.Fatalf("%s: expected timeout error=%v, got err=%v", tt.name, tt.wantTimeoutErr, timeoutErr)
+		}
+		if timeoutErr == nil && timeout != tt.wantTimeout {
+			t.Fatalf("%s: expected timeout %v, got %v", tt.name, tt.wantTimeout, timeout)
+		}
+
+		concurrency, concurrencyErr := tt.hook.EffectiveMaxConcurrency(tt.defaultConcurrency)
+		if (concurrencyErr != nil) != tt.wantConcurrencyErr {
+			t.Fatalf("%s: expected concurrency error=%v, got err=%v", tt.name, tt.wantConcurrencyErr, concurrencyErr)
+		}
+		if concurrencyErr == nil && concurrency != tt.wantConcurrency {
+			t.Fatalf("%s: expected concurrency %d, got %d", tt.name, tt.wantConcurrency, concurrency)
 		}
 	}
 }

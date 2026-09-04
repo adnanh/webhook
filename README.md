@@ -2,7 +2,9 @@
 
  <img src="https://github.com/adnanh/webhook/raw/development/docs/logo/logo-128x128.png" alt="Webhook" align="left" />
  
- [webhook][w] is a lightweight configurable tool written in Go, that allows you to easily create HTTP endpoints (hooks) on your server, which you can use to execute configured commands. You can also pass data from the HTTP request (such as headers, payload or query variables) to your commands. [webhook][w] also allows you to specify rules which have to be satisfied in order for the hook to be triggered.
+[webhook][w] is a lightweight configurable tool written in Go, that allows you to easily create HTTP endpoints (hooks) on your server, which you can use to execute configured commands. You can also pass data from the HTTP request (such as headers, payload or query variables) to your commands. [webhook][w] also allows you to specify rules which have to be satisfied in order for the hook to be triggered.
+
+Chinese documentation with the fork-specific install, Admin UI, release, and operations guide is available in [中文说明](README_CN.md).
 
 For example, if you're using Github or Bitbucket, you can use [webhook][w] to set up a hook that runs a redeploy script for your project on your staging server, whenever you push changes to the master branch of your project.
 
@@ -46,7 +48,22 @@ If you are using Debian linux ("stretch" or later), you can install webhook usin
 If you are using FreeBSD, you can install webhook using `pkg install webhook`.
 
 ### Download prebuilt binaries
-Prebuilt binaries for different architectures are available at [GitHub Releases](https://github.com/adnanh/webhook/releases).
+Prebuilt binaries for different architectures are available at [GitHub Releases](https://github.com/xtulnx/webhook/releases).
+
+### One-line install or update
+The install scripts download the latest GitHub Release asset for your platform and replace the local binary.
+
+Linux, macOS, FreeBSD, or OpenBSD:
+```bash
+curl -fsSL https://raw.githubusercontent.com/xtulnx/webhook/master/scripts/install.sh | sh
+```
+
+Windows PowerShell:
+```powershell
+irm https://raw.githubusercontent.com/xtulnx/webhook/master/scripts/install.ps1 | iex
+```
+
+Set `WEBHOOK_VERSION` to install a specific release tag, `WEBHOOK_REPO` to install from a fork, or `WEBHOOK_INSTALL_DIR` to choose the destination directory.
 
 ## Configuration
 Next step is to define some hooks you want [webhook][w] to serve.
@@ -100,6 +117,8 @@ All files are ignored unless they match one of the following criteria:
 1. The part is named in the `parse-parameters-as-json` setting.
 
 In either case, the given file part will be parsed as JSON and added to the `payload` map.
+
+If you want a hook command to inspect uploaded files directly, enable the `keep-file-environment` hook option. During command execution webhook will expose each uploaded file as `HOOK_FILE_<FIELD>` and the original filename as `HOOK_FILENAME_<FIELD>`, then remove the temporary file once the command exits. Because multipart field names are copied into the environment variable name after uppercasing, prefer names made of letters, numbers, and underscores if the command will read them from a shell script.
 
 ## Templates
 [webhook][w] can parse the hooks configuration file as a Go template when given the `-template` [CLI parameter](docs/Webhook-Parameters.md). See the [Templates page](docs/Templates.md) for more details on template usage.

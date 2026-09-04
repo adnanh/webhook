@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net"
@@ -13,18 +14,16 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/adnanh/webhook/internal/hook"
 	"github.com/adnanh/webhook/internal/middleware"
 	"github.com/adnanh/webhook/internal/pidfile"
 
-	"github.com/fsnotify/fsnotify"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/gorilla/mux"
 )
 
-const (
+var (
 	version = "2.8.3"
 )
 
@@ -36,6 +35,7 @@ var (
 	debug              = flag.Bool("debug", false, "show debug output")
 	noPanic            = flag.Bool("nopanic", false, "do not panic if hooks cannot be loaded when webhook is not running in verbose mode")
 	hotReload          = flag.Bool("hotreload", false, "watch hooks file for changes and reload them automatically")
+	statusURLPrefix    = flag.String("status-path", "status", "URL path for the service status endpoint")
 	hooksURLPrefix     = flag.String("urlprefix", "hooks", "url prefix to use for served hooks (protocol://yourserver:port/PREFIX/:hook-id)")
 	secure             = flag.Bool("secure", false, "use HTTPS instead of HTTP")
 	asTemplate         = flag.Bool("template", false, "parse hooks file as a Go template")
@@ -50,13 +50,18 @@ var (
 	maxMultipartMem    = flag.Int64("max-multipart-mem", 1<<20, "maximum memory in bytes for parsing multipart form data before disk caching")
 	httpMethods        = flag.String("http-methods", "", `set default allowed HTTP methods (ie. "POST"); separate methods with comma`)
 	pidPath            = flag.String("pidfile", "", "create PID file at the given path")
+	realIPHeader       = flag.String("real-ip-header", "", "header to extract real client IP from when behind a reverse proxy (e.g. X-Real-Ip)")
+	trustedProxies     = flag.String("trusted-proxies", "", "comma-separated list of trusted proxy IPs or CIDRs; required for real-ip-header to take effect")
+	accessWhitelist    = flag.String("access-whitelist", "", "comma-separated list of client IPs or CIDRs allowed to access the service")
+	accessBlacklist    = flag.String("access-blacklist", "", "comma-separated list of client IPs or CIDRs denied from accessing the service")
+	maxBodySize        = flag.Int64("max-body-size", 10<<20, "maximum webhook request body size in bytes (0 disables the limit)")
 
-	responseHeaders hook.ResponseHeaders
-	hooksFiles      hook.HooksFiles
+	responseHeaders  hook.ResponseHeaders
+	hooksFiles       hook.HooksFiles
+	hooksDirectories hook.HooksFiles
 
 	loadedHooksFromFiles = make(map[string]hook.Hooks)
 
-	watcher *fsnotify.Watcher
 	signals chan os.Signal
 	pidFile *pidfile.PIDFile
 	setUID  = 0
@@ -66,9 +71,13 @@ var (
 )
 
 func matchLoadedHook(id string) *hook.Hook {
-	for _, hooks := range loadedHooksFromFiles {
-		if hook := hooks.Match(id); hook != nil {
-			return hook
+	loadedHooksMu.RLock()
+	defer loadedHooksMu.RUnlock()
+
+	for _, hooksInFile := range loadedHooksFromFiles {
+		if matched := hooksInFile.Match(id); matched != nil {
+			cloned := cloneHook(*matched)
+			return &cloned
 		}
 	}
 
@@ -76,22 +85,57 @@ func matchLoadedHook(id string) *hook.Hook {
 }
 
 func lenLoadedHooks() int {
+	loadedHooksMu.RLock()
+	defer loadedHooksMu.RUnlock()
+
 	sum := 0
-	for _, hooks := range loadedHooksFromFiles {
-		sum += len(hooks)
+	for _, hooksInFile := range loadedHooksFromFiles {
+		sum += len(hooksInFile)
 	}
 
 	return sum
 }
 
 func main() {
+	if isUpdateCommand(os.Args) {
+		os.Exit(runUpdateCommand(os.Args[2:], os.Stdin, os.Stdout, os.Stderr))
+	}
+
 	flag.Var(&hooksFiles, "hooks", "path to the json file containing defined hooks the webhook should serve, use multiple times to load from different files")
+	flag.Var(&hooksDirectories, "hooks-dir", "directory containing JSON or YAML hooks files; use multiple times to load and watch multiple directories")
 	flag.Var(&responseHeaders, "header", "response header to return, specified in format name=value, use multiple times to set multiple headers")
 
 	// register platform-specific flags
 	platformFlags()
 
+	// Extract -config / -c from os.Args before flag.Parse() sees it.
+	configFile = extractConfigFlag()
+	if configFile != "" {
+		if err := loadConfigFile(configFile); err != nil {
+			fmt.Println("error:", err)
+			os.Exit(1)
+		}
+	}
+
 	flag.Parse()
+
+	if err := initTrustedProxies(); err != nil {
+		fmt.Println("error:", err)
+		os.Exit(1)
+	}
+	if err := initAccessControl(); err != nil {
+		fmt.Println("error:", err)
+		os.Exit(1)
+	}
+	if *maxBodySize < 0 {
+		fmt.Println("error: max-body-size must be zero or greater")
+		os.Exit(1)
+	}
+
+	if err := initExecutionSettings(); err != nil {
+		fmt.Println("error:", err)
+		os.Exit(1)
+	}
 
 	if *justDisplayVersion {
 		fmt.Println("webhook version " + version)
@@ -116,8 +160,17 @@ func main() {
 		*verbose = true
 	}
 
-	if len(hooksFiles) == 0 {
+	if len(hooksFiles) == 0 && len(hooksDirectories) == 0 {
 		hooksFiles = append(hooksFiles, "hooks.json")
+	}
+
+	if err := initAdmin(); err != nil {
+		fmt.Println("error:", err)
+		os.Exit(1)
+	}
+	if err := initStatus(); err != nil {
+		fmt.Println("error:", err)
+		os.Exit(1)
 	}
 
 	// logQueue is a queue for log messages encountered during startup. We need
@@ -151,12 +204,17 @@ func main() {
 	}
 
 	if *logPath != "" {
-		file, err := os.OpenFile(*logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o666)
+		file, err := os.OpenFile(*logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 		if err != nil {
 			logQueue = append(logQueue, fmt.Sprintf("error opening log file %q: %v", *logPath, err))
 			// we'll bail out below
 		} else {
-			log.SetOutput(file)
+			if err := file.Chmod(0o600); err != nil {
+				logQueue = append(logQueue, fmt.Sprintf("error securing log file %q: %v", *logPath, err))
+				_ = file.Close()
+			} else {
+				log.SetOutput(file)
+			}
 		}
 	}
 
@@ -198,64 +256,20 @@ func main() {
 	// set os signal watcher
 	setupSignals()
 
-	// load and parse hooks
-	for _, hooksFilePath := range hooksFiles {
-		log.Printf("attempting to load hooks from %s\n", hooksFilePath)
-
-		newHooks := hook.Hooks{}
-
-		err := newHooks.LoadFromFile(hooksFilePath, *asTemplate)
-
-		if err != nil {
-			log.Printf("couldn't load hooks from file! %+v\n", err)
-		} else {
-			log.Printf("found %d hook(s) in file\n", len(newHooks))
-
-			for _, hook := range newHooks {
-				if matchLoadedHook(hook.ID) != nil {
-					log.Fatalf("error: hook with the id %s has already been loaded!\nplease check your hooks file for duplicate hooks ids!\n", hook.ID)
-				}
-				log.Printf("\tloaded: %s\n", hook.ID)
-			}
-
-			loadedHooksFromFiles[hooksFilePath] = newHooks
-		}
+	if err := initializeHookSources(); err != nil {
+		log.Fatalf("error initializing hooks sources: %v", err)
 	}
 
-	newHooksFiles := hooksFiles[:0]
-	for _, filePath := range hooksFiles {
-		if _, ok := loadedHooksFromFiles[filePath]; ok {
-			newHooksFiles = append(newHooksFiles, filePath)
-		}
-	}
-
-	hooksFiles = newHooksFiles
-
-	if !*verbose && !*noPanic && lenLoadedHooks() == 0 {
+	if !*verbose && !*noPanic && len(hooksDirectories) == 0 && lenLoadedHooks() == 0 {
 		log.SetOutput(os.Stdout)
 		log.Fatalln("couldn't load any hooks from file!\naborting webhook execution since the -verbose flag is set to false.\nIf, for some reason, you want webhook to start without the hooks, either use -verbose flag, or -nopanic")
 	}
 
-	if *hotReload {
-		var err error
-
-		watcher, err = fsnotify.NewWatcher()
-		if err != nil {
-			log.Fatal("error creating file watcher instance\n", err)
+	if *hotReload || len(hooksDirectories) != 0 {
+		if err := startHookWatcher(); err != nil {
+			log.Fatal("error creating hooks watcher: ", err)
 		}
 		defer watcher.Close()
-
-		for _, hooksFilePath := range hooksFiles {
-			// set up file watcher
-			log.Printf("setting up file watcher for %s\n", hooksFilePath)
-
-			err = watcher.Add(hooksFilePath)
-			if err != nil {
-				log.Print("error adding hooks file to the watcher\n", err)
-				return
-			}
-		}
-
 		go watchForFileChange()
 	}
 
@@ -267,6 +281,7 @@ func main() {
 	))
 	r.Use(middleware.NewLogger())
 	r.Use(chimiddleware.Recoverer)
+	r.Use(accessControlMiddleware)
 
 	if *debug {
 		r.Use(middleware.Dumper(log.Writer()))
@@ -285,6 +300,8 @@ func main() {
 		fmt.Fprint(w, "OK")
 	})
 
+	registerAdminRoutes(r)
+	registerStatusRoute(r)
 	r.HandleFunc(hooksURL, hookHandler)
 
 	// Create common HTTP server settings
@@ -295,6 +312,9 @@ func main() {
 	// Serve HTTP
 	if !*secure {
 		log.Printf("serving hooks on http://%s%s", addr, makeHumanPattern(hooksURLPrefix))
+		if *adminEnabled {
+			log.Printf("serving admin on http://%s%s", addr, currentAdminAuth.basePath)
+		}
 		log.Print(svr.Serve(ln))
 
 		return
@@ -310,16 +330,24 @@ func main() {
 	svr.TLSNextProto = make(map[string]func(*http.Server, *tls.Conn, http.Handler)) // disable http/2
 
 	log.Printf("serving hooks on https://%s%s", addr, makeHumanPattern(hooksURLPrefix))
+	if *adminEnabled {
+		log.Printf("serving admin on https://%s%s", addr, currentAdminAuth.basePath)
+	}
 	log.Print(svr.ServeTLS(ln, *cert, *key))
 }
 
 func hookHandler(w http.ResponseWriter, r *http.Request) {
+	if *maxBodySize > 0 {
+		r.Body = http.MaxBytesReader(w, r.Body, *maxBodySize)
+	}
+
 	req := &hook.Request{
 		ID:         middleware.GetReqID(r.Context()),
 		RawRequest: r,
+		RealIP:     resolveRealIP(r),
 	}
 
-	log.Printf("[%s] incoming HTTP %s request from %s\n", req.ID, r.Method, r.RemoteAddr)
+	log.Printf("[%s] incoming HTTP %s request from %s\n", req.ID, r.Method, req.RealIP)
 
 	// TODO: rename this to avoid confusion with Request.ID
 	id := mux.Vars(r)["id"]
@@ -382,6 +410,11 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 		req.Body, err = ioutil.ReadAll(r.Body)
 		if err != nil {
 			log.Printf("[%s] error reading the request body: %+v\n", req.ID, err)
+			if *maxBodySize > 0 {
+				w.WriteHeader(http.StatusRequestEntityTooLarge)
+				fmt.Fprint(w, "Request body too large.")
+				return
+			}
 		}
 	}
 
@@ -412,6 +445,11 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			msg := fmt.Sprintf("[%s] error parsing multipart form: %+v\n", req.ID, err)
 			log.Println(msg)
+			if _, ok := err.(*http.MaxBytesError); ok {
+				w.WriteHeader(http.StatusRequestEntityTooLarge)
+				fmt.Fprint(w, "Request body too large.")
+				return
+			}
 			w.WriteHeader(http.StatusInternalServerError)
 			fmt.Fprint(w, "Error occurred while parsing multipart form.")
 			return
@@ -473,6 +511,9 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 				if err != nil {
 					log.Printf("[%s] error parsing JSON payload file: %+v\n", req.ID, err)
 				}
+				if err := f.Close(); err != nil {
+					log.Printf("[%s] error closing multipart form file: %+v\n", req.ID, err)
+				}
 
 				if req.Payload == nil {
 					req.Payload = make(map[string]interface{})
@@ -524,12 +565,14 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 			response, err := handleHook(matchedHook, req)
 
 			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				if matchedHook.CaptureCommandOutputOnError {
+				status, message := hookExecutionErrorStatus(err)
+				if matchedHook.CaptureCommandOutputOnError && response != "" {
+					w.WriteHeader(status)
 					fmt.Fprint(w, response)
 				} else {
 					w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-					fmt.Fprint(w, "Error occurred while executing the hook's command. Please check your logs for more details.")
+					w.WriteHeader(status)
+					fmt.Fprint(w, message)
 				}
 			} else {
 				// Check if a success return code is configured for the hook
@@ -539,7 +582,13 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 				fmt.Fprint(w, response)
 			}
 		} else {
-			go handleHook(matchedHook, req)
+			if err := handleHookAsync(matchedHook, req); err != nil {
+				status, message := hookExecutionErrorStatus(err)
+				w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+				w.WriteHeader(status)
+				fmt.Fprint(w, message)
+				return
+			}
 
 			// Check if a success return code is configured for the hook
 			if matchedHook.SuccessHttpResponseCode != 0 {
@@ -562,7 +611,9 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, "Hook rules were not satisfied.")
 }
 
-func handleHook(h *hook.Hook, r *hook.Request) (string, error) {
+func executeHook(h *hook.Hook, r *hook.Request, waitForCommand bool, release func()) (string, error) {
+	defer release()
+
 	var errors []error
 
 	// check the command exists
@@ -586,7 +637,19 @@ func handleHook(h *hook.Hook, r *hook.Request) (string, error) {
 		return "", err
 	}
 
-	cmd := exec.Command(cmdPath)
+	ctx, cancel, useContext, err := hookExecutionContext(h, r, waitForCommand)
+	if err != nil {
+		log.Printf("[%s] error preparing command execution: %s", r.ID, err)
+		return "", err
+	}
+	defer cancel()
+
+	var cmd *exec.Cmd
+	if useContext {
+		cmd = exec.CommandContext(ctx, cmdPath)
+	} else {
+		cmd = exec.Command(cmdPath)
+	}
 	cmd.Dir = h.CommandWorkingDirectory
 
 	cmd.Args, errors = h.ExtractCommandArguments(r)
@@ -627,6 +690,52 @@ func handleHook(h *hook.Hook, r *hook.Request) (string, error) {
 		envs = append(envs, files[i].EnvName+"="+tmpfile.Name())
 	}
 
+	if h.KeepFileEnvironment && r.RawRequest != nil && r.RawRequest.MultipartForm != nil {
+		for k, v := range r.RawRequest.MultipartForm.File {
+			env_name := hook.EnvNamespace + "FILE_" + strings.ToUpper(k)
+			f, err := v[0].Open()
+			if err != nil {
+				log.Printf("[%s] error open form %s file [%s]", r.ID, k, err)
+				continue
+			}
+			if f1, ok := f.(*os.File); ok {
+				log.Printf("[%s] temporary file %s", r.ID, f1.Name())
+				_ = f1.Close()
+				files = append(files, hook.FileParameter{File: f1, EnvName: env_name})
+				envs = append(envs,
+					env_name+"="+f1.Name(),
+					hook.EnvNamespace+"FILENAME_"+strings.ToUpper(k)+"="+v[0].Filename,
+				)
+				continue
+			}
+			tmpfile, err := os.CreateTemp("", ".hook-"+r.ID+"-"+k+"-*")
+			if err != nil {
+				_ = f.Close()
+				log.Printf("[%s] error creating temp file [%s]", r.ID, err)
+				continue
+			}
+			log.Printf("[%s] writing env %s file %s", r.ID, env_name, tmpfile.Name())
+			if _, err = io.Copy(tmpfile, f); err != nil {
+				log.Printf("[%s] error writing file %s [%s]", r.ID, tmpfile.Name(), err)
+				_ = f.Close()
+				_ = tmpfile.Close()
+				_ = os.Remove(tmpfile.Name())
+				continue
+			}
+			if err := tmpfile.Close(); err != nil {
+				log.Printf("[%s] error closing file %s [%s]", r.ID, tmpfile.Name(), err)
+				_ = os.Remove(tmpfile.Name())
+				continue
+			}
+			_ = f.Close()
+			files = append(files, hook.FileParameter{File: tmpfile, EnvName: env_name})
+			envs = append(envs,
+				env_name+"="+tmpfile.Name(),
+				hook.EnvNamespace+"FILENAME_"+strings.ToUpper(k)+"="+v[0].Filename,
+			)
+		}
+	}
+
 	cmd.Env = append(os.Environ(), envs...)
 
 	log.Printf("[%s] executing %s (%s) with arguments %q and environment %s using %s as cwd\n", r.ID, h.ExecuteCommand, cmd.Path, cmd.Args, envs, cmd.Dir)
@@ -643,9 +752,14 @@ func handleHook(h *hook.Hook, r *hook.Request) (string, error) {
 		if files[i].File != nil {
 			log.Printf("[%s] removing file %s\n", r.ID, files[i].File.Name())
 			err := os.Remove(files[i].File.Name())
-			if err != nil {
+			if err != nil && !os.IsNotExist(err) {
 				log.Printf("[%s] error removing file %s [%s]", r.ID, files[i].File.Name(), err)
 			}
+		}
+	}
+	if r.RawRequest != nil && r.RawRequest.MultipartForm != nil {
+		if err := r.RawRequest.MultipartForm.RemoveAll(); err != nil && !os.IsNotExist(err) {
+			log.Printf("[%s] error removing multipart form temp files [%s]", r.ID, err)
 		}
 	}
 
@@ -661,111 +775,6 @@ func writeHttpResponseCode(w http.ResponseWriter, rid, hookId string, responseCo
 		w.WriteHeader(responseCode)
 	} else {
 		log.Printf("[%s] %s got matched, but the configured return code %d is unknown - defaulting to 200\n", rid, hookId, responseCode)
-	}
-}
-
-func reloadHooks(hooksFilePath string) {
-	hooksInFile := hook.Hooks{}
-
-	// parse and swap
-	log.Printf("attempting to reload hooks from %s\n", hooksFilePath)
-
-	err := hooksInFile.LoadFromFile(hooksFilePath, *asTemplate)
-
-	if err != nil {
-		log.Printf("couldn't load hooks from file! %+v\n", err)
-	} else {
-		seenHooksIds := make(map[string]bool)
-
-		log.Printf("found %d hook(s) in file\n", len(hooksInFile))
-
-		for _, hook := range hooksInFile {
-			wasHookIDAlreadyLoaded := false
-
-			for _, loadedHook := range loadedHooksFromFiles[hooksFilePath] {
-				if loadedHook.ID == hook.ID {
-					wasHookIDAlreadyLoaded = true
-					break
-				}
-			}
-
-			if (matchLoadedHook(hook.ID) != nil && !wasHookIDAlreadyLoaded) || seenHooksIds[hook.ID] {
-				log.Printf("error: hook with the id %s has already been loaded!\nplease check your hooks file for duplicate hooks ids!", hook.ID)
-				log.Println("reverting hooks back to the previous configuration")
-				return
-			}
-
-			seenHooksIds[hook.ID] = true
-			log.Printf("\tloaded: %s\n", hook.ID)
-		}
-
-		loadedHooksFromFiles[hooksFilePath] = hooksInFile
-	}
-}
-
-func reloadAllHooks() {
-	for _, hooksFilePath := range hooksFiles {
-		reloadHooks(hooksFilePath)
-	}
-}
-
-func removeHooks(hooksFilePath string) {
-	for _, hook := range loadedHooksFromFiles[hooksFilePath] {
-		log.Printf("\tremoving: %s\n", hook.ID)
-	}
-
-	newHooksFiles := hooksFiles[:0]
-	for _, filePath := range hooksFiles {
-		if filePath != hooksFilePath {
-			newHooksFiles = append(newHooksFiles, filePath)
-		}
-	}
-
-	hooksFiles = newHooksFiles
-
-	removedHooksCount := len(loadedHooksFromFiles[hooksFilePath])
-
-	delete(loadedHooksFromFiles, hooksFilePath)
-
-	log.Printf("removed %d hook(s) that were loaded from file %s\n", removedHooksCount, hooksFilePath)
-
-	if !*verbose && !*noPanic && lenLoadedHooks() == 0 {
-		log.SetOutput(os.Stdout)
-		log.Fatalln("couldn't load any hooks from file!\naborting webhook execution since the -verbose flag is set to false.\nIf, for some reason, you want webhook to run without the hooks, either use -verbose flag, or -nopanic")
-	}
-}
-
-func watchForFileChange() {
-	for {
-		select {
-		case event := <-(*watcher).Events:
-			if event.Op&fsnotify.Write == fsnotify.Write {
-				log.Printf("hooks file %s modified\n", event.Name)
-				reloadHooks(event.Name)
-			} else if event.Op&fsnotify.Remove == fsnotify.Remove {
-				if _, err := os.Stat(event.Name); os.IsNotExist(err) {
-					log.Printf("hooks file %s removed, no longer watching this file for changes, removing hooks that were loaded from it\n", event.Name)
-					(*watcher).Remove(event.Name)
-					removeHooks(event.Name)
-				}
-			} else if event.Op&fsnotify.Rename == fsnotify.Rename {
-				time.Sleep(100 * time.Millisecond)
-				if _, err := os.Stat(event.Name); os.IsNotExist(err) {
-					// file was removed
-					log.Printf("hooks file %s removed, no longer watching this file for changes, and removing hooks that were loaded from it\n", event.Name)
-					(*watcher).Remove(event.Name)
-					removeHooks(event.Name)
-				} else {
-					// file was overwritten
-					log.Printf("hooks file %s overwritten\n", event.Name)
-					reloadHooks(event.Name)
-					(*watcher).Remove(event.Name)
-					(*watcher).Add(event.Name)
-				}
-			}
-		case err := <-(*watcher).Errors:
-			log.Println("watcher error:", err)
-		}
 	}
 }
 

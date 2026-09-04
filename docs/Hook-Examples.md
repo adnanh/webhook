@@ -659,6 +659,8 @@ Content-Disposition: form-data; name="thumb"; filename="thumb.jpg"
 
 We key off of the `name` attribute in the `Content-Disposition` value.
 
+If you need the executed command to read uploaded files directly, enable `keep-file-environment`. For a file part named `pkg`, webhook will expose `HOOK_FILE_PKG` with the temporary file path and `HOOK_FILENAME_PKG` with the original filename while the command is running, then clean the file up when the command exits. Since the multipart field name is copied into the environment variable name after uppercasing, prefer shell-safe field names such as `pkg`, `release_tarball`, or `artifact1`.
+
 ## Pass string arguments to command
 
 To pass simple string arguments to a command, use the `string` parameter source.

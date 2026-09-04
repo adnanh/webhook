@@ -36,6 +36,11 @@ type Request struct {
 
 	// Treat signature errors as simple validate failures.
 	AllowSignatureErrors bool
+
+	// RealIP is the resolved client IP address. When the request comes through
+	// a trusted reverse proxy, this is extracted from the configured header
+	// (e.g. X-Real-Ip). Otherwise it equals RawRequest.RemoteAddr.
+	RealIP string
 }
 
 func (r *Request) ParseJSONPayload() error {

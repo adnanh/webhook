@@ -1,0 +1,198 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version, for example v2.8.4"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    env:
+      GOTOOLCHAIN: local
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22.x"
+      - name: Test
+        run: go test -v ./...
+
+  build:
+    env:
+      CGO_ENABLED: "0"
+      GOTOOLCHAIN: local
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+          - goos: freebsd
+            goarch: 386
+          - goos: freebsd
+            goarch: amd64
+          - goos: freebsd
+            goarch: arm64
+          - goos: linux
+            goarch: 386
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm
+          - goos: linux
+            goarch: arm64
+          - goos: openbsd
+            goarch: 386
+          - goos: openbsd
+            goarch: amd64
+          - goos: openbsd
+            goarch: arm64
+          - goos: windows
+            goarch: 386
+          - goos: windows
+            goarch: amd64
+          - goos: windows
+            goarch: arm64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22.x"
+
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          version="${{ github.event.inputs.version || github.ref_name }}"
+          version="${version#v}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Build archive
+        shell: bash
+        run: |
+          target="webhook-${{ matrix.goos }}-${{ matrix.goarch }}"
+          mkdir -p "dist/$target"
+
+          binary="webhook"
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            binary="webhook.exe"
+          fi
+
+          GOOS="${{ matrix.goos }}" GOARCH="${{ matrix.goarch }}" \
+            go build -trimpath -ldflags="-s -w \
+              -X main.version=${{ steps.version.outputs.version }} \
+              -X main.updateManifestPublicKey=${{ vars.UPDATE_MANIFEST_PUBLIC_KEY }}" \
+            -o "dist/$target/$binary" .
+
+          cp LICENSE README.md "dist/$target/"
+          tar -czf "dist/$target.tar.gz" -C dist "$target"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: webhook-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Generate checksums
+        shell: bash
+        run: |
+          cd dist
+          sha256sum *.tar.gz > checksums.txt
+
+      - name: Generate update manifest
+        shell: bash
+        run: |
+          tag="${{ github.event.inputs.version || github.ref_name }}"
+          if [[ "$tag" != v* ]]; then
+            tag="v$tag"
+          fi
+
+          assets='[]'
+          for archive in dist/webhook-*.tar.gz; do
+            name="$(basename "$archive")"
+            target="${name%.tar.gz}"
+            platform="${target#webhook-}"
+            goarch="${platform##*-}"
+            goos="${platform%-*}"
+            size="$(stat -c '%s' "$archive")"
+            sha256="$(sha256sum "$archive" | awk '{print $1}')"
+            asset="$(jq -n \
+              --arg os "$goos" \
+              --arg arch "$goarch" \
+              --arg name "$name" \
+              --argjson size "$size" \
+              --arg sha256 "$sha256" \
+              '{os:$os, arch:$arch, name:$name, size:$size, sha256:$sha256}')"
+            assets="$(jq --argjson asset "$asset" '. + [$asset]' <<<"$assets")"
+          done
+
+          jq -n \
+            --arg version "$tag" \
+            --arg publishedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg commit "${{ github.sha }}" \
+            --arg releaseURL "https://github.com/${{ github.repository }}/releases/tag/$tag" \
+            --argjson assets "$assets" \
+            '{schemaVersion:1, version:$version, publishedAt:$publishedAt, commit:$commit, releaseURL:$releaseURL, assets:$assets}' \
+            > dist/update-manifest.json
+
+      - name: Sign update manifest
+        shell: bash
+        env:
+          UPDATE_SIGNING_PRIVATE_KEY: ${{ secrets.UPDATE_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [ -z "$UPDATE_SIGNING_PRIVATE_KEY" ]; then
+            echo "UPDATE_SIGNING_PRIVATE_KEY is not configured; publishing an unsigned manifest" >&2
+            : > dist/update-manifest.json.sig
+            exit 0
+          fi
+          printf '%s' "$UPDATE_SIGNING_PRIVATE_KEY" > signing-key.pem
+          trap 'rm -f signing-key.pem dist/update-manifest.sig.bin' EXIT
+          openssl pkeyutl -sign -rawin \
+            -inkey signing-key.pem \
+            -in dist/update-manifest.json \
+            -out dist/update-manifest.sig.bin
+          base64 -w 0 dist/update-manifest.sig.bin > dist/update-manifest.json.sig
+
+      - name: Resolve tag
+        id: tag
+        shell: bash
+        run: |
+          tag="${{ github.event.inputs.version || github.ref_name }}"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: ${{ steps.tag.outputs.tag }}
+          files: |
+            dist/*.tar.gz
+            dist/checksums.txt
+            dist/update-manifest.json
+            dist/update-manifest.json.sig
+          generate_release_notes: true

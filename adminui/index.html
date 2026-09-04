@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Webhook Admin</title>
+  <link rel="stylesheet" href="{{.BasePath}}/assets/style.css">
+  <script>
+    window.__WEBHOOK_ADMIN__ = {
+      basePath: {{.BasePath}}
+    };
+  </script>
+  <script src="{{.BasePath}}/assets/app.js" defer></script>
+</head>
+<body>
+  <div class="shell">
+    <section class="hero">
+      <span class="eyebrow">Webhook Control Plane</span>
+      <h1>集中管理所有 webhook 配置</h1>
+      <p>使用 TOTP 获取短期 JWT 会话。页面直接管理已加载的 hooks 文件，不需要额外前端构建流程。</p>
+    </section>
+
+    <section id="loginPanel" class="panel login">
+      <div class="panel-head">
+        <h2>管理员登录</h2>
+      </div>
+      <div class="panel-body">
+        <form id="loginForm" class="stack">
+          <div>
+            <label for="totpCode">TOTP 动态码</label>
+            <input id="totpCode" class="code-input" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456">
+          </div>
+          <button class="primary" type="submit">登录</button>
+        </form>
+        <div class="tiny">把 <code>-admin-totp-secret</code> 配到你的认证器后，输入当前 6 位验证码即可登录。</div>
+        <div id="loginStatus" class="status status-muted">未登录。</div>
+      </div>
+    </section>
+
+    <section id="workspace" class="workspace" hidden>
+      <aside class="panel sidebar">
+        <div class="panel-head">
+          <h2>配置文件</h2>
+          <button id="refreshBtn" class="secondary" type="button">刷新</button>
+        </div>
+        <div class="panel-body stack">
+          <div>
+            <label for="fileSelect">当前文件</label>
+            <select id="fileSelect"></select>
+          </div>
+          <div id="fileMeta" class="meta-card">暂无可管理的 hooks 文件。</div>
+          <section class="update-panel" aria-labelledby="updateTitle">
+            <div class="toolbar-row">
+              <h3 id="updateTitle">程序版本</h3>
+              <button id="checkUpdateBtn" class="secondary" type="button">检查</button>
+            </div>
+            <dl class="version-list">
+              <div>
+                <dt>当前</dt>
+                <dd id="currentVersion">-</dd>
+              </div>
+              <div>
+                <dt>最新</dt>
+                <dd id="latestVersion">尚未检查</dd>
+              </div>
+            </dl>
+            <div id="updateStatus" class="status status-muted">尚未检查更新。</div>
+          </section>
+          <div class="toolbar-row">
+            <h3>Hooks</h3>
+            <button id="newHookBtn" class="secondary" type="button">新建</button>
+          </div>
+          <div id="hookList" class="hook-list"></div>
+        </div>
+      </aside>
+
+      <main class="panel editor">
+        <div class="panel-head">
+          <div>
+            <h2>结构化编辑器</h2>
+            <p class="panel-subtitle">按区块维护 hook 定义，避免整段 JSON 记忆负担。</p>
+          </div>
+          <button id="logoutBtn" class="secondary" type="button">退出</button>
+        </div>
+        <div class="panel-body">
+          <div id="readOnlyBanner" class="banner" hidden></div>
+
+          <fieldset id="editorFieldset" class="editor-fieldset">
+            <form id="hookForm" class="hook-form" novalidate>
+              <section class="section">
+                <div class="section-head">
+                  <h3>Basics</h3>
+                  <p>基本标识、执行命令和请求方法。</p>
+                </div>
+                <div class="grid grid-2">
+                  <div>
+                    <label for="hookId">Hook ID</label>
+                    <input id="hookId" placeholder="deploy-webhook">
+                  </div>
+                  <div>
+                    <label for="executeCommand">Execute Command</label>
+                    <input id="executeCommand" placeholder="/usr/local/bin/deploy.sh">
+                  </div>
+                  <div>
+                    <label for="commandWorkingDirectory">Working Directory</label>
+                    <input id="commandWorkingDirectory" placeholder="/srv/app">
+                  </div>
+                  <div>
+                    <label for="commandTimeout">Command Timeout</label>
+                    <input id="commandTimeout" placeholder="30s">
+                  </div>
+                  <div>
+                    <label for="httpMethods">HTTP Methods</label>
+                    <input id="httpMethods" placeholder="POST, GET">
+                  </div>
+                  <div class="grid-span-2">
+                    <label for="responseMessage">Response Message</label>
+                    <input id="responseMessage" placeholder="Webhook triggered">
+                  </div>
+                </div>
+              </section>
+
+              <section class="section">
+                <div class="section-head">
+                  <h3>Behavior</h3>
+                  <p>响应码、内容类型和执行行为开关。</p>
+                </div>
+                <div class="grid grid-3">
+                  <div>
+                    <label for="incomingPayloadContentType">Incoming Payload Content-Type</label>
+                    <input id="incomingPayloadContentType" placeholder="application/json">
+                  </div>
+                  <div>
+                    <label for="successHttpResponseCode">Success HTTP Code</label>
+                    <input id="successHttpResponseCode" inputmode="numeric" placeholder="200">
+                  </div>
+                  <div>
+                    <label for="triggerRuleMismatchHttpResponseCode">Rule Mismatch HTTP Code</label>
+                    <input id="triggerRuleMismatchHttpResponseCode" inputmode="numeric" placeholder="403">
+                  </div>
+                  <div>
+                    <label for="maxConcurrency">Max Concurrency</label>
+                    <input id="maxConcurrency" inputmode="numeric" placeholder="0">
+                  </div>
+                </div>
+                <div class="toggle-grid">
+                  <label class="toggle">
+                    <input id="captureCommandOutput" type="checkbox">
+                    <span>Include command output in response</span>
+                  </label>
+                  <label class="toggle">
+                    <input id="captureCommandOutputOnError" type="checkbox">
+                    <span>Include command output on error</span>
+                  </label>
+                  <label class="toggle">
+                    <input id="triggerSignatureSoftFailures" type="checkbox">
+                    <span>Allow trigger signature soft failures</span>
+                  </label>
+                  <label class="toggle">
+                    <input id="keepFileEnvironment" type="checkbox">
+                    <span>Keep uploaded files as environment references</span>
+                  </label>
+                </div>
+              </section>
+
+              <section class="section">
+                <div class="section-head">
+                  <h3>Response Headers</h3>
+                  <p>为 hook 响应追加静态响应头。</p>
+                </div>
+                <div id="responseHeadersRows" class="repeatable-list"></div>
+                <button id="addResponseHeaderBtn" class="ghost" type="button">添加响应头</button>
+              </section>
+
+              <section class="section">
+                <div class="section-head">
+                  <h3>Command Inputs</h3>
+                  <p>把请求中的值传到命令参数、环境变量或文件。</p>
+                </div>
+
+                <div class="subsection">
+                  <div class="toolbar-row">
+                    <h4>Pass Arguments To Command</h4>
+                    <button id="addPassArgumentBtn" class="ghost" type="button">添加参数</button>
+                  </div>
+                  <div id="passArgumentsRows" class="repeatable-list"></div>
+                </div>
+
+                <div class="subsection">
+                  <div class="toolbar-row">
+                    <h4>Pass Environment To Command</h4>
+                    <button id="addPassEnvironmentBtn" class="ghost" type="button">添加环境变量</button>
+                  </div>
+                  <div id="passEnvironmentRows" class="repeatable-list"></div>
+                </div>
+
+                <div class="subsection">
+                  <div class="toolbar-row">
+                    <h4>Pass File To Command</h4>
+                    <button id="addPassFileBtn" class="ghost" type="button">添加文件参数</button>
+                  </div>
+                  <div id="passFileRows" class="repeatable-list"></div>
+                </div>
+
+                <div class="subsection">
+                  <div class="toolbar-row">
+                    <h4>Parse Parameters As JSON</h4>
+                    <button id="addParseJSONBtn" class="ghost" type="button">添加 JSON 参数</button>
+                  </div>
+                  <div id="parseJSONRows" class="repeatable-list"></div>
+                </div>
+              </section>
+
+              <section class="section">
+                <div class="section-head">
+                  <h3>Trigger Rule</h3>
+                  <p>用树形表单维护 and/or/not/match 规则，不再直接手写整段对象。</p>
+                </div>
+                <div id="ruleEditor" class="rule-editor"></div>
+              </section>
+            </form>
+          </fieldset>
+
+          <div class="actions">
+            <button id="saveBtn" class="primary" type="button">保存</button>
+            <button id="deleteBtn" class="danger" type="button">删除</button>
+          </div>
+
+          <details class="preview">
+            <summary>JSON Preview</summary>
+            <pre id="jsonPreview"></pre>
+          </details>
+
+          <div id="workspaceStatus" class="status status-muted">已准备就绪。</div>
+        </div>
+      </main>
+    </section>
+  </div>
+</body>
+</html>

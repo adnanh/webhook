@@ -1,0 +1,199 @@
+# Webhook 配置文件
+# 用法: webhook -c /etc/webhook/webhook.yaml
+#
+# 支持所有命令行参数。
+# 列表类参数（hooks、hooks-dir、header）使用 YAML 数组语法。
+# 布尔类参数使用 true/false。
+# 命令行参数优先级高于本配置文件。
+
+# ============================================================
+# 网络设置
+# ============================================================
+
+# 监听地址，默认 0.0.0.0（监听所有网卡）
+ip: 0.0.0.0
+
+# 监听端口，默认 9000
+port: 1987
+
+# URL 前缀，最终 hook 地址为 http://host:port/PREFIX/hook-id
+# 默认值为 "hooks"
+urlprefix: wh
+
+# 限制允许的 HTTP 方法，多个方法用逗号分隔（如 "POST,PUT"）
+# 留空表示允许所有方法
+# http-methods: "POST"
+
+# 全局访问控制（二选一；支持 IP 或 CIDR，逗号分隔）
+# access-whitelist: "203.0.113.0/24"
+# access-blacklist: "198.51.100.10"
+
+# ============================================================
+# 反向代理 / 真实 IP
+# ============================================================
+
+# 当 webhook 部署在 Nginx 等反向代理后面时，RemoteAddr 是代理的内网 IP，
+# 需要通过以下两个参数配合，让 ip-whitelist 规则能正确识别真实客户端 IP。
+
+# 从哪个请求头获取真实客户端 IP
+# 常见值: "X-Real-Ip"（Nginx proxy_set_header X-Real-IP）
+#         "X-Forwarded-For"（取第一个 IP）
+# 留空表示不启用，直接使用 RemoteAddr
+# real-ip-header: "X-Real-Ip"
+
+# 可信代理 IP 或 CIDR 列表，逗号分隔
+# 只有当请求来自这些地址时，才会从 real-ip-header 中提取真实 IP
+# 防止客户端伪造 header 绕过 IP 白名单
+# 示例: "127.0.0.1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+# trusted-proxies: "127.0.0.1,10.0.0.0/8"
+
+# ============================================================
+# Hook 定义文件
+# ============================================================
+
+# hook 定义文件路径，支持 JSON 和 YAML 格式
+# 可指定多个文件，每个文件中的 hook id 不能重复
+hooks:
+  - /etc/webhook/admin.yaml
+  - /etc/webhook/hooks.yaml
+
+# hook 定义目录，可重复配置。加载目录直属的 .json/.yaml/.yml 文件并自动监听
+# hooks-dir:
+#   - /etc/webhook/hooks.d
+
+# ============================================================
+# 运行行为
+# ============================================================
+
+# 当无法加载任何 hook 时不要 panic 退出（需配合非 verbose 模式）
+# 默认 false
+nopanic: true
+
+# 监视 hook 文件变化，自动热重载
+# 默认 false
+hotreload: true
+
+# 服务状态接口路径，默认可通过 GET /status 查看运行时间、已加载 hook 和最近加载时间
+# status-path: status
+
+# Update checks use xtulnx/webhook by default. State files use the current
+# working directory unless update-state-dir is set.
+update-enabled: true
+update-repository: xtulnx/webhook
+# update-state-dir: /var/lib/webhook/update
+
+# 将 hook 文件作为 Go template 解析
+# 默认 false
+# template: false
+
+# multipart 表单解析时的最大内存（字节），超出部分写入磁盘临时文件
+# 默认 1048576 (1MB)
+# max-multipart-mem: 1048576
+
+# 单个请求体最大字节数，默认 10 MiB；设为 0 表示不限制
+# max-body-size: 10485760
+
+# ============================================================
+# 日志设置
+# ============================================================
+
+# 启用详细日志输出
+# 默认 false
+# verbose: true
+
+# 启用调试输出（会打印完整的请求/响应内容，隐含 verbose=true）
+# 默认 false
+# debug: false
+
+# 日志输出到文件（设置后隐含 verbose=true）
+# 留空表示输出到 stdout
+# logfile: /var/log/webhook.log
+
+# ============================================================
+# 自定义响应头
+# ============================================================
+
+# 所有 hook 响应都会附带这些 header，格式为 "Name=Value"
+# header:
+#   - "X-Custom-Header=value"
+#   - "Access-Control-Allow-Origin=*"
+
+# ============================================================
+# Request ID
+# ============================================================
+
+# 使用客户端传入的 X-Request-Id 头作为请求 ID（用于日志追踪）
+# 默认 false
+# x-request-id: false
+
+# 截断 X-Request-Id 的最大长度，0 表示不限制
+# x-request-id-limit: 0
+
+# ============================================================
+# TLS / HTTPS 设置
+# ============================================================
+
+# 启用 HTTPS 模式
+# 默认 false
+# secure: false
+
+# TLS 证书文件路径
+# cert: /etc/webhook/cert.pem
+
+# TLS 私钥文件路径
+# key: /etc/webhook/key.pem
+
+# TLS 最低版本，可选 "1.0", "1.1", "1.2", "1.3"
+# 默认 "1.2"
+# tls-min-version: "1.2"
+
+# TLS 加密套件，逗号分隔。留空使用 Go 默认值
+# 可通过 webhook --list-cipher-suites 查看可用列表
+# cipher-suites: ""
+
+# ============================================================
+# Admin 管理界面
+# ============================================================
+
+# 启用 Admin UI 和 API，用于在线管理 hooks
+# 默认 false
+# admin: false
+
+# Admin 界面的 URL 前缀，最终地址为 http://host:port/PREFIX/
+# 默认 "admin"
+# admin-path: admin
+
+# Admin 登录使用的 TOTP 密钥（Base32 编码）
+# 可用 Google Authenticator 等 APP 扫码登录
+# admin-totp-secret: ""
+
+# 用于签发 Admin JWT 会话令牌的密钥
+# admin-jwt-secret: ""
+
+# Admin JWT 会话有效期，支持 Go duration 格式（如 12h、30m、720h）
+# 默认 "12h"
+# admin-session-ttl: "12h"
+
+# ============================================================
+# Unix Socket（仅 Linux/macOS）
+# ============================================================
+
+# 使用 Unix socket 代替 IP:Port 监听
+# 设置后 ip 和 port 选项将被忽略
+# socket: /tmp/webhook.sock
+
+# ============================================================
+# 权限降级（仅 Linux/macOS）
+# ============================================================
+
+# 打开监听端口后切换到指定的用户/组 ID 运行
+# setuid 和 setgid 必须同时设置，不能与 socket 同时使用
+# setuid: 1000
+# setgid: 1000
+
+# ============================================================
+# PID 文件
+# ============================================================
+
+# 创建 PID 文件，用于进程管理
+# pidfile: /var/run/webhook.pid

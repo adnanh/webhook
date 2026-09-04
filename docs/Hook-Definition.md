@@ -7,6 +7,8 @@ Hooks are defined as objects in the JSON or YAML hooks configuration file. Pleas
  * `id` - specifies the ID of your hook. This value is used to create the HTTP endpoint (http://yourserver:port/hooks/your-hook-id)
  * `execute-command` - specifies the command that should be executed when the hook is triggered
  * `command-working-directory` - specifies the working directory that will be used for the script when it's executed
+ * `command-timeout` - overrides the default command execution timeout for this hook. Accepts a Go duration string such as `30s`, `2m`, or `1h30m`. An empty value inherits the global `-command-timeout` flag. A value of `0` disables the timeout for this hook.
+ * `max-concurrency` - overrides the default maximum number of concurrent executions for this hook. An empty value inherits the global `-max-concurrency` flag. A value of `0` disables the limit for this hook.
  * `response-message` - specifies the string that will be returned to the hook initiator
  * `response-headers` - specifies the list of headers in format `{"name": "X-Example-Header", "value": "it works"}` that will be returned in HTTP response for the hook
  * `success-http-response-code` - specifies the HTTP status code to be returned upon success
@@ -23,6 +25,7 @@ Hooks are defined as objects in the JSON or YAML hooks configuration file. Pleas
  * `trigger-rule` - specifies the rule that will be evaluated in order to determine should the hook be triggered. Check [Hook rules page](Hook-Rules.md) to see the list of valid rules and their usage
  * `trigger-rule-mismatch-http-response-code` - specifies the HTTP status code to be returned when the trigger rule is not satisfied
  * `trigger-signature-soft-failures` - allow signature validation failures within Or rules; by default, signature failures are treated as errors.
+* `keep-file-environment` - expose uploaded multipart files to the executed command as temporary environment variables. For a multipart form field named `pkg`, webhook will provide `HOOK_FILE_PKG` with the temporary file path and `HOOK_FILENAME_PKG` with the original filename. These files exist only for the lifetime of the command execution and are removed afterwards. Multipart field names are uppercased and embedded into the environment variable name verbatim; if you plan to read them from a shell script, prefer field names that are safe shell variable suffixes such as letters, numbers, and underscores.
 
 ## Examples
 Check out [Hook examples page](Hook-Examples.md) for more complex examples of hooks.

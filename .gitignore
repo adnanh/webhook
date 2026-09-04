@@ -4,3 +4,6 @@ coverage
 webhook
 /test/hookecho
 build
+
+.gocache/
+.DS_Store

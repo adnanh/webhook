@@ -532,6 +532,103 @@
     }
   },
   {
+    "id": "keep-file-environment",
+    "execute-command": "{{ .Hookecho }}",
+    "include-command-output-in-response": true,
+    "keep-file-environment": true,
+    "pass-arguments-to-command": [
+      {
+        "source": "string",
+        "name": "cat-env-file=HOOK_FILE_PKG"
+      }
+    ]
+  },
+  {
+    "id": "keep-file-environment-special-name",
+    "execute-command": "{{ .Hookecho }}",
+    "include-command-output-in-response": true,
+    "keep-file-environment": true,
+    "pass-arguments-to-command": [
+      {
+        "source": "string",
+        "name": "cat-env-file=HOOK_FILE_PKG-NAME"
+      }
+    ]
+  },
+  {
+    "id": "command-timeout-default",
+    "execute-command": "{{ .Hookecho }}",
+    "include-command-output-in-response": true,
+    "include-command-output-in-response-on-error": true,
+    "pass-arguments-to-command": [
+      {
+        "source": "string",
+        "name": "sleep=250ms"
+      }
+    ]
+  },
+  {
+    "id": "command-timeout-hook",
+    "execute-command": "{{ .Hookecho }}",
+    "command-timeout": "100ms",
+    "include-command-output-in-response": true,
+    "include-command-output-in-response-on-error": true,
+    "pass-arguments-to-command": [
+      {
+        "source": "string",
+        "name": "sleep=250ms"
+      }
+    ]
+  },
+  {
+    "id": "command-timeout-unlimited",
+    "execute-command": "{{ .Hookecho }}",
+    "command-timeout": "0",
+    "include-command-output-in-response": true,
+    "include-command-output-in-response-on-error": true,
+    "pass-arguments-to-command": [
+      {
+        "source": "string",
+        "name": "sleep=250ms"
+      }
+    ]
+  },
+  {
+    "id": "max-concurrency-default",
+    "execute-command": "{{ .Hookecho }}",
+    "include-command-output-in-response": true,
+    "pass-arguments-to-command": [
+      {
+        "source": "string",
+        "name": "sleep=250ms"
+      }
+    ]
+  },
+  {
+    "id": "max-concurrency-hook",
+    "execute-command": "{{ .Hookecho }}",
+    "max-concurrency": 1,
+    "include-command-output-in-response": true,
+    "pass-arguments-to-command": [
+      {
+        "source": "string",
+        "name": "sleep=250ms"
+      }
+    ]
+  },
+  {
+    "id": "max-concurrency-unlimited",
+    "execute-command": "{{ .Hookecho }}",
+    "max-concurrency": 0,
+    "include-command-output-in-response": true,
+    "pass-arguments-to-command": [
+      {
+        "source": "string",
+        "name": "sleep=250ms"
+      }
+    ]
+  },
+  {
     "id": "empty-payload-signature",
     "execute-command": "{{ .Hookecho }}",
     "command-working-directory": "/",

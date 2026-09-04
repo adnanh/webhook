@@ -281,26 +281,37 @@ func CheckScalrSignature(r *Request, signingKey string, checkDate bool) (bool, e
 // CheckIPWhitelist makes sure the provided remote address (of the form IP:port) falls within the provided IP range
 // (in CIDR form or a single IP address).
 func CheckIPWhitelist(remoteAddr, ipRange string) (bool, error) {
-	// Extract IP address from remote address.
-
-	// IPv6 addresses will likely be surrounded by [].
-	ip := strings.Trim(remoteAddr, " []")
-
-	if i := strings.LastIndex(ip, ":"); i != -1 {
-		ip = ip[:i]
-		ip = strings.Trim(ip, " []")
+	addr := strings.TrimSpace(remoteAddr)
+	var ipText string
+	if strings.HasPrefix(addr, "[") {
+		if end := strings.IndexByte(addr, ']'); end >= 0 {
+			ipText = strings.TrimSpace(addr[1:end])
+			if host, _, err := net.SplitHostPort(ipText); err == nil {
+				ipText = host
+			}
+		}
 	}
-
-	parsedIP := net.ParseIP(ip)
+	if ipText == "" {
+		if host, _, err := net.SplitHostPort(addr); err == nil {
+			ipText = host
+		} else {
+			ipText = strings.Trim(addr, " []")
+		}
+	}
+	parsedIP := net.ParseIP(strings.TrimSpace(ipText))
 	if parsedIP == nil {
 		return false, fmt.Errorf("invalid IP address found in remote address '%s'", remoteAddr)
 	}
 
-	for _, r := range strings.Fields(ipRange) {
+	for _, r := range strings.FieldsFunc(ipRange, func(ch rune) bool { return ch == ',' || ch == ' ' || ch == '\t' || ch == '\n' }) {
 		// Extract IP range in CIDR form.  If a single IP address is provided, turn it into CIDR form.
 
 		if !strings.Contains(r, "/") {
-			r = r + "/32"
+			if net.ParseIP(r).To4() != nil {
+				r += "/32"
+			} else {
+				r += "/128"
+			}
 		}
 
 		_, cidr, err := net.ParseCIDR(r)
@@ -567,6 +578,8 @@ type Hook struct {
 	ID                                  string          `json:"id,omitempty"`
 	ExecuteCommand                      string          `json:"execute-command,omitempty"`
 	CommandWorkingDirectory             string          `json:"command-working-directory,omitempty"`
+	CommandTimeout                      string          `json:"command-timeout,omitempty"`
+	MaxConcurrency                      *int            `json:"max-concurrency,omitempty"`
 	ResponseMessage                     string          `json:"response-message,omitempty"`
 	ResponseHeaders                     ResponseHeaders `json:"response-headers,omitempty"`
 	CaptureCommandOutput                bool            `json:"include-command-output-in-response,omitempty"`
@@ -581,6 +594,70 @@ type Hook struct {
 	IncomingPayloadContentType          string          `json:"incoming-payload-content-type,omitempty"`
 	SuccessHttpResponseCode             int             `json:"success-http-response-code,omitempty"`
 	HTTPMethods                         []string        `json:"http-methods"`
+	KeepFileEnvironment                 bool            `json:"keep-file-environment,omitempty"`
+}
+
+func parseCommandTimeout(value string) (time.Duration, error) {
+	value = strings.TrimSpace(value)
+	if value == "" || value == "0" {
+		return 0, nil
+	}
+
+	timeout, err := time.ParseDuration(value)
+	if err != nil {
+		return 0, err
+	}
+	if timeout < 0 {
+		return 0, errors.New("must be zero or greater")
+	}
+
+	return timeout, nil
+}
+
+// ValidateExecutionSettings normalizes and validates hook execution limits.
+func (h *Hook) ValidateExecutionSettings() error {
+	h.CommandTimeout = strings.TrimSpace(h.CommandTimeout)
+
+	if h.CommandTimeout != "" {
+		if _, err := parseCommandTimeout(h.CommandTimeout); err != nil {
+			return fmt.Errorf("invalid command-timeout %q: %w", h.CommandTimeout, err)
+		}
+	}
+
+	if h.MaxConcurrency != nil && *h.MaxConcurrency < 0 {
+		return fmt.Errorf("invalid max-concurrency %d: must be zero or greater", *h.MaxConcurrency)
+	}
+
+	return nil
+}
+
+// EffectiveCommandTimeout returns the hook timeout or the inherited default.
+func (h Hook) EffectiveCommandTimeout(defaultTimeout time.Duration) (time.Duration, error) {
+	if defaultTimeout < 0 {
+		return 0, errors.New("default command timeout must be zero or greater")
+	}
+
+	if h.CommandTimeout == "" {
+		return defaultTimeout, nil
+	}
+
+	return parseCommandTimeout(h.CommandTimeout)
+}
+
+// EffectiveMaxConcurrency returns the hook concurrency limit or the inherited default.
+func (h Hook) EffectiveMaxConcurrency(defaultLimit int) (int, error) {
+	if defaultLimit < 0 {
+		return 0, errors.New("default max concurrency must be zero or greater")
+	}
+
+	if h.MaxConcurrency == nil {
+		return defaultLimit, nil
+	}
+	if *h.MaxConcurrency < 0 {
+		return 0, errors.New("max-concurrency must be zero or greater")
+	}
+
+	return *h.MaxConcurrency, nil
 }
 
 // ParseJSONParameters decodes specified arguments to JSON objects and replaces the
@@ -778,7 +855,21 @@ func (h *Hooks) LoadFromFile(path string, asTemplate bool) error {
 		file = buf.Bytes()
 	}
 
-	return yaml.Unmarshal(file, h)
+	if err := yaml.Unmarshal(file, h); err != nil {
+		return err
+	}
+
+	for i := range *h {
+		if err := (*h)[i].ValidateExecutionSettings(); err != nil {
+			id := (*h)[i].ID
+			if id == "" {
+				id = fmt.Sprintf("#%d", i)
+			}
+			return fmt.Errorf("invalid hook %q: %w", id, err)
+		}
+	}
+
+	return nil
 }
 
 // Append appends hooks unless the new hooks contain a hook with an ID that already exists
@@ -915,7 +1006,11 @@ const (
 // Evaluate MatchRule will return based on the type
 func (r MatchRule) Evaluate(req *Request) (bool, error) {
 	if r.Type == IPWhitelist {
-		return CheckIPWhitelist(req.RawRequest.RemoteAddr, r.IPRange)
+		addr := req.RealIP
+		if addr == "" {
+			addr = req.RawRequest.RemoteAddr
+		}
+		return CheckIPWhitelist(addr, r.IPRange)
 	}
 	if r.Type == ScalrSignature {
 		return CheckScalrSignature(req, r.Secret, true)
