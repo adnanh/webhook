@@ -198,6 +198,173 @@ func TestWebhook(t *testing.T) {
 	}
 }
 
+func TestWebhookMaxBodySize(t *testing.T) {
+	hookecho, cleanupHookecho := buildHookecho(t)
+	defer cleanupHookecho()
+
+	webhook, cleanupWebhookFn := buildWebhook(t)
+	defer cleanupWebhookFn()
+
+	configPath, cleanupConfigFn := genConfig(t, hookecho, "test/hooks.json.tmpl")
+	defer cleanupConfigFn()
+
+	t.Run("rejects negative limit at startup", func(t *testing.T) {
+		cmd := exec.Command(webhook,
+			fmt.Sprintf("-hooks=%s", configPath),
+			"-max-body-size=-1",
+		)
+		cmd.Env = webhookEnv()
+		cmd.Args[0] = "webhook"
+
+		output, err := cmd.CombinedOutput()
+		if err == nil {
+			t.Fatalf("expected webhook to reject negative max body size, got success\noutput:\n%s", output)
+		}
+
+		if !strings.Contains(string(output), "error: max-body-size must be greater than or equal to 0") {
+			t.Fatalf("expected negative max body size error, got:\n%s", output)
+		}
+	})
+
+	t.Run("rejects negative read timeout at startup", func(t *testing.T) {
+		cmd := exec.Command(webhook,
+			fmt.Sprintf("-hooks=%s", configPath),
+			"-read-timeout=-1s",
+		)
+		cmd.Env = webhookEnv()
+		cmd.Args[0] = "webhook"
+
+		output, err := cmd.CombinedOutput()
+		if err == nil {
+			t.Fatalf("expected webhook to reject negative read timeout, got success\noutput:\n%s", output)
+		}
+
+		if !strings.Contains(string(output), "error: read-timeout must be greater than or equal to 0") {
+			t.Fatalf("expected negative read timeout error, got:\n%s", output)
+		}
+	})
+
+	t.Run("default is unlimited and warns", func(t *testing.T) {
+		ip, port := serverAddress(t)
+		authority := fmt.Sprintf("%s:%s", ip, port)
+		logs, stop := startWebhookForMaxBodyTest(t, webhook, configPath, ip, port, "", "")
+		defer stop()
+
+		body := fmt.Sprintf(`{"payload":%q}`, strings.Repeat("a", 33*1024*1024))
+		req, err := http.NewRequest("POST", fmt.Sprintf("http://%s/hooks/github", authority), strings.NewReader(body))
+		if err != nil {
+			t.Fatalf("New request failed: %s", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("client.Do failed: %s\nlogs:\n%s", err, logs)
+		}
+		defer res.Body.Close()
+
+		if res.StatusCode == http.StatusRequestEntityTooLarge {
+			t.Fatalf("expected default max body size to be unlimited, got status %d\nlogs:\n%s", res.StatusCode, logs)
+		}
+
+		if !strings.Contains(logs.String(), "warn: request body size is unlimited") {
+			t.Fatalf("expected unlimited body size warning in logs, got:\n%s", logs)
+		}
+	})
+
+	t.Run("rejects oversized body", func(t *testing.T) {
+		ip, port := serverAddress(t)
+		authority := fmt.Sprintf("%s:%s", ip, port)
+		logs, stop := startWebhookForMaxBodyTest(t, webhook, configPath, ip, port, "16", "")
+		defer stop()
+
+		req, err := http.NewRequest("POST", fmt.Sprintf("http://%s/hooks/github", authority), strings.NewReader(`{"payload":"too large"}`))
+		if err != nil {
+			t.Fatalf("New request failed: %s", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("client.Do failed: %s\nlogs:\n%s", err, logs)
+		}
+		defer res.Body.Close()
+
+		body, err := ioutil.ReadAll(res.Body)
+		if err != nil {
+			t.Fatalf("failed to read body: %s", err)
+		}
+
+		if res.StatusCode != http.StatusRequestEntityTooLarge || string(body) != "Request body too large." {
+			t.Fatalf("expected status %d and body %q, got status %d and body %q\nlogs:\n%s", http.StatusRequestEntityTooLarge, "Request body too large.", res.StatusCode, body, logs)
+		}
+	})
+
+	t.Run("allows body within limit", func(t *testing.T) {
+		ip, port := serverAddress(t)
+		authority := fmt.Sprintf("%s:%s", ip, port)
+		logs, stop := startWebhookForMaxBodyTest(t, webhook, configPath, ip, port, "1048576", "5s")
+		defer stop()
+
+		tt := hookHandlerTests[0]
+		req, err := http.NewRequest(tt.method, fmt.Sprintf("http://%s/hooks/%s", authority, tt.id), strings.NewReader(tt.body))
+		if err != nil {
+			t.Fatalf("New request failed: %s", err)
+		}
+		for k, v := range tt.headers {
+			req.Header.Add(k, v)
+		}
+		req.Header.Set("Content-Type", tt.contentType)
+		req.ContentLength = int64(len(tt.body))
+
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("client.Do failed: %s\nlogs:\n%s", err, logs)
+		}
+		defer res.Body.Close()
+
+		body, err := ioutil.ReadAll(res.Body)
+		if err != nil {
+			t.Fatalf("failed to read body: %s", err)
+		}
+
+		matched, _ := regexp.Match(tt.respBody, body)
+		if res.StatusCode != tt.respStatus || !matched {
+			t.Fatalf("expected status %d and body matching %q, got status %d and body %q\nlogs:\n%s", tt.respStatus, tt.respBody, res.StatusCode, body, logs)
+		}
+	})
+}
+
+func startWebhookForMaxBodyTest(t *testing.T, webhook, configPath, ip, port, maxBodySize, readTimeout string) (*buffer, func()) {
+	t.Helper()
+
+	logs := &buffer{}
+	args := []string{
+		fmt.Sprintf("-hooks=%s", configPath),
+		fmt.Sprintf("-ip=%s", ip),
+		fmt.Sprintf("-port=%s", port),
+	}
+	if maxBodySize != "" {
+		args = append(args, fmt.Sprintf("-max-body-size=%s", maxBodySize))
+	}
+	if readTimeout != "" {
+		args = append(args, fmt.Sprintf("-read-timeout=%s", readTimeout))
+	}
+
+	cmd := exec.Command(webhook, args...)
+	cmd.Stderr = logs
+	cmd.Env = webhookEnv()
+	cmd.Args[0] = "webhook"
+
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("failed to start webhook: %s", err)
+	}
+
+	waitForServerReady(t, fmt.Sprintf("%s:%s", ip, port), http.DefaultClient)
+
+	return logs, func() { killAndWait(cmd) }
+}
+
 func buildHookecho(t *testing.T) (binPath string, cleanupFn func()) {
 	tmp, err := ioutil.TempDir("", "hookecho-test-")
 	if err != nil {
