@@ -587,6 +587,9 @@ func handleHook(h *hook.Hook, r *hook.Request) (string, error) {
 	}
 
 	cmd := exec.Command(cmdPath)
+	if h.RunAs != "" {
+		setUser(cmd, h.RunAs)
+	}
 	cmd.Dir = h.CommandWorkingDirectory
 
 	cmd.Args, errors = h.ExtractCommandArguments(r)

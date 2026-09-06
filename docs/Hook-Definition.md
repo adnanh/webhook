@@ -6,6 +6,7 @@ Hooks are defined as objects in the JSON or YAML hooks configuration file. Pleas
 
  * `id` - specifies the ID of your hook. This value is used to create the HTTP endpoint (http://yourserver:port/hooks/your-hook-id)
  * `execute-command` - specifies the command that should be executed when the hook is triggered
+ * `run-as` - specifies a different user to run the command with
  * `command-working-directory` - specifies the working directory that will be used for the script when it's executed
  * `response-message` - specifies the string that will be returned to the hook initiator
  * `response-headers` - specifies the list of headers in format `{"name": "X-Example-Header", "value": "it works"}` that will be returned in HTTP response for the hook
