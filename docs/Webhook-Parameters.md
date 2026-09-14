@@ -23,6 +23,8 @@ Usage of webhook:
         list available TLS cipher suites
   -logfile string
         send log output to a file; implicitly enables verbose logging
+  -max-body-size int
+        maximum request body size in bytes, use 0 for unlimited (default 0)
   -max-multipart-mem int
         maximum memory in bytes for parsing multipart form data before disk caching (default 1048576)
   -nopanic
@@ -56,6 +58,8 @@ Usage of webhook:
 ```
 
 Use any of the above specified flags to override their default behavior.
+
+By default, `-max-body-size` is `0`, which preserves historical behavior by allowing unlimited request body reads. For production deployments, set `-max-body-size` to a positive byte value appropriate for your expected webhook payloads. This default may change in a future major release.
 
 # Live reloading hooks
 If you are running an OS that supports the HUP or USR1 signal, you can use it to trigger hooks reload from hooks file, without restarting the webhook instance.
