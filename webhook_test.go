@@ -3,7 +3,7 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -34,7 +34,7 @@ func TestStaticParams(t *testing.T) {
 
 	// case 2: binary with spaces in its name
 	d1 := []byte("#!/bin/sh\n/bin/echo\n")
-	err := ioutil.WriteFile("/tmp/with space", d1, 0755)
+	err := os.WriteFile("/tmp/with space", d1, 0755)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -103,7 +103,7 @@ func TestWebhook(t *testing.T) {
 
 			url := fmt.Sprintf("http://%s/hooks/%s", authority, tt.id)
 
-			req, err := http.NewRequest(tt.method, url, ioutil.NopCloser(strings.NewReader(tt.body)))
+			req, err := http.NewRequest(tt.method, url, io.NopCloser(strings.NewReader(tt.body)))
 			if err != nil {
 				t.Errorf("New request failed: %s", err)
 			}
@@ -122,7 +122,7 @@ func TestWebhook(t *testing.T) {
 				t.Errorf("client.Do failed: %s", err)
 			}
 
-			body, err := ioutil.ReadAll(res.Body)
+			body, err := io.ReadAll(res.Body)
 			res.Body.Close()
 			if err != nil {
 				t.Errorf("POST %q: failed to ready body: %s", tt.desc, err)
@@ -199,7 +199,7 @@ func TestWebhook(t *testing.T) {
 }
 
 func buildHookecho(t *testing.T) (binPath string, cleanupFn func()) {
-	tmp, err := ioutil.TempDir("", "hookecho-test-")
+	tmp, err := os.MkdirTemp("", "hookecho-test-")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -226,7 +226,7 @@ func buildHookecho(t *testing.T) (binPath string, cleanupFn func()) {
 func genConfig(t *testing.T, bin, hookTemplate string) (configPath string, cleanupFn func()) {
 	tmpl := template.Must(template.ParseFiles(hookTemplate))
 
-	tmp, err := ioutil.TempDir("", "webhook-config-")
+	tmp, err := os.MkdirTemp("", "webhook-config-")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -258,7 +258,7 @@ func genConfig(t *testing.T, bin, hookTemplate string) (configPath string, clean
 }
 
 func buildWebhook(t *testing.T) (binPath string, cleanupFn func()) {
-	tmp, err := ioutil.TempDir("", "webhook-test-")
+	tmp, err := os.MkdirTemp("", "webhook-test-")
 	if err != nil {
 		t.Fatal(err)
 	}
