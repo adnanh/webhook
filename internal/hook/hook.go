@@ -828,7 +828,7 @@ func (r Rules) Evaluate(req *Request) (bool, error) {
 		return r.Match.Evaluate(req)
 	}
 
-	return false, nil
+	return true, nil
 }
 
 // AndRule will evaluate to true if and only if all of the ChildRules evaluate to true
