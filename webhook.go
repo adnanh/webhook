@@ -35,7 +35,7 @@ var (
 	logPath            = flag.String("logfile", "", "send log output to a file; implicitly enables verbose logging")
 	debug              = flag.Bool("debug", false, "show debug output")
 	noPanic            = flag.Bool("nopanic", false, "do not panic if hooks cannot be loaded when webhook is not running in verbose mode")
-	hotReload          = flag.Bool("hotreload", false, "watch hooks file for changes and reload them automatically")
+	hotReload          = flag.Bool("hotreload", false, "watch hooks file for changes and reload them automatically; with -secure, also reload the certificate and key files when they change")
 	hooksURLPrefix     = flag.String("urlprefix", "hooks", "url prefix to use for served hooks (protocol://yourserver:port/PREFIX/:hook-id)")
 	secure             = flag.Bool("secure", false, "use HTTPS instead of HTTP")
 	asTemplate         = flag.Bool("template", false, "parse hooks file as a Go template")
@@ -310,7 +310,19 @@ func main() {
 	svr.TLSNextProto = make(map[string]func(*http.Server, *tls.Conn, http.Handler)) // disable http/2
 
 	log.Printf("serving hooks on https://%s%s", addr, makeHumanPattern(hooksURLPrefix))
-	log.Print(svr.ServeTLS(ln, *cert, *key))
+
+	if !*hotReload {
+		log.Print(svr.ServeTLS(ln, *cert, *key))
+		return
+	}
+
+	reloader, err := newCertReloader(*cert, *key)
+	if err != nil {
+		log.Fatal("error loading certificate\n", err)
+	}
+
+	svr.TLSConfig.GetCertificate = reloader.getCertificate
+	log.Print(svr.ServeTLS(ln, "", ""))
 }
 
 func hookHandler(w http.ResponseWriter, r *http.Request) {

@@ -4,7 +4,10 @@ import (
 	"crypto/tls"
 	"io"
 	"log"
+	"os"
 	"strings"
+	"sync"
+	"time"
 )
 
 func writeTLSSupportedCipherStrings(w io.Writer, min uint16) error {
@@ -82,4 +85,78 @@ func getTLSCipherSuites(v string) []uint16 {
 	}
 
 	return suites
+}
+
+// certReloader serves the TLS certificate from disk and reloads it whenever
+// the certificate or key file changes.
+type certReloader struct {
+	certPath string
+	keyPath  string
+
+	mu          sync.Mutex
+	cert        *tls.Certificate
+	certModTime time.Time
+	keyModTime  time.Time
+}
+
+func newCertReloader(certPath, keyPath string) (*certReloader, error) {
+	r := &certReloader{certPath: certPath, keyPath: keyPath}
+
+	if err := r.load(); err != nil {
+		return nil, err
+	}
+
+	return r, nil
+}
+
+func (r *certReloader) load() error {
+	certInfo, err := os.Stat(r.certPath)
+	if err != nil {
+		return err
+	}
+
+	keyInfo, err := os.Stat(r.keyPath)
+	if err != nil {
+		return err
+	}
+
+	cert, err := tls.LoadX509KeyPair(r.certPath, r.keyPath)
+	if err != nil {
+		return err
+	}
+
+	r.cert = &cert
+	r.certModTime = certInfo.ModTime()
+	r.keyModTime = keyInfo.ModTime()
+
+	return nil
+}
+
+func (r *certReloader) changed() bool {
+	certInfo, err := os.Stat(r.certPath)
+	if err != nil {
+		return false
+	}
+
+	keyInfo, err := os.Stat(r.keyPath)
+	if err != nil {
+		return false
+	}
+
+	return !certInfo.ModTime().Equal(r.certModTime) || !keyInfo.ModTime().Equal(r.keyModTime)
+}
+
+func (r *certReloader) getCertificate(*tls.ClientHelloInfo) (*tls.Certificate, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.changed() {
+		if err := r.load(); err != nil {
+			log.Printf("error reloading certificate %s: %v\n", r.certPath, err)
+		} else {
+			log.Printf("certificate %s reloaded\n", r.certPath)
+		}
+	}
+
+	return r.cert, nil
 }
