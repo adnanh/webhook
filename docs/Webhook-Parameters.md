@@ -12,7 +12,7 @@ Usage of webhook:
   -hooks value
         path to the json file containing defined hooks the webhook should serve, use multiple times to load from different files
   -hotreload
-        watch hooks file for changes and reload them automatically
+        watch hooks file for changes and reload them automatically; with -secure, also reload the certificate and key files when they change
   -http-methods string
         set default allowed HTTP methods (ie. "POST"); separate methods with comma
   -ip string
