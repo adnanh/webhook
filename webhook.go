@@ -313,6 +313,26 @@ func main() {
 	log.Print(svr.ServeTLS(ln, *cert, *key))
 }
 
+func parseRequestPayload(req *hook.Request) (bool, error) {
+	// Media type tokens are case-insensitive. Keep req.ContentType unchanged for
+	// templates and logging, but normalize it when selecting a parser.
+	contentType := strings.ToLower(req.ContentType)
+	switch {
+	case strings.Contains(contentType, "json"):
+		return true, req.ParseJSONPayload()
+	case strings.Contains(contentType, "x-www-form-urlencoded"):
+		return true, req.ParseFormPayload()
+	case strings.Contains(contentType, "xml"):
+		return true, req.ParseXMLPayload()
+	default:
+		return false, nil
+	}
+}
+
+func isMultipartContentType(contentType string) bool {
+	return strings.HasPrefix(strings.ToLower(contentType), "multipart/form-data;")
+}
+
 func hookHandler(w http.ResponseWriter, r *http.Request) {
 	req := &hook.Request{
 		ID:         middleware.GetReqID(r.Context()),
@@ -376,7 +396,7 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 		req.ContentType = matchedHook.IncomingPayloadContentType
 	}
 
-	isMultipart := strings.HasPrefix(req.ContentType, "multipart/form-data;")
+	isMultipart := isMultipartContentType(req.ContentType)
 
 	if !isMultipart {
 		req.Body, err = ioutil.ReadAll(r.Body)
@@ -388,26 +408,16 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 	req.ParseHeaders(r.Header)
 	req.ParseQuery(r.URL.Query())
 
-	switch {
-	case strings.Contains(req.ContentType, "json"):
-		err = req.ParseJSONPayload()
-		if err != nil {
-			log.Printf("[%s] %s", req.ID, err)
-		}
+	parsedPayload, parseErr := parseRequestPayload(req)
+	err = parseErr
+	if err != nil {
+		log.Printf("[%s] %s", req.ID, err)
+	}
+	if !parsedPayload && !isMultipart {
+		log.Printf("[%s] error parsing body payload due to unsupported content type header: %s\n", req.ID, req.ContentType)
+	}
 
-	case strings.Contains(req.ContentType, "x-www-form-urlencoded"):
-		err = req.ParseFormPayload()
-		if err != nil {
-			log.Printf("[%s] %s", req.ID, err)
-		}
-
-	case strings.Contains(req.ContentType, "xml"):
-		err = req.ParseXMLPayload()
-		if err != nil {
-			log.Printf("[%s] %s", req.ID, err)
-		}
-
-	case isMultipart:
+	if isMultipart {
 		err = r.ParseMultipartForm(*maxMultipartMem)
 		if err != nil {
 			msg := fmt.Sprintf("[%s] error parsing multipart form: %+v\n", req.ID, err)
@@ -481,8 +491,6 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-	default:
-		log.Printf("[%s] error parsing body payload due to unsupported content type header: %s\n", req.ID, req.ContentType)
 	}
 
 	// handle hook
