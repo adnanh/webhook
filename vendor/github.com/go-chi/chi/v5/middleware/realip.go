@@ -22,7 +22,7 @@ var xRealIP = http.CanonicalHeaderKey("X-Real-IP")
 // RemoteAddr will see the intended value.
 //
 // You should only use this middleware if you can trust the headers passed to
-// you (in particular, the two headers this middleware uses), for example
+// you (in particular, the three headers this middleware uses), for example
 // because you have placed a reverse proxy like HAProxy or nginx in front of
 // chi. If your reverse proxies are configured to pass along arbitrary header
 // values from the client, or if you use this middleware without a reverse
@@ -47,11 +47,7 @@ func realIP(r *http.Request) string {
 	} else if xrip := r.Header.Get(xRealIP); xrip != "" {
 		ip = xrip
 	} else if xff := r.Header.Get(xForwardedFor); xff != "" {
-		i := strings.Index(xff, ",")
-		if i == -1 {
-			i = len(xff)
-		}
-		ip = xff[:i]
+		ip, _, _ = strings.Cut(xff, ",")
 	}
 	if ip == "" || net.ParseIP(ip) == nil {
 		return ""

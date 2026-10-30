@@ -107,9 +107,8 @@ func (mx *Mux) Use(middlewares ...func(http.Handler) http.Handler) {
 // Handle adds the route `pattern` that matches any http method to
 // execute the `handler` http.Handler.
 func (mx *Mux) Handle(pattern string, handler http.Handler) {
-	parts := strings.SplitN(pattern, " ", 2)
-	if len(parts) == 2 {
-		mx.Method(parts[0], parts[1], handler)
+	if method, rest, found := strings.Cut(pattern, " "); found {
+		mx.Method(method, rest, handler)
 		return
 	}
 
@@ -119,9 +118,8 @@ func (mx *Mux) Handle(pattern string, handler http.Handler) {
 // HandleFunc adds the route `pattern` that matches any http method to
 // execute the `handlerFn` http.HandlerFunc.
 func (mx *Mux) HandleFunc(pattern string, handlerFn http.HandlerFunc) {
-	parts := strings.SplitN(pattern, " ", 2)
-	if len(parts) == 2 {
-		mx.Method(parts[0], parts[1], handlerFn)
+	if method, rest, found := strings.Cut(pattern, " "); found {
+		mx.Method(method, rest, handlerFn)
 		return
 	}
 
@@ -363,19 +361,40 @@ func (mx *Mux) Middlewares() Middlewares {
 // Note: the *Context state is updated during execution, so manage
 // the state carefully or make a NewRouteContext().
 func (mx *Mux) Match(rctx *Context, method, path string) bool {
+	return mx.Find(rctx, method, path) != ""
+}
+
+// Find searches the routing tree for the pattern that matches
+// the method/path.
+//
+// Note: the *Context state is updated during execution, so manage
+// the state carefully or make a NewRouteContext().
+func (mx *Mux) Find(rctx *Context, method, path string) string {
 	m, ok := methodMap[method]
 	if !ok {
-		return false
+		return ""
 	}
 
-	node, _, h := mx.tree.FindRoute(rctx, m, path)
+	node, _, _ := mx.tree.FindRoute(rctx, m, path)
+	pattern := rctx.routePattern
 
-	if node != nil && node.subroutes != nil {
+	if node != nil {
+		if node.subroutes == nil {
+			e := node.endpoints[m]
+			return e.pattern
+		}
+
 		rctx.RoutePath = mx.nextRoutePath(rctx)
-		return node.subroutes.Match(rctx, method, rctx.RoutePath)
+		subPattern := node.subroutes.Find(rctx, method, rctx.RoutePath)
+		if subPattern == "" {
+			return ""
+		}
+
+		pattern = strings.TrimSuffix(pattern, "/*")
+		pattern += subPattern
 	}
 
-	return h != nil
+	return pattern
 }
 
 // NotFoundHandler returns the default Mux 404 responder whenever a route
