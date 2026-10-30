@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"strings"
@@ -160,16 +159,14 @@ func (c *Compressor) SetEncoder(encoding string, fn EncoderFunc) {
 	delete(c.encoders, encoding)
 
 	// If the encoder supports Resetting (IoReseterWriter), then it can be pooled.
-	encoder := fn(ioutil.Discard, c.level)
-	if encoder != nil {
-		if _, ok := encoder.(ioResetterWriter); ok {
-			pool := &sync.Pool{
-				New: func() interface{} {
-					return fn(ioutil.Discard, c.level)
-				},
-			}
-			c.pooledEncoders[encoding] = pool
+	encoder := fn(io.Discard, c.level)
+	if _, ok := encoder.(ioResetterWriter); ok {
+		pool := &sync.Pool{
+			New: func() interface{} {
+				return fn(io.Discard, c.level)
+			},
 		}
+		c.pooledEncoders[encoding] = pool
 	}
 	// If the encoder is not in the pooledEncoders, add it to the normal encoders.
 	if _, ok := c.pooledEncoders[encoding]; !ok {
@@ -277,16 +274,13 @@ type compressResponseWriter struct {
 func (cw *compressResponseWriter) isCompressible() bool {
 	// Parse the first part of the Content-Type response header.
 	contentType := cw.Header().Get("Content-Type")
-	if idx := strings.Index(contentType, ";"); idx >= 0 {
-		contentType = contentType[0:idx]
-	}
+	contentType, _, _ = strings.Cut(contentType, ";")
 
 	// Is the content type compressible?
 	if _, ok := cw.contentTypes[contentType]; ok {
 		return true
 	}
-	if idx := strings.Index(contentType, "/"); idx > 0 {
-		contentType = contentType[0:idx]
+	if contentType, _, hadSlash := strings.Cut(contentType, "/"); hadSlash {
 		_, ok := cw.contentWildcards[contentType]
 		return ok
 	}
