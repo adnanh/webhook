@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"flag"
@@ -12,11 +13,15 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/adnanh/webhook/internal/hook"
 	"github.com/adnanh/webhook/internal/middleware"
+	"github.com/adnanh/webhook/internal/network"
 	"github.com/adnanh/webhook/internal/pidfile"
 
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
@@ -55,6 +60,7 @@ var (
 	accessWhitelist    = flag.String("access-whitelist", "", "comma-separated list of client IPs or CIDRs allowed to access the service")
 	accessBlacklist    = flag.String("access-blacklist", "", "comma-separated list of client IPs or CIDRs denied from accessing the service")
 	maxBodySize        = flag.Int64("max-body-size", 10<<20, "maximum webhook request body size in bytes (0 disables the limit)")
+	networkConfigPath  = flag.String("network-config", "", "path to a standalone network hub or agent YAML config (overrides config file network section)")
 
 	responseHeaders  hook.ResponseHeaders
 	hooksFiles       hook.HooksFiles
@@ -97,6 +103,9 @@ func lenLoadedHooks() int {
 }
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "agent" {
+		os.Exit(runAgentCommand(os.Args[2:], os.Stdout, os.Stderr))
+	}
 	if isUpdateCommand(os.Args) {
 		os.Exit(runUpdateCommand(os.Args[2:], os.Stdin, os.Stdout, os.Stderr))
 	}
@@ -151,6 +160,61 @@ func main() {
 		os.Exit(0)
 	}
 
+	var networkConfig *network.Config
+	if *networkConfigPath != "" {
+		var err error
+		networkConfig, err = network.LoadConfig(*networkConfigPath)
+		if err != nil {
+			fmt.Println("error:", err)
+			os.Exit(1)
+		}
+	} else if len(inlineNetworkConfig) != 0 {
+		var err error
+		networkConfig, err = network.ParseConfig(inlineNetworkConfig, inlineNetworkBase)
+		if err != nil {
+			fmt.Println("error:", err)
+			os.Exit(1)
+		}
+	}
+	if networkConfig != nil && networkConfig.Mode == "agent" && !networkConfig.Agent.WithWebhook {
+		log.SetPrefix("[webhook] ")
+		if *logPath != "" {
+			file, err := os.OpenFile(*logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+			if err != nil {
+				log.Fatal(err)
+			}
+			defer file.Close()
+			log.SetOutput(file)
+		}
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		if err := network.RunAgent(ctx, networkConfig.Agent, network.AgentOptions{Version: version}); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
+	if networkConfig != nil && networkConfig.Agent != nil && networkConfig.Agent.WithWebhook {
+		if err := prepareWebhookAgent(networkConfig.Agent); err != nil {
+			fmt.Println("error:", err)
+			os.Exit(1)
+		}
+		if networkConfig.Agent.WebhookOnlyViaHub {
+			*realIPHeader = network.ClientIPHeader
+			*trustedProxies = "127.0.0.1,::1"
+			if err := initTrustedProxies(); err != nil {
+				fmt.Println("error:", err)
+				os.Exit(1)
+			}
+		} else if *realIPHeader == "" && *trustedProxies == "" {
+			*realIPHeader = network.ClientIPHeader
+			*trustedProxies = "127.0.0.1,::1"
+			if err := initTrustedProxies(); err != nil {
+				fmt.Println("error:", err)
+				os.Exit(1)
+			}
+		}
+	}
+
 	if (setUID != 0 || setGID != 0) && (setUID == 0 || setGID == 0) {
 		fmt.Println("error: setuid and setgid options must be used together")
 		os.Exit(1)
@@ -160,7 +224,7 @@ func main() {
 		*verbose = true
 	}
 
-	if len(hooksFiles) == 0 && len(hooksDirectories) == 0 {
+	if len(hooksFiles) == 0 && len(hooksDirectories) == 0 && (networkConfig == nil || networkConfig.Agent != nil && networkConfig.Agent.WithWebhook) {
 		hooksFiles = append(hooksFiles, "hooks.json")
 	}
 
@@ -182,16 +246,19 @@ func main() {
 	// this may be modified by trySocketListener
 	addr = fmt.Sprintf("%s:%d", *ip, *port)
 
-	ln, err := trySocketListener()
-	if err != nil {
-		logQueue = append(logQueue, fmt.Sprintf("error listening on socket: %s", err))
-		// we'll bail out below
-	} else if ln == nil {
-		// Open listener early so we can drop privileges.
-		ln, err = net.Listen("tcp", addr)
+	onlyViaHub := networkConfig != nil && networkConfig.Agent != nil && networkConfig.Agent.WebhookOnlyViaHub
+	var ln net.Listener
+	if !onlyViaHub {
+		var err error
+		ln, err = trySocketListener()
 		if err != nil {
-			logQueue = append(logQueue, fmt.Sprintf("error listening on port: %s", err))
-			// we'll bail out below
+			logQueue = append(logQueue, fmt.Sprintf("error listening on socket: %s", err))
+		} else if ln == nil {
+			// Open listener early so we can drop privileges.
+			ln, err = net.Listen("tcp", addr)
+			if err != nil {
+				logQueue = append(logQueue, fmt.Sprintf("error listening on port: %s", err))
+			}
 		}
 	}
 
@@ -260,7 +327,7 @@ func main() {
 		log.Fatalf("error initializing hooks sources: %v", err)
 	}
 
-	if !*verbose && !*noPanic && len(hooksDirectories) == 0 && lenLoadedHooks() == 0 {
+	if !*verbose && !*noPanic && len(hooksDirectories) == 0 && lenLoadedHooks() == 0 && (networkConfig == nil || networkConfig.Agent != nil && networkConfig.Agent.WithWebhook) {
 		log.SetOutput(os.Stdout)
 		log.Fatalln("couldn't load any hooks from file!\naborting webhook execution since the -verbose flag is set to false.\nIf, for some reason, you want webhook to start without the hooks, either use -verbose flag, or -nopanic")
 	}
@@ -302,11 +369,78 @@ func main() {
 
 	registerAdminRoutes(r)
 	registerStatusRoute(r)
+	var hub *network.Hub
+	if networkConfig != nil && networkConfig.Hub != nil {
+		if err := validateNetworkRoutes(networkConfig.Hub.Routes); err != nil {
+			log.Fatal(err)
+		}
+		hub = network.NewHub(networkConfig.Hub)
+		defer hub.Close()
+		registerNetworkAdminRoutes(r, hub)
+		for _, route := range hub.Routes() {
+			r.Path(route.Path).HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				clientIP := extractIP(resolveRealIP(req))
+				if clientIP == nil {
+					http.Error(w, "invalid client IP", http.StatusForbidden)
+					return
+				}
+				hub.ServeHook(w, req, network.RequestOrigin{ClientIP: clientIP.String(), Scheme: resolveOriginalProto(req)}, *maxBodySize)
+			})
+		}
+	}
 	r.HandleFunc(hooksURL, hookHandler)
+	var handler http.Handler = r
+	if hub != nil {
+		handler = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			if hub.Handles(req.URL.Path) {
+				hub.ServeHTTP(w, req)
+				return
+			}
+			r.ServeHTTP(w, req)
+		})
+	}
 
 	// Create common HTTP server settings
 	svr := &http.Server{
-		Handler: r,
+		Handler:           handler,
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+	if networkConfig != nil && networkConfig.Agent != nil {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		var provider func() []network.HookInfo
+		if networkConfig.Agent.WithWebhook {
+			provider = networkHookInventory
+		}
+		options := network.AgentOptions{Version: version, Hooks: provider, Downstream: hub}
+		if networkConfig.Agent.WithWebhook {
+			options.WebhookHandler = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				prefix := makeBaseURL(hooksURLPrefix) + "/"
+				if !strings.HasPrefix(req.URL.Path, prefix) || !network.ValidHookID(strings.TrimPrefix(req.URL.Path, prefix)) {
+					http.NotFound(w, req)
+					return
+				}
+				clientIP := net.ParseIP(req.Header.Get(network.ClientIPHeader))
+				if clientIP == nil {
+					http.Error(w, "invalid network client IP", http.StatusForbidden)
+					return
+				}
+				req = req.WithContext(context.WithValue(req.Context(), networkClientIPKey{}, clientIP.String()))
+				handler.ServeHTTP(w, req)
+			})
+		}
+		if onlyViaHub {
+			log.Print("serving hooks only through the network hub")
+			if err := network.RunAgent(ctx, networkConfig.Agent, options); err != nil {
+				log.Printf("network agent stopped: %v", err)
+			}
+			return
+		}
+		go func() {
+			if err := network.RunAgent(ctx, networkConfig.Agent, options); err != nil {
+				log.Printf("network agent stopped: %v", err)
+			}
+		}()
 	}
 
 	// Serve HTTP
@@ -613,6 +747,13 @@ func hookHandler(w http.ResponseWriter, r *http.Request) {
 
 func executeHook(h *hook.Hook, r *hook.Request, waitForCommand bool, release func()) (string, error) {
 	defer release()
+	if r.RawRequest != nil && r.RawRequest.MultipartForm != nil {
+		defer func() {
+			if err := r.RawRequest.MultipartForm.RemoveAll(); err != nil && !os.IsNotExist(err) {
+				log.Printf("[%s] error removing multipart form temp files [%s]", r.ID, err)
+			}
+		}()
+	}
 
 	var errors []error
 
@@ -755,11 +896,6 @@ func executeHook(h *hook.Hook, r *hook.Request, waitForCommand bool, release fun
 			if err != nil && !os.IsNotExist(err) {
 				log.Printf("[%s] error removing file %s [%s]", r.ID, files[i].File.Name(), err)
 			}
-		}
-	}
-	if r.RawRequest != nil && r.RawRequest.MultipartForm != nil {
-		if err := r.RawRequest.MultipartForm.RemoveAll(); err != nil && !os.IsNotExist(err) {
-			log.Printf("[%s] error removing multipart form temp files [%s]", r.ID, err)
 		}
 	}
 

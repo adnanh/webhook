@@ -1,0 +1,13 @@
+# Run on the private web server. The token must match the hub's web token.
+mode: agent
+agent:
+  server: wss://hub.example.com
+  id: web
+  token_file: web.token
+  services:
+    - name: http
+      # Existing standalone webhook process listening only on this host.
+      target: 127.0.0.1:9000
+    - name: ssh
+      # Optional OpenSSH server; remove when SSH forwarding is not needed.
+      target: 127.0.0.1:22

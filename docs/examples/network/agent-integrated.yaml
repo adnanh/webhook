@@ -1,0 +1,12 @@
+# Main config: webhook -c agent-integrated.yaml
+# Copy the same app-a.token used by the hub into this file's directory.
+hooks:
+  - /etc/webhook/hooks.yaml
+network:
+  mode: agent
+  agent:
+    server: wss://hub.example.com
+    id: app-a
+    token_file: app-a.token
+    with_webhook: true
+    webhook_only_via_hub: true

@@ -1,0 +1,9 @@
+# Start with: webhook -network-config agent-hook-a.yaml -hooks hooks.yaml
+# Hooks are served in-process through the hub; no local HTTP port is opened.
+mode: agent
+agent:
+  server: wss://hub.example.com
+  id: app-a
+  token_file: app-a.token
+  with_webhook: true
+  webhook_only_via_hub: true

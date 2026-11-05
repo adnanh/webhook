@@ -1,0 +1,13 @@
+# Run on the private operations server. The token must match the hub's ops token.
+mode: agent
+agent:
+  server: wss://hub.example.com
+  id: ops
+  token_file: ops.token
+  forwards:
+    # Local entry to web's standalone webhook HTTP service.
+    - listen: 127.0.0.1:19000
+      to: web/http
+    # Local entry to web's SSH server.
+    - listen: 127.0.0.1:10022
+      to: web/ssh

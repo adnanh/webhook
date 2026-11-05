@@ -1,0 +1,11 @@
+# Run on a server with a public DNS name. Keep the token files private.
+mode: hub
+hub:
+  max_sessions: 128
+  nodes:
+    - id: web
+      token_file: tokens/web.token
+      services: [http, ssh]
+    - id: ops
+      token_file: tokens/ops.token
+      allow: [web/http, web/ssh]

@@ -481,6 +481,9 @@ func (ha *Argument) Get(r *Request) (string, error) {
 
 		switch strings.ToLower(ha.Name) {
 		case "remote-addr":
+			if r.RealIP != "" {
+				return r.RealIP, nil
+			}
 			return r.RawRequest.RemoteAddr, nil
 		case "method":
 			return r.RawRequest.Method, nil

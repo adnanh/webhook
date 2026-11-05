@@ -1,0 +1,8 @@
+# Start with local hooks: webhook -network-config cascade-child.yaml -hooks hooks.yaml
+mode: agent
+agent:
+  server: wss://middle.example.com
+  id: child
+  token_file: child.token
+  with_webhook: true
+  webhook_only_via_hub: true

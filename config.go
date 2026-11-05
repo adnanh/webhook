@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"gopkg.in/yaml.v2"
@@ -12,6 +13,11 @@ import (
 // configFile holds the path to the YAML configuration file.
 // It is extracted from os.Args before flag.Parse() runs.
 var configFile string
+
+// An inline network section is parsed after CLI flags so -network-config can
+// override it in the same way as other command-line options.
+var inlineNetworkConfig []byte
+var inlineNetworkBase string
 
 // loadConfigFile reads a YAML configuration file and sets the corresponding
 // flags. Flags set via the command line take precedence over the config file
@@ -37,8 +43,31 @@ func loadConfigFile(path string) error {
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return fmt.Errorf("failed to parse config file %q: %w", path, err)
 	}
+	if _, inline := cfg["network"]; inline {
+		if _, external := cfg["network-config"]; external {
+			return fmt.Errorf("config file %q cannot set both network and network-config", path)
+		}
+	}
 
 	for key, val := range cfg {
+		if key == "network" {
+			networkYAML, err := yaml.Marshal(val)
+			if err != nil {
+				return fmt.Errorf("failed to parse network in config file %q: %w", path, err)
+			}
+			inlineNetworkConfig = networkYAML
+			inlineNetworkBase = filepath.Dir(path)
+			continue
+		}
+		if key == "network-config" {
+			name, ok := val.(string)
+			if !ok || name == "" {
+				return fmt.Errorf("network-config in config file %q must be a path", path)
+			}
+			if !filepath.IsAbs(name) {
+				val = filepath.Join(filepath.Dir(path), name)
+			}
+		}
 		f := flag.CommandLine.Lookup(key)
 		if f == nil {
 			return fmt.Errorf("unknown option %q in config file %q", key, path)

@@ -2,12 +2,15 @@ package main
 
 import (
 	"bytes"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"mime/multipart"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -66,6 +69,270 @@ func TestStaticParams(t *testing.T) {
 	matched, _ := regexp.MatchString("(?s)command output: .*static-params-name-space", b.String())
 	if !matched {
 		t.Fatalf("Unexpected log output:\n%sn", b)
+	}
+}
+
+func TestNetworkHubStartsWithoutHooks(t *testing.T) {
+	webhook, cleanup := buildWebhook(t)
+	defer cleanup()
+	dir := t.TempDir()
+	tokenPath := filepath.Join(dir, "node.token")
+	if err := os.WriteFile(tokenPath, []byte(strings.Repeat("x", 64)), 0600); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(dir, "network.yaml")
+	config := "mode: hub\nhub:\n  nodes:\n    - id: node\n      token_file: node.token\n"
+	if err := os.WriteFile(configPath, []byte(config), 0600); err != nil {
+		t.Fatal(err)
+	}
+	host, port := serverAddress(t)
+	cmd := exec.Command(webhook, "-network-config", configPath, "-ip", host, "-port", port)
+	cmd.Env = webhookEnv()
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer killAndWait(cmd)
+	authority := net.JoinHostPort(host, port)
+	base := "http://" + authority
+	waitForServerReady(t, authority, http.DefaultClient)
+	res, err := http.Get(base + "/__webhook_network/v1/control")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("network control returned %d, want 401", res.StatusCode)
+	}
+}
+
+func TestNetworkHubMainConfig(t *testing.T) {
+	webhook, cleanup := buildWebhook(t)
+	defer cleanup()
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "node.token"), []byte(strings.Repeat("x", 64)), 0600); err != nil {
+		t.Fatal(err)
+	}
+	standalone := "mode: hub\nhub:\n  nodes:\n    - id: node\n      token_file: node.token\n"
+	if err := os.WriteFile(filepath.Join(dir, "network.yaml"), []byte(standalone), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		name   string
+		config string
+		args   []string
+	}{
+		{"inline", "network:\n  " + strings.ReplaceAll(strings.TrimSuffix(standalone, "\n"), "\n", "\n  ") + "\n", nil},
+		{"referenced", "network-config: network.yaml\n", nil},
+		{"cli override", "network:\n  mode: invalid\n", []string{"-network-config", filepath.Join(dir, "network.yaml")}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			path := filepath.Join(dir, strings.ReplaceAll(test.name, " ", "-")+".yaml")
+			if err := os.WriteFile(path, []byte(test.config), 0600); err != nil {
+				t.Fatal(err)
+			}
+			host, port := serverAddress(t)
+			args := append([]string{"-c", path, "-ip", host, "-port", port}, test.args...)
+			cmd := exec.Command(webhook, args...)
+			cmd.Env = webhookEnv()
+			if err := cmd.Start(); err != nil {
+				t.Fatal(err)
+			}
+			defer killAndWait(cmd)
+			authority := net.JoinHostPort(host, port)
+			waitForServerReady(t, authority, http.DefaultClient)
+			res, err := http.Get("http://" + authority + "/__webhook_network/v1/control")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer res.Body.Close()
+			if res.StatusCode != http.StatusUnauthorized {
+				t.Fatalf("network control returned %d, want 401", res.StatusCode)
+			}
+		})
+	}
+	conflict := filepath.Join(dir, "conflict.yaml")
+	if err := os.WriteFile(conflict, []byte("network: {}\nnetwork-config: network.yaml\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	output, err := exec.Command(webhook, "-c", conflict).CombinedOutput()
+	if err == nil || !strings.Contains(string(output), "cannot set both network and network-config") {
+		t.Fatalf("expected a config conflict, got %v: %s", err, output)
+	}
+}
+
+func TestNetworkAgentWithHTTPSWebhook(t *testing.T) {
+	webhook, cleanupWebhook := buildWebhook(t)
+	defer cleanupWebhook()
+	hookecho, cleanupHookecho := buildHookecho(t)
+	defer cleanupHookecho()
+	dir := t.TempDir()
+	tlsServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer tlsServer.Close()
+	certificate := tlsServer.TLS.Certificates[0]
+	privateKey, err := x509.MarshalPKCS8PrivateKey(certificate.PrivateKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	certPath, keyPath := filepath.Join(dir, "cert.pem"), filepath.Join(dir, "key.pem")
+	if err := os.WriteFile(certPath, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certificate.Certificate[0]}), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(keyPath, pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: privateKey}), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.WriteFile(filepath.Join(dir, "agent.token"), []byte(strings.Repeat("x", 64)), 0600); err != nil {
+		t.Fatal(err)
+	}
+	hubHost, hubPort := serverAddress(t)
+	agentHost, agentPort := serverAddress(t)
+	for agentPort == hubPort {
+		agentHost, agentPort = serverAddress(t)
+	}
+	hubConfig := `mode: hub
+hub:
+  nodes:
+    - id: agent
+      token_file: agent.token
+      services: [webhook]
+  hook_routes:
+    - path: /public/deploy
+      hook: deploy
+      agents: [agent]
+`
+	hubConfigPath := filepath.Join(dir, "hub.yaml")
+	if err := os.WriteFile(hubConfigPath, []byte(hubConfig), 0600); err != nil {
+		t.Fatal(err)
+	}
+	agentConfig := fmt.Sprintf(`mode: agent
+agent:
+  server: ws://%s
+  id: agent
+  token_file: agent.token
+  with_webhook: true
+`, net.JoinHostPort(hubHost, hubPort))
+	agentConfigPath := filepath.Join(dir, "agent.yaml")
+	if err := os.WriteFile(agentConfigPath, []byte(agentConfig), 0600); err != nil {
+		t.Fatal(err)
+	}
+	hooksPath := filepath.Join(dir, "hooks.json")
+	hooks := fmt.Sprintf(`[{"id":"deploy","execute-command":%q,"response-message":"started","http-methods":["POST"],"trigger-rule":{"match":{"type":"ip-whitelist","ip-range":"127.0.0.1"}}}]`, hookecho)
+	if err := os.WriteFile(hooksPath, []byte(hooks), 0600); err != nil {
+		t.Fatal(err)
+	}
+	hubCmd := exec.Command(webhook, "-network-config", hubConfigPath, "-ip", hubHost, "-port", hubPort)
+	hubCmd.Env = webhookEnv()
+	if err := hubCmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer killAndWait(hubCmd)
+	waitForServerReady(t, net.JoinHostPort(hubHost, hubPort), http.DefaultClient)
+	agentCmd := exec.Command(webhook, "-network-config", agentConfigPath, "-hooks", hooksPath, "-ip", agentHost, "-port", agentPort, "-secure", "-cert", certPath, "-key", keyPath)
+	agentCmd.Env = webhookEnv()
+	if err := agentCmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer killAndWait(agentCmd)
+	waitForServer(t, tlsServer.Client(), "https://"+net.JoinHostPort(agentHost, agentPort)+"/", http.StatusOK, 5*time.Second)
+	url := "http://" + net.JoinHostPort(hubHost, hubPort) + "/public/deploy"
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		res, err := http.Post(url, "text/plain", nil)
+		if err == nil {
+			body, _ := ioutil.ReadAll(res.Body)
+			_ = res.Body.Close()
+			if res.StatusCode == http.StatusOK && string(body) == "started" {
+				break
+			}
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("hub did not route registered hook: %v", err)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+func TestNetworkAgentWebhookOnlyViaHub(t *testing.T) {
+	webhook, cleanupWebhook := buildWebhook(t)
+	defer cleanupWebhook()
+	hookecho, cleanupHookecho := buildHookecho(t)
+	defer cleanupHookecho()
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "agent.token"), []byte(strings.Repeat("x", 64)), 0600); err != nil {
+		t.Fatal(err)
+	}
+	hubHost, hubPort := serverAddress(t)
+	agentHost, agentPort := serverAddress(t)
+	for agentPort == hubPort {
+		agentHost, agentPort = serverAddress(t)
+	}
+	hubConfig := `mode: hub
+hub:
+  nodes:
+    - id: agent
+      token_file: agent.token
+      services: [webhook]
+  hook_routes:
+    - path: /public/deploy
+      hook: deploy
+      agents: [agent]
+`
+	hubConfigPath := filepath.Join(dir, "hub.yaml")
+	if err := os.WriteFile(hubConfigPath, []byte(hubConfig), 0600); err != nil {
+		t.Fatal(err)
+	}
+	hooksPath := filepath.Join(dir, "hooks.json")
+	agentConfig := fmt.Sprintf(`hooks: [%q]
+network:
+  mode: agent
+  agent:
+    server: ws://%s
+    id: agent
+    token_file: agent.token
+    with_webhook: true
+    webhook_only_via_hub: true
+`, hooksPath, net.JoinHostPort(hubHost, hubPort))
+	agentConfigPath := filepath.Join(dir, "agent.yaml")
+	if err := os.WriteFile(agentConfigPath, []byte(agentConfig), 0600); err != nil {
+		t.Fatal(err)
+	}
+	hooks := fmt.Sprintf(`[{"id":"deploy","execute-command":%q,"response-message":"started","http-methods":["POST"],"trigger-rule":{"and":[{"match":{"type":"ip-whitelist","ip-range":"127.0.0.1"}},{"match":{"type":"value","value":"127.0.0.1","parameter":{"source":"request","name":"remote-addr"}}}]}}]`, hookecho)
+	if err := os.WriteFile(hooksPath, []byte(hooks), 0600); err != nil {
+		t.Fatal(err)
+	}
+	hubCmd := exec.Command(webhook, "-network-config", hubConfigPath, "-ip", hubHost, "-port", hubPort)
+	hubCmd.Env = webhookEnv()
+	if err := hubCmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer killAndWait(hubCmd)
+	waitForServerReady(t, net.JoinHostPort(hubHost, hubPort), http.DefaultClient)
+	agentCmd := exec.Command(webhook, "-c", agentConfigPath, "-ip", agentHost, "-port", agentPort)
+	agentCmd.Env = webhookEnv()
+	if err := agentCmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer killAndWait(agentCmd)
+	url := "http://" + net.JoinHostPort(hubHost, hubPort) + "/public/deploy"
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		res, err := http.Post(url, "text/plain", nil)
+		if err == nil {
+			body, _ := ioutil.ReadAll(res.Body)
+			_ = res.Body.Close()
+			if res.StatusCode == http.StatusOK && string(body) == "started" {
+				break
+			}
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("hub did not route in-process hook: %v", err)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	conn, err := net.DialTimeout("tcp", net.JoinHostPort(agentHost, agentPort), 200*time.Millisecond)
+	if err == nil {
+		_ = conn.Close()
+		t.Fatal("agent unexpectedly opened the local webhook port")
 	}
 }
 

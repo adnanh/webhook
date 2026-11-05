@@ -1,0 +1,16 @@
+# Replace the example host and generate different tokens for both agents.
+mode: hub
+hub:
+  nodes:
+    - id: app-a
+      token_file: tokens/app-a.token
+      services: [webhook]
+    - id: app-b
+      token_file: tokens/app-b.token
+      services: [webhook]
+  hook_routes:
+    - path: /deploy
+      hook: deploy
+      agents: [app-a, app-b]
+      # Optional: set the CIDRs allowed to call this public mount point.
+      # allow_ips: [203.0.113.0/24]

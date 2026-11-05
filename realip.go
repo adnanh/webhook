@@ -107,18 +107,47 @@ func isTrustedProxy(remoteAddr string) bool {
 // resolveRealIP determines the real client IP address. If the request comes
 // from a trusted proxy and --real-ip-header is configured, the IP is read from
 // that header. Otherwise the TCP remote address is used.
+// Only the in-process tunnel handler can set this trusted request context.
+type networkClientIPKey struct{}
+
 func resolveRealIP(r *http.Request) string {
+	if value, ok := r.Context().Value(networkClientIPKey{}).(string); ok {
+		return value
+	}
+
 	if *realIPHeader != "" && isTrustedProxy(r.RemoteAddr) {
 		headerVal := strings.TrimSpace(r.Header.Get(*realIPHeader))
 		if headerVal != "" {
-			// X-Forwarded-For may contain multiple IPs; take the first one.
-			if idx := strings.IndexByte(headerVal, ','); idx != -1 {
-				headerVal = strings.TrimSpace(headerVal[:idx])
+			if strings.EqualFold(*realIPHeader, "X-Forwarded-For") {
+				parts := strings.Split(headerVal, ",")
+				for i := len(parts) - 1; i >= 0; i-- {
+					candidate := strings.TrimSpace(parts[i])
+					if extractIP(candidate) == nil {
+						return r.RemoteAddr
+					}
+					if !isTrustedProxy(candidate) || i == 0 {
+						return candidate
+					}
+				}
+			} else if extractIP(headerVal) != nil {
+				return headerVal
 			}
-			return headerVal
 		}
 	}
 	return r.RemoteAddr
+}
+
+func resolveOriginalProto(r *http.Request) string {
+	if r.TLS != nil {
+		return "https"
+	}
+	if isTrustedProxy(r.RemoteAddr) {
+		proto := strings.ToLower(strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")))
+		if proto == "https" {
+			return "https"
+		}
+	}
+	return "http"
 }
 
 // extractIP parses an IP from an address string that may include a port.

@@ -1,0 +1,14 @@
+# webhook -c hub-temporary.yaml (behind the HTTPS Nginx described in Network.md)
+# Give temp and ops separate random tokens; inject them into the hub environment.
+ip: 127.0.0.1
+port: 9000
+network:
+  mode: hub
+  hub:
+    nodes:
+      - id: temp
+        token_env: WEBHOOK_TEMP_TOKEN
+        services: [files, ssh]
+      - id: ops
+        token_env: WEBHOOK_OPS_TOKEN
+        allow: [temp/files, temp/ssh]

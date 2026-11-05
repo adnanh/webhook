@@ -1,0 +1,10 @@
+mode: hub
+hub:
+  nodes:
+    - id: middle
+      token_file: tokens/middle.token
+      services: [webhook]
+  hook_routes:
+    - path: /deploy
+      hook: deploy
+      agents: [middle]

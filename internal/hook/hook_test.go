@@ -289,6 +289,17 @@ func TestArgumentGet(t *testing.T) {
 	}
 }
 
+func TestArgumentRemoteAddrUsesResolvedIP(t *testing.T) {
+	request := &Request{
+		RawRequest: &http.Request{RemoteAddr: "127.0.0.1:1234"},
+		RealIP:     "198.51.100.24",
+	}
+	value, err := (&Argument{Source: SourceRequest, Name: "remote-addr"}).Get(request)
+	if err != nil || value != "198.51.100.24" {
+		t.Fatalf("remote-addr = %q, err = %v", value, err)
+	}
+}
+
 var hookParseJSONParametersTests = []struct {
 	params                     []Argument
 	headers, query, payload    map[string]interface{}

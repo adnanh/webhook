@@ -16,6 +16,19 @@ ip: 0.0.0.0
 # 监听端口，默认 9000
 port: 1987
 
+# 可选：把组网配置直接写在本文件中，或使用 network-config 引用独立文件。
+# 二者只能选一种。token_file 相对于本文件所在目录；配置格式见 docs/Network.md。
+# network:
+#   mode: agent
+#   agent:
+#     server: wss://hub.example.com
+#     id: app-a
+#     token_env: WEBHOOK_NODE_TOKEN
+#     # 或选择 token_file: app-a.token / token: "完整随机令牌"（三选一）
+#     with_webhook: true
+#     webhook_only_via_hub: true
+# network-config: network/agent.yaml
+
 # URL 前缀，最终 hook 地址为 http://host:port/PREFIX/hook-id
 # 默认值为 "hooks"
 urlprefix: wh
@@ -37,7 +50,7 @@ urlprefix: wh
 
 # 从哪个请求头获取真实客户端 IP
 # 常见值: "X-Real-Ip"（Nginx proxy_set_header X-Real-IP）
-#         "X-Forwarded-For"（取第一个 IP）
+#         "X-Forwarded-For"（从右向左跳过可信代理后取第一个不可信 IP）
 # 留空表示不启用，直接使用 RemoteAddr
 # real-ip-header: "X-Real-Ip"
 

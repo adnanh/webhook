@@ -1,0 +1,9 @@
+# Use the same hook ID as app-a for random routing at /deploy.
+# Start with: webhook -network-config agent-hook-b.yaml -hooks hooks.yaml
+mode: agent
+agent:
+  server: wss://hub.example.com
+  id: app-b
+  token_file: app-b.token
+  with_webhook: true
+  webhook_only_via_hub: true

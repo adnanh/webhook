@@ -1,0 +1,15 @@
+# This process is a hub for child and an agent of the parent hub.
+# The parent hub must declare middle's webhook service and public hook route.
+mode: both
+hub:
+  nodes:
+    - id: child
+      token_file: tokens/child.token
+      services: [webhook]
+agent:
+  server: wss://parent.example.com
+  id: middle
+  token_file: middle.token
+  services:
+    - name: webhook
+      relay_to: child/webhook

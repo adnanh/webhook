@@ -1,0 +1,19 @@
+# Main config: webhook -c hub-integrated.yaml
+# Nginx terminates HTTPS and proxies to this loopback listener.
+ip: 127.0.0.1
+port: 9000
+real-ip-header: X-Real-IP
+trusted-proxies: 127.0.0.1
+network:
+  mode: hub
+  hub:
+    # Total HTTP forwarding deadline; increase for synchronous long-running hooks.
+    request_timeout: 60s
+    nodes:
+      - id: app-a
+        token_file: app-a.token
+        services: [webhook]
+    hook_routes:
+      - path: /deploy
+        hook: deploy
+        agents: [app-a]

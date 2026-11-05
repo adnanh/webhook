@@ -1,0 +1,15 @@
+# webhook -c agent-upload.yaml
+# Hub must also allow this node's webhook service and route its deploy hook.
+hooks: [/etc/webhook/upload-hook.yaml]
+max-body-size: 536870912
+max-multipart-mem: 1048576
+max-concurrency: 2
+command-timeout: 10m
+network:
+  mode: agent
+  agent:
+    server: wss://hub.example.com
+    id: upload
+    token_env: WEBHOOK_UPLOAD_TOKEN
+    with_webhook: true
+    webhook_only_via_hub: true

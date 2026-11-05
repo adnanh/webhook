@@ -78,3 +78,27 @@ func TestResolveRealIPOnlyTrustedProxy(t *testing.T) {
 		t.Fatalf("untrusted real IP = %q, want %q", got, req.RemoteAddr)
 	}
 }
+
+func TestResolveRealIPFromTrustedForwardedChain(t *testing.T) {
+	savedHeader, savedTrusted := *realIPHeader, parsedTrustedProxies
+	defer func() { *realIPHeader, parsedTrustedProxies = savedHeader, savedTrusted }()
+	*realIPHeader = "X-Forwarded-For"
+	parsedTrustedProxies, _ = parseIPNetworks("127.0.0.1,192.0.2.10", "trusted-proxies")
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.RemoteAddr = "127.0.0.1:443"
+	req.Header.Set("X-Forwarded-For", "203.0.113.66, 198.51.100.24, 192.0.2.10")
+	if got := resolveRealIP(req); got != "198.51.100.24" {
+		t.Fatalf("client IP = %q", got)
+	}
+	req.Header.Set("X-Forwarded-Proto", "https")
+	if got := resolveOriginalProto(req); got != "https" {
+		t.Fatalf("trusted protocol = %q", got)
+	}
+	req.RemoteAddr = "198.51.100.99:443"
+	if got := resolveRealIP(req); got != req.RemoteAddr {
+		t.Fatalf("untrusted client IP = %q", got)
+	}
+	if got := resolveOriginalProto(req); got != "http" {
+		t.Fatalf("untrusted protocol = %q", got)
+	}
+}

@@ -6,6 +6,10 @@
 
 Chinese documentation with the fork-specific install, Admin UI, release, and operations guide is available in [中文说明](README_CN.md).
 
+Private servers can connect through a public hub for authorized TCP forwarding, cascaded relays, and hub-assigned hook routes with agent discovery and random routing. Agents can serve hooks through the hub without opening a local webhook port. See the [networking guide](docs/Network.md) and [sample configurations](docs/examples/network/).
+
+Network settings can be embedded under `network:` in the main `-c` YAML file, with credentials supplied by exactly one of `token`, `token_env`, or `token_file`. The standalone `-network-config` format remains available.
+
 For example, if you're using Github or Bitbucket, you can use [webhook][w] to set up a hook that runs a redeploy script for your project on your staging server, whenever you push changes to the master branch of your project.
 
 If you use Mattermost or Slack, you can set up an "Outgoing webhook integration" or "Slash command" to run various commands on your server, which can then report back directly to you or your channels using the "Incoming webhook integrations", or the appropriate response body.

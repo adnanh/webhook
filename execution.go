@@ -71,6 +71,15 @@ func handleHookAsync(h *hook.Hook, r *hook.Request) error {
 		return err
 	}
 
+	// Transfer ownership of multipart temporary files before net/http cleans the
+	// original request when the asynchronous response returns.
+	if r.RawRequest != nil && r.RawRequest.MultipartForm != nil {
+		cloned := *r
+		raw := *r.RawRequest
+		cloned.RawRequest = &raw
+		r.RawRequest.MultipartForm = nil
+		r = &cloned
+	}
 	go func() {
 		_, _ = executeHook(h, r, false, release)
 	}()

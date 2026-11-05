@@ -20,6 +20,7 @@
 - 提供 Linux/macOS/BSD 的 shell 一键安装脚本和 Windows PowerShell 一键安装脚本。
 - 提供 GitHub Actions 自动编译、打包、校验和发布脚本。
 - 支持通过 CLI 检查、应用和回滚已签名的 GitHub Release 更新。
+- 支持通过公网 Hub 将内网节点的 TCP 服务安全转发给其他内网节点。
 
 ## 快速安装或更新
 
@@ -176,6 +177,14 @@ webhook -c /etc/webhook/webhook.yaml -port 9000 -debug
 ```
 
 完整示例可参考 [webhook.yaml.example](webhook.yaml.example)。
+
+组网可直接放在同一份总配置的 `network:` 中，启动时只需 `webhook -c webhook.yaml`；令牌可选 `token`、`token_env` 或 `token_file`（三选一）。也可在总配置中使用 `network-config: network/agent.yaml` 引用独立组网配置，或直接传 `-network-config network/agent.yaml`。具体示例见[内网服务组网指南](docs/Network.md)。
+
+## 内网服务组网
+
+在公网服务器上运行 Hub，内网服务器运行 Agent 并主动连出，即可按节点和服务名转发 TCP 流量。Hub 与 Agent 可和 webhook 同进程运行；Agent 可选择仅经 Hub 接收 hooks，不开启本地 webhook 端口。Hub 可分配公开 Hook 路径、接收 Agent 的 hook 清单并对同一路径做随机路由，也支持级联。配置、权限、TLS/Nginx 部署和示例见 [内网服务组网指南](docs/Network.md)。
+
+临时组网可使用 `webhook agent --help`，支持只读文件共享和 TCP 服务发布；大文件上传配置与安全边界见[组网指南](docs/Network.md)。Hub 可通过受 Admin 鉴权保护的节点接口查询版本和连接状态。
 
 ## Admin 管理界面
 
