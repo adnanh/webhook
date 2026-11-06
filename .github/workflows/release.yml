@@ -23,7 +23,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.22.x"
+          go-version: "stable"
       - name: Test
         run: go test -v ./...
 
@@ -71,7 +71,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.22.x"
+          go-version: "stable"
 
       - name: Resolve version
         id: version
@@ -96,9 +96,9 @@ jobs:
             go build -trimpath -ldflags="-s -w \
               -X main.version=${{ steps.version.outputs.version }} \
               -X main.updateManifestPublicKey=${{ vars.UPDATE_MANIFEST_PUBLIC_KEY }}" \
-            -o "dist/$target/$binary" .
+            -o "dist/$target/$binary" ./cmd/webhook
 
-          cp LICENSE README.md "dist/$target/"
+          cp LICENSE README.md README_CN.md "dist/$target/"
           tar -czf "dist/$target.tar.gz" -C dist "$target"
 
       - name: Upload artifact

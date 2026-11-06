@@ -1,288 +1,83 @@
-# Hook rules
+# 触发规则
 
-### Table of Contents
+`trigger-rule` 在执行命令前求值；没有规则时无需任何认证。规则不能替代脚本自己的参数校验和业务幂等设计。
 
-* [And](#and)
-* [Or](#or)
-* [Not](#not)
-* [Multi-level](#multi-level)
-* [Match](#match)
-  * [Match value](#match-value)
-  * [Match regex](#match-regex)
-  * [Match payload-hmac-sha1](#match-payload-hmac-sha1)
-  * [Match payload-hmac-sha256](#match-payload-hmac-sha256)
-  * [Match payload-hmac-sha512](#match-payload-hmac-sha512)
-  * [Match Whitelisted IP range](#match-whitelisted-ip-range)
-  * [Match scalr-signature](#match-scalr-signature)
+## 逻辑组合
 
-## And
-*And rule* will evaluate to _true_, if and only if all of the sub rules evaluate to _true_.
-```json
-{
-"and":
-  [
-    {
-      "match":
-      {
-        "type": "value",
-        "value": "refs/heads/master",
-        "parameter":
-        {
-          "source": "payload",
-          "name": "ref"
-        }
-      }
-    },
-    {
-      "match":
-      {
-        "type": "regex",
-        "regex": ".*",
-        "parameter":
-        {
-          "source": "payload",
-          "name": "repository.owner.name"
-        }
-      }
-    }
-  ]
-}
-```
-## Or
-*Or rule* will evaluate to _true_, if any of the sub rules evaluate to _true_.
-```json
-{
-"or":
-  [
-    {
-      "match":
-      {
-        "type": "value",
-        "value": "refs/heads/master",
-        "parameter":
-        {
-          "source": "payload",
-          "name": "ref"
-        }
-      }
-    },
-    {
-      "match":
-      {
-        "type": "value",
-        "value": "refs/heads/development",
-        "parameter":
-        {
-          "source": "payload",
-          "name": "ref"
-        }
-      }
-    }
-  ]
-}
-```
-## Not
-*Not rule* will evaluate to _true_, if and only if the sub rule evaluates to _false_.
-```json
-{
-"not":
-  {
-    "match":
-    {
-      "type": "value",
-      "value": "refs/heads/development",
-      "parameter":
-      {
-        "source": "payload",
-        "name": "ref"
-      }
-    }
-  }
-}
-```
-## Multi-level
-```json
-{
-    "and": [
-    {
-        "match": {
-            "parameter": {
-                "source": "header",
-                "name": "X-Hub-Signature"
-            },
-            "type": "payload-hmac-sha1",
-            "secret": "mysecret"
-        }
-    },
-    {
-        "or": [
-        {
-            "match":
-            {
-                "parameter":
-                {
-                    "source": "payload",
-                    "name": "ref"
-                },
-                "type": "value",
-                "value": "refs/heads/master"
-            }
-        },
-        {
-            "match":
-            {
-                "parameter":
-                {
-                    "source": "header",
-                    "name": "X-GitHub-Event"
-                },
-                "type": "value",
-                "value": "ping"
-            }
-        }
-        ]
-    }
-    ]
-}
-```
-## Match
-*Match rule* will evaluate to _true_, if and only if the referenced value in the `parameter` field satisfies the `type`-specific rule.
+每个规则节点选择一个 `and`、`or`、`not` 或 `match`，可任意嵌套：
 
-*Please note:* Due to technical reasons, _number_ and _boolean_ values in the _match rule_ must be wrapped around with a pair of quotes.
-
-### Match value
-```json
-{
-  "match":
-  {
-    "type": "value",
-    "value": "refs/heads/development",
-    "parameter":
-    {
-      "source": "payload",
-      "name": "ref"
-    }
-  }
-}
+```yaml
+trigger-rule:
+  and:
+    - match:
+        type: value
+        value: refs/heads/main
+        parameter: {source: payload, name: ref}
+    - or:
+        - match:
+            type: value
+            value: push
+            parameter: {source: header, name: X-GitHub-Event}
+        - match:
+            type: value
+            value: workflow_dispatch
+            parameter: {source: header, name: X-GitHub-Event}
+    - not:
+        match:
+          type: value
+          value: 'true'
+          parameter: {source: payload, name: deleted}
 ```
 
-### Match regex
-For the regex syntax, check out <http://golang.org/pkg/regexp/syntax/>
-```json
-{
-  "match":
-  {
-    "type": "regex",
-    "regex": ".*",
-    "parameter":
-    {
-      "source": "payload",
-      "name": "ref"
-    }
-  }
-}
+`and` 要求全部通过；`or` 任一通过；`not` 对一个子规则取反。值、数字和布尔比较统一按字符串配置，因此 `value: 'true'`、`value: '42'` 应加引号。
+
+## 所有 match 类型
+
+| `type` | 其他字段 | 用途 |
+| --- | --- | --- |
+| `value` | `value`, `parameter` | 精确字符串比较 |
+| `regex` | `regex`, `parameter` | Go 正则表达式；需要完整匹配时加 `^...$` |
+| `payload-hmac-sha1` | `secret`, `parameter` | 校验原始 body 的 HMAC-SHA1 |
+| `payload-hmac-sha256` | `secret`, `parameter` | 校验原始 body 的 HMAC-SHA256，推荐新接入使用 |
+| `payload-hmac-sha512` | `secret`, `parameter` | 校验原始 body 的 HMAC-SHA512 |
+| `ip-whitelist` | `ip-range` | 依据真实来源地址检查 IPv4/IPv6 IP 或 CIDR，无需 parameter |
+| `scalr-signature` | `secret` | 检查 Scalr 签名和请求时间，允许距当前时间五分钟内的请求 |
+
+兼容旧配置的 `payload-hash-sha1`、`payload-hash-sha256`、`payload-hash-sha512` 别名仍可用，但会记录弃用提示，建议改为对应 `payload-hmac-*`。
+
+正则使用 [Go regexp 语法](https://pkg.go.dev/regexp/syntax)，不支持所有 PCRE 特性。
+
+## HMAC 示例
+
+```yaml
+trigger-rule:
+  match:
+    type: payload-hmac-sha256
+    secret: replace-with-your-secret
+    parameter:
+      source: header
+      name: X-Hub-Signature-256
 ```
 
-### Match payload-hmac-sha1
-Validate the HMAC of the payload using the SHA1 hash and the given *secret*.
-```json
-{
-  "match":
-  {
-    "type": "payload-hmac-sha1",
-    "secret": "yoursecret",
-    "parameter":
-    {
-      "source": "header",
-      "name": "X-Hub-Signature"
-    }
-  }
-}
+签名是对**发送的原始 body 字节**计算的摘要，不能先解析再重新序列化。SHA-256 可传 `sha256=<hex>`，SHA-1/512 对应 `sha1=`、`sha512=`；也接受无前缀摘要。同一 header 支持逗号分隔多个带算法前缀的签名，任一匹配即可。
+
+完整签名和分支过滤演示见 [examples/signature](../examples/README.md#hmac-签名与模板)。生产密钥可通过 [模板](Templates.md) 从环境或文件加载。HMAC 本身不提供时间窗或重放保护；需要时在业务中校验事件 ID、时间戳和幂等键。
+
+默认签名不匹配属于求值错误，可能直接返回 500，即使设置了普通规则不匹配状态码。需要同时兼容多种签名时，可在 Hook 上设置 `trigger-signature-soft-failures: true`，把签名失败变为 false，让 OR 继续尝试其他规则。该选项不表示签名可省略，应确保所有可通过分支都具有足够认证。
+
+## IP 规则和可信代理
+
+```yaml
+trigger-rule:
+  match:
+    type: ip-whitelist
+    ip-range: 192.0.2.0/24
 ```
 
-Note that if multiple signatures were passed via a comma separated string, each
-will be tried unless a match is found. For example:
+单地址可用 `192.0.2.8` 或 `/32`；IPv6 单地址使用 `/128`。`ip-range` 支持以逗号或空白分隔多个 IP/CIDR，也可用 OR 组合多个 match。
 
-```
-X-Hub-Signature: sha1=the-first-signature,sha1=the-second-signature
-```
+本分支支持 `real-ip-header` 与 `trusted-proxies`：只有实际连接对端受信任时才采用代理头；`X-Forwarded-For` 从右往左跳过受信任代理。未配置代理信任时，检查的是连接对端地址。规则级 IP 检查只影响当前 Hook，服务级 `access-whitelist`/`access-blacklist` 影响普通 HTTP 入口。见[部署指南](Operations.md#反向代理与访问控制)。
 
-### Match payload-hmac-sha256
-Validate the HMAC of the payload using the SHA256 hash and the given *secret*.
-```json
-{
-  "match":
-  {
-    "type": "payload-hmac-sha256",
-    "secret": "yoursecret",
-    "parameter":
-    {
-      "source": "header",
-      "name": "X-Signature"
-    }
-  }
-}
-```
+## 失败行为
 
-Note that if multiple signatures were passed via a comma separated string, each
-will be tried unless a match is found. For example:
-
-```
-X-Hub-Signature: sha256=the-first-signature,sha256=the-second-signature
-```
-
-### Match payload-hmac-sha512
-Validate the HMAC of the payload using the SHA512 hash and the given *secret*.
-```json
-{
-  "match":
-  {
-    "type": "payload-hmac-sha512",
-    "secret": "yoursecret",
-    "parameter":
-    {
-      "source": "header",
-      "name": "X-Signature"
-    }
-  }
-}
-```
-
-Note that if multiple signatures were passed via a comma separated string, each
-will be tried unless a match is found. For example:
-
-```
-X-Hub-Signature: sha512=the-first-signature,sha512=the-second-signature
-```
-
-### Match Whitelisted IP range
-
-The IP can be IPv4- or IPv6-formatted, using [CIDR notation](https://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing#CIDR_blocks).  To match a single IP address only, use `/32`.
-
-```json
-{
-  "match":
-  {
-    "type": "ip-whitelist",
-    "ip-range": "192.168.0.1/24"
-  }
-}
-```
-
-Note this does not work if webhook is running behind a reverse proxy, as the "client IP" will either not be available at all (if webhook is using a Unix socket or named pipe) or it will be the address of the _proxy_, not of the real client.  You will probably need to enforce client IP restrictions in the reverse proxy itself, before forwarding the requests to webhook.
-
-### Match scalr-signature
-
-The trigger rule checks the scalr signature and also checks that the request was signed less than 5 minutes before it was received. 
-A unique signing key is generated for each webhook endpoint URL you register in Scalr.
-Given the time check make sure that NTP is enabled on both your Scalr and webhook server to prevent any issues
-
-```json
-{
-  "match":
-  {
-    "type": "scalr-signature",
-    "secret": "Scalr-provided signing key"
-  }
-}
-```
+普通不匹配默认返回 HTTP 200 和 `Hook rules were not satisfied.`，建议设置 `trigger-rule-mismatch-http-response-code: 403`。缺失字段、无效签名等求值错误不一定等同于普通 false；排错时检查服务日志，不能只看 HTTP 状态。Scalr 时间检查依赖系统时钟，部署时保持时钟同步。

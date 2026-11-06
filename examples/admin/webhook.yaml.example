@@ -1,0 +1,10 @@
+# 复制到 build/admin.yaml 后填写两个独立随机密钥；不要提交填写后的文件。
+ip: 127.0.0.1
+port: 9000
+hooks: [build/admin-hooks.yaml]
+admin: true
+admin-path: admin
+admin-totp-secret: REPLACE_WITH_RANDOM_BASE32_SECRET
+admin-jwt-secret: REPLACE_WITH_INDEPENDENT_RANDOM_SECRET
+admin-session-ttl: 1h
+verbose: true

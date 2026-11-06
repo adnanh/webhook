@@ -1,5 +1,7 @@
 # 内网服务组网
 
+[返回中文文档导航](README.md) · [从零运行本机 Hub/Agent 演示](../examples/README.md#hub-转发到无本地端口的-agent)
+
 推荐部署是：公网 Hub 接收指定路径的 HTTP 请求，内网 Agent 主动通过 `wss://` 连接 Hub，并在进程内执行 webhook。Agent 设置 `with_webhook: true`、`webhook_only_via_hub: true`，无需监听本地 webhook 端口。Hub 只允许配置在 `hook_routes` 中的入口，并按节点令牌、hook 清单和许可规则路由。
 
 初次部署使用 [Hub 总配置](examples/network/hub-integrated.yaml)和 [Agent 总配置](examples/network/agent-integrated.yaml)。只需要 webhook 时，无需 `forwards`、SSH 服务或级联。每个 Agent 使用独立令牌；外部调用者仍须通过 hook 自身的签名或其他触发规则认证，Agent 的连接令牌不负责认证外部调用者。Hub 是受信任的流量中转方，能读取请求内容。

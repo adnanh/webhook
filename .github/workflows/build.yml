@@ -11,7 +11,7 @@ jobs:
       GOTOOLCHAIN: local
     strategy:
       matrix:
-        go-version: [1.21.x, 1.22.x]
+        go-version: ['1.21.x', 'stable']
         os: [ubuntu-latest, macos-latest, windows-latest]
 
     runs-on: ${{ matrix.os }}
@@ -24,7 +24,14 @@ jobs:
         id: go
 
       - name: Build
-        run: go build -v
+        run: go build -v ./cmd/webhook
 
       - name: Test
         run: go test -v ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Smoke examples
+        if: runner.os == 'Linux' && matrix.go-version == 'stable'
+        run: python3 scripts/smoke-examples.py

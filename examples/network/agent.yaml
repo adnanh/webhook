@@ -1,0 +1,10 @@
+hooks: [examples/basic/hooks.yaml]
+verbose: true
+network:
+  mode: agent
+  agent:
+    server: ws://127.0.0.1:19000
+    id: demo
+    token_env: DEMO_NODE_TOKEN
+    with_webhook: true
+    webhook_only_via_hub: true

@@ -1,0 +1,7 @@
+- id: ping
+  execute-command: ./build/demo-hook
+  http-methods: [POST]
+  include-command-output-in-response: true
+  pass-arguments-to-command:
+    - {source: string, name: echo}
+    - {source: string, name: pong}

@@ -1,61 +1,46 @@
-# Using systemd socket activation
+# systemd socket 激活
 
-_New in v2.8.2_
+Linux 上可由 systemd 创建监听 socket，再把文件描述符交给 webhook。这样进程可直接以普通用户运行，并让 systemd 管理监听端口。无需同时设置 `-socket`。
 
-On platforms that use [systemd](https://systemd.io), [webhook][w] 
-supports the _socket activation_ mechanism.  In this mode, systemd itself is responsible for managing the listening socket, and it launches [webhook][w] the first time it receives a request on the socket.  This has a number of advantages over the standard mode:
+`/etc/systemd/system/webhook.socket`：
 
-- [webhook][w] can run as a normal user while still being able to use a port number like 80 or 443 that would normally require root privilege
-- if the [webhook][w] process dies and is restarted, pending connections are not dropped - they just keep waiting until the restarted [webhook][w] is ready
-
-No special configuration is necessary to tell [webhook][w] that socket activation is being used - socket activation sets specific environment variables when launching the activated service, if [webhook][w] detects these variables it will ignore the `-port` and `-socket` options and simply use the systemd-provided socket instead of opening its own.
-
-## Configuration
-To run [webhook][w] with socket activation you need to create _two_ separate unit files in your systemd configuration directory (typically `/etc/systemd/system`), one for the socket and one for the service.  They must have matching names; in this example we use `webhook.socket` and `webhook.service`.  At their simplest, these files should look like:
-
-**webhook.socket**
-```
+```ini
 [Unit]
-Description=Webhook server socket
+Description=Webhook listening socket
 
 [Socket]
-# Listen on all network interfaces, port 9000
 ListenStream=9000
-
-# Alternatives:
-
-## Listen on one specific interface only
-# ListenStream=10.0.0.1:9000
-# FreeBind=true
-
-## Listen on a Unix domain socket
-# ListenStream=/tmp/webhook.sock
+NoDelay=true
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=sockets.target
 ```
 
-**webhook.service**
-```
+`/etc/systemd/system/webhook.service`：
+
+```ini
 [Unit]
-Description=Webhook server
+Description=Webhook service
+Requires=webhook.socket
+After=network.target
 
 [Service]
-Type=exec
-ExecStart=webhook -nopanic -hooks /etc/webhook/hooks.yml
-
-# Which user should the webhooks run as?
-User=nobody
-Group=nogroup
+User=webhook
+Group=webhook
+WorkingDirectory=/var/lib/webhook
+ExecStart=/usr/local/bin/webhook -c /etc/webhook/webhook.yaml
+Restart=on-failure
 ```
 
-You should enable and start the _socket_, but it is not necessary to enable the _service_ - this will be started automatically when the socket receives its first request.
+先准备服务用户及目录，然后启用 socket：
 
 ```sh
-sudo systemctl enable webhook.socket
-sudo systemctl start webhook.socket
+sudo systemctl daemon-reload
+sudo systemctl enable --now webhook.socket
+curl http://127.0.0.1:9000/status
+systemctl status webhook.socket webhook.service
 ```
 
-Systemd unit files support many other options, see the [systemd.socket](https://www.freedesktop.org/software/systemd/man/latest/systemd.socket.html) and [systemd.service](https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html) manual pages for full details.
+应用会检查 systemd 提供的激活监听器。此模式由 `ListenStream` 决定地址和端口，不能期待应用的 `-ip`/`-port` 改变该监听器。若用 `ListenStream=127.0.0.1:9000`，只接受回环请求；若需低端口也可让 systemd 持有它。
 
-[w]: https://github.com/adnanh/webhook
+普通进程部署见[运维指南](Operations.md)。完整单元语义参见 [systemd.socket](https://www.freedesktop.org/software/systemd/man/latest/systemd.socket.html)。

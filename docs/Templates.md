@@ -1,110 +1,41 @@
-# Templates in Webhook
+# Hook 配置模板
 
-[`webhook`][w] can parse a hooks configuration file as a Go template when given the `-template` [CLI parameter](Webhook-Parameters.md).
+启动参数 `-template` 或总配置 `template: true` 先把 **Hook 文件**作为 Go `text/template` 渲染，再解析 JSON/YAML。总配置本身不执行模板；目录自动发现只识别 `.json`、`.yaml`、`.yml`，以 `.tmpl` 结尾的模板用 `-hooks` 显式加载。
 
-In additional to the [built-in Go template functions and features][tt], `webhook` provides a `getenv` template function for inserting environment variables into a templated configuration file.
-
-## Example Usage
-
-In the example JSON template file below (YAML is also supported), the `payload-hmac-sha1` matching rule looks up the HMAC secret from the environment using the `getenv` template function.
-Additionally, the result is piped through the built-in Go template function `js` to ensure that the result is a well-formed Javascript/JSON string.
-
-```
-[
-  {
-    "id": "webhook",
-    "execute-command": "/home/adnan/redeploy-go-webhook.sh",
-    "command-working-directory": "/home/adnan/go",
-    "response-message": "I got the payload!",
-    "response-headers":
-    [
-      {
-        "name": "Access-Control-Allow-Origin",
-        "value": "*"
-      }
-    ],
-    "pass-arguments-to-command":
-    [
-      {
-        "source": "payload",
-        "name": "head_commit.id"
-      },
-      {
-        "source": "payload",
-        "name": "pusher.name"
-      },
-      {
-        "source": "payload",
-        "name": "pusher.email"
-      }
-    ],
-    "trigger-rule":
-    {
-      "and":
-      [
-        {
-          "match":
-          {
-            "type": "payload-hmac-sha1",
-            "secret": "{{ getenv "XXXTEST_SECRET" | js }}",
-            "parameter":
-            {
-              "source": "header",
-              "name": "X-Hub-Signature"
-            }
-          }
-        },
-        {
-          "match":
-          {
-            "type": "value",
-            "value": "refs/heads/master",
-            "parameter":
-            {
-              "source": "payload",
-              "name": "ref"
-            }
-          }
-        }
-      ]
-    }
-  }
-]
-
+```sh
+# 演示密钥只含十六进制字符，避免 YAML 引号转义问题。
+export DEMO_HMAC_SECRET="$(openssl rand -hex 32)"
+./build/webhook -hooks examples/signature/hooks.yaml.tmpl -template -ip 127.0.0.1 -verbose
 ```
 
-## Template Functions
-
-In addition to the [built-in Go template functions and features][tt], `webhook` provides the following functions:
-
-### `getenv`
-
-The `getenv` template function can be used for inserting environment variables into a templated configuration file.
-
-Example: 
-```
-"Secret": "{{getenv TEST_secret | js}}"
+```yaml
+trigger-rule:
+  match:
+    type: payload-hmac-sha256
+    secret: '{{ getenv "DEMO_HMAC_SECRET" }}'
+    parameter: {source: header, name: X-Hub-Signature-256}
 ```
 
-### `cat`
+模板使用标准 Go 语法（条件、循环、变量及内置函数）并额外提供：
 
-The `cat` template function can be used to read a file from the local filesystem. This is useful for reading secrets from files. If the file doesn't exist, it returns an empty string.
+| 函数 | 示例 | 说明 |
+| --- | --- | --- |
+| `getenv` | `{{ getenv "WEBHOOK_SECRET" }}` | 读取环境变量；缺失时空串 |
+| `cat` | `{{ cat "/run/secrets/webhook" }}` | 读取文件原始内容；不存在/读取失败时空串 |
+| `credential` | `{{ credential "webhook-secret" }}` | 从 `$CREDENTIALS_DIRECTORY/webhook-secret` 读取；未设目录时读同名环境变量 |
 
-Example:
-```
-"secret": "{{ cat "/run/secrets/my-secret" | js }}"
-```
+`cat`、`credential` 可能读取到文件末尾换行；密钥文件应按预期写入原始值。空 secret 会使 HMAC 校验失败，应在部署启动前确认环境和文件已注入。
 
-### `credential`
+## 转义和密钥
 
-The `credential` template function provides a way to retrieve secrets using [systemd's LoadCredential mechanism](https://www.freedesktop.org/software/systemd/man/systemd.exec.html#Credentials). It reads the file specified by the given name from the directory specified in the `CREDENTIALS_DIRECTORY` environment variable.
+JSON 模板中可用 `js` 进行 JSON 字符串转义：
 
-If `CREDENTIALS_DIRECTORY` is not set, it will fall back to using `getenv` to read the secret from an environment variable of the given name.
-
-Example:
-```
-"secret": "{{ credential "my-secret" | js }}"
+```json
+"secret": "{{ getenv "WEBHOOK_SECRET" | js }}"
 ```
 
-[w]: https://github.com/adnanh/webhook
-[tt]: https://golang.org/pkg/text/template/
+YAML 与 JSON 的转义方式不同，不能把 JSON 的 `js` 规则直接当作任意 YAML 字符串转义方案。随附 YAML 示例约束密钥为十六进制字符串。复杂任意文本可选择 JSON 模板并验证解析结果。
+
+开启模板时 Admin 可以查看配置，但所有 Hook 写入禁用，避免把渲染后的内容覆盖模板源文件。模板能读取进程环境和本地文件，只加载自己信任的模板。密钥轮换后需触发重载；环境变量若在外部变更，则需重启进程才能获得新环境。
+
+完整示例：[YAML 模板](../examples/config/hooks.yaml.tmpl.example)、[JSON 模板](../examples/config/hooks.json.tmpl.example)。

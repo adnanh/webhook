@@ -1,0 +1,36 @@
+# 从仓库根目录运行；Windows 请在启动前将命令改成 ./build/demo-hook.exe。
+- id: hello
+  execute-command: ./build/demo-hook
+  http-methods: [POST]
+  include-command-output-in-response: true
+  response-headers:
+    - name: Content-Type
+      value: application/json
+  trigger-rule-mismatch-http-response-code: 403
+  pass-arguments-to-command:
+    - source: string
+      name: echo
+    - source: payload
+      name: user.name
+    - source: url
+      name: env
+    - source: request
+      name: method
+  pass-environment-to-command:
+    - source: header
+      name: X-Trace
+      envname: DEMO_TRACE
+  trigger-rule:
+    and:
+      - match:
+          type: value
+          value: local-demo-only
+          parameter:
+            source: header
+            name: X-Demo-Token
+      - match:
+          type: regex
+          regex: '^(dev|test)$'
+          parameter:
+            source: url
+            name: env

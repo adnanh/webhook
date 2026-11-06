@@ -1,0 +1,31 @@
+- id: timeout
+  execute-command: ./build/demo-hook
+  command-timeout: 200ms
+  include-command-output-in-response: true
+  http-methods: [POST]
+  pass-arguments-to-command:
+    - {source: string, name: sleep}
+    - {source: string, name: 2s}
+- id: limited
+  execute-command: ./build/demo-hook
+  max-concurrency: 1
+  include-command-output-in-response: true
+  http-methods: [POST]
+  pass-arguments-to-command:
+    - {source: string, name: sleep}
+    - {source: string, name: 2s}
+- id: async
+  execute-command: ./build/demo-hook
+  response-message: accepted
+  success-http-response-code: 202
+  http-methods: [POST]
+  pass-arguments-to-command:
+    - {source: string, name: sleep}
+    - {source: string, name: 2s}
+- id: failure
+  execute-command: ./build/demo-hook
+  include-command-output-in-response: true
+  include-command-output-in-response-on-error: true
+  http-methods: [POST]
+  pass-arguments-to-command:
+    - {source: string, name: fail}

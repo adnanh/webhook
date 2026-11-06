@@ -1,0 +1,10 @@
+# hooks 相对路径以启动工作目录为基准；所有演示均从仓库根目录启动。
+ip: 127.0.0.1
+port: 9000
+hooks: [examples/basic/hooks.yaml]
+verbose: true
+hotreload: true
+http-methods: POST
+command-timeout: 5s
+max-concurrency: 2
+max-body-size: 1048576

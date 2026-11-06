@@ -1,0 +1,15 @@
+ip: 127.0.0.1
+port: 19000
+verbose: true
+network:
+  mode: hub
+  hub:
+    request_timeout: 10s
+    nodes:
+      - id: demo
+        token_env: DEMO_NODE_TOKEN
+        services: [webhook]
+    hook_routes:
+      - path: /demo/hello
+        hook: hello
+        agents: [demo]

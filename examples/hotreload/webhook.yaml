@@ -1,0 +1,5 @@
+ip: 127.0.0.1
+port: 9000
+hooks-dir: [examples/hotreload/hooks]
+verbose: true
+# hooks-dir 始终自动监听直接子文件，无需 hotreload: true。

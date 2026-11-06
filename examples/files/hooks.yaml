@@ -1,0 +1,36 @@
+- id: upload
+  execute-command: ./build/demo-hook
+  http-methods: [POST]
+  keep-file-environment: true
+  include-command-output-in-response: true
+  pass-arguments-to-command:
+    - source: string
+      name: file
+    - source: string
+      name: HOOK_FILE_PKG
+- id: base64
+  execute-command: ./build/demo-hook
+  http-methods: [POST]
+  include-command-output-in-response: true
+  pass-arguments-to-command:
+    - source: string
+      name: file
+    - source: string
+      name: DEMO_FILE
+  pass-file-to-command:
+    - source: payload
+      name: content
+      envname: DEMO_FILE
+      base64decode: true
+- id: nested-json
+  execute-command: ./build/demo-hook
+  http-methods: [POST]
+  include-command-output-in-response: true
+  parse-parameters-as-json:
+    - source: payload
+      name: metadata
+  pass-arguments-to-command:
+    - source: string
+      name: echo
+    - source: payload
+      name: metadata.version
