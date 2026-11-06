@@ -6,6 +6,22 @@
 
 **[完整中文文档](docs/README.md) · [可运行演示](examples/README.md) · [参数参考](docs/Webhook-Parameters.md) · [开发与目录迁移](docs/Development.md)**
 
+## 安装或更新最新版
+
+Linux / macOS：
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/xtulnx/webhook/master/scripts/install.sh | sh
+```
+
+Windows PowerShell：
+
+```powershell
+& ([scriptblock]::Create((Invoke-WebRequest -UseBasicParsing https://raw.githubusercontent.com/xtulnx/webhook/master/scripts/install.ps1).Content))
+```
+
+重复执行即可更新，脚本自动识别平台并校验 SHA256。Windows 提供 [CMD 入口](scripts/install.cmd)；自定义目录、指定版本和服务重启说明见[安装文档](docs/Operations.md#安装和构建)。
+
 ## 快速体验
 
 从仓库根目录运行，需要 Go 和 curl：

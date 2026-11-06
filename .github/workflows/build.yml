@@ -1,37 +1,70 @@
 name: build
-on: [push, pull_request]
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref:
+        description: Exact commit to verify before a release
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ inputs.ref }}
+  cancel-in-progress: true
+
+env:
+  # Exercise the actual matrix toolchain instead of auto-downloading another one.
+  GOTOOLCHAIN: local
+
 jobs:
   build:
-    env:
-      # The special value "local" tells Go to use the bundled Go
-      # version rather than trying to fetch one according to a
-      # `toolchain` value in `go.mod`. This ensures that we're
-      # really running the Go version in the CI matrix rather than
-      # one that the Go command has upgraded to automatically.
-      GOTOOLCHAIN: local
+    name: ${{ matrix.os }} / Go ${{ matrix.go-version }}
+    timeout-minutes: 20
     strategy:
+      fail-fast: false
       matrix:
-        go-version: ['1.21.x', 'stable']
-        os: [ubuntu-latest, macos-latest, windows-latest]
-
+        include:
+          - os: ubuntu-latest
+            go-version: '1.21.x'
+          - os: ubuntu-latest
+            go-version: stable
+          - os: macos-latest
+            go-version: stable
+          - os: windows-latest
+            go-version: stable
     runs-on: ${{ matrix.os }}
-
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          persist-credentials: false
+      - uses: actions/setup-go@v6
         with:
           go-version: ${{ matrix.go-version }}
-        id: go
+          cache-dependency-path: go.sum
 
       - name: Build
         run: go build -v ./cmd/webhook
 
       - name: Test
-        run: go test -v ./...
+        run: go test ./...
 
       - name: Vet
         run: go vet ./...
 
-      - name: Smoke examples
+      - name: Test installers
+        if: matrix.go-version == 'stable'
+        run: python scripts/test-installers.py
+
+      - name: Check shell syntax and examples
         if: runner.os == 'Linux' && matrix.go-version == 'stable'
-        run: python3 scripts/smoke-examples.py
+        run: |
+          sh -n scripts/install.sh
+          python3 scripts/smoke-examples.py

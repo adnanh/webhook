@@ -89,10 +89,19 @@ Release 目标按 `go tool dist list` 过滤不支持的平台组合；构建失
 
 ## 发布和签名
 
-`.github/workflows/release.yml` 在推送 `v*` tag 或手动指定版本时测试、跨平台构建、生成 tar.gz 与 checksums.txt、生成 update-manifest.json，再发布 GitHub Release。文档中的 `vX.Y.Z` 均应替换为实际新版本。
+`.github/workflows/build.yml` 在分支推送和 PR 时运行，也作为 Release 的可复用检查流程。Ubuntu 覆盖 Go 1.21 兼容下限，Linux / macOS / Windows 覆盖 stable；使用 go.sum 缓存依赖及构建结果，同一分支新任务取消过期 CI。检查包含 build、test、vet、离线安装器测试，以及 Linux 上的演示 smoke。安装器测试也可本地执行：
 
-签名使用 GitHub secret `UPDATE_SIGNING_PRIVATE_KEY`（PEM Ed25519 私钥），构建使用 repository variable `UPDATE_MANIFEST_PUBLIC_KEY`（Base64 编码的原始 32 字节公钥；格式以 `internal/update` 实现为准）。私钥留在 CI secret 或独立签名系统，不能提交仓库。未设置私钥时 workflow 发布空签名文件，此类发布不满足默认安全安装条件；发布前应校验密钥配套。
+```sh
+python3 scripts/test-installers.py
+```
 
+`.github/workflows/release.yml` 在推送 `v*` tag 或手动指定**已存在的 tag** 时发布。手动输入 `2.8.4` 会归一化为 `v2.8.4`，所有检查、构建和清单都使用该 tag 对应的同一提交，避免把运行工作流的分支误发为指定版本。文档中的 `vX.Y.Z` 均应替换为实际新版本。
+
+发布构建按 5 个系统分组复用工具链，生成 15 个平台的 tar.gz；Windows 另外生成 386 / amd64 / arm64 ZIP，Linux ARM 使用 GOARM=6（ARMv6 / ARMv7）。所有二进制禁用 CGO、使用 trimpath 并注入版本。Release 包含 checksums.txt、update-manifest.json、签名文件及三个安装入口 `install.sh` / `install.ps1` / `install.cmd`；内置更新清单继续引用 tar.gz，保持更新器兼容。
+
+签名使用 GitHub secret `UPDATE_SIGNING_PRIVATE_KEY`（PEM Ed25519 私钥），构建使用 repository variable `UPDATE_MANIFEST_PUBLIC_KEY`（Base64 编码的原始 32 字节公钥；格式以 `internal/update` 实现为准）。私钥留在 CI secret 或独立签名系统，不能提交仓库。公私钥均未设置时发布空签名文件，并输出警告；内置 apply 默认仍需受信签名，显式 `--allow-unsigned` 才可降级安装。只配置一项或公私钥不匹配会使发布失败。
+
+发布先创建草稿，全部资产上传后才公开，避免安装脚本看到不完整的 latest；带 `-rc.1` 等后缀的版本自动标为 prerelease，不参与默认 latest 安装。失败的草稿可重新运行补齐，已公开的版本拒绝覆盖，应使用新 tag 修复。工作流默认仅有 contents:read，只有 publish 任务有 contents:write。
 ```sh
 # 示例构建元数据注入；不要把私钥传给 -ldflags。
 go build -trimpath -ldflags='-s -w -X main.version=2.8.4' -o build/webhook ./cmd/webhook

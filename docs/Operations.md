@@ -2,26 +2,58 @@
 
 ## 安装和构建
 
-源码构建：[快速开始](Quickstart.md)。规范命令为 `go build -o build/webhook ./cmd/webhook`，根目录 `go build` 继续可用。Release 安装脚本支持 Linux、macOS、FreeBSD、OpenBSD，以及 Windows PowerShell，按平台下载归档并核验 SHA256：
+源码构建：[快速开始](Quickstart.md)。规范命令为 `go build -o build/webhook ./cmd/webhook`，根目录 `go build` 继续可用。以下脚本自动识别系统和架构，安装或更新到 GitHub Releases 的最新正式版本；重复执行同一命令即可更新，不需要 Go 环境。
+
+Linux、macOS、FreeBSD、OpenBSD：
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/xtulnx/webhook/master/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/xtulnx/webhook/master/scripts/install.sh -o install.sh
+sh install.sh
+webhook -version
 ```
+
+默认安装到 `/usr/local/bin`，无写权限时使用 sudo。安装到用户目录、不需要 sudo：
+
+```sh
+WEBHOOK_INSTALL_DIR="$HOME/.local/bin" sh install.sh
+# 若尚未配置 PATH：
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+Windows 使用 PowerShell 5.1 或更新版本，默认安装到 `%LOCALAPPDATA%\Programs\webhook`，并添加到用户 PATH，无需管理员权限：
 
 ```powershell
-irm https://raw.githubusercontent.com/xtulnx/webhook/master/scripts/install.ps1 | iex
+Invoke-WebRequest -UseBasicParsing https://raw.githubusercontent.com/xtulnx/webhook/master/scripts/install.ps1 -OutFile install.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
+# 新开终端后可直接运行：
+webhook -version
 ```
 
-运行下载脚本前可先下载审阅。脚本需要 GitHub Releases 中存在对应资产；不假定某个尚未发布的版本可下载。
+ZIP 通过 PowerShell 原生解压，无需另外安装 tar；旧 Release 若只有 tar.gz，在系统已有 `tar.exe` 时自动回退安装。下载后可以先审阅脚本；执行策略仅对本次 PowerShell 进程生效。仓库中还提供 CMD/双击入口，需将 `install.cmd` 和 `install.ps1` 放在同一目录：
+
+```bat
+scripts\install.cmd
+scripts\install.cmd -Version v2.8.4 -InstallDir "D:\Tools\webhook"
+```
+
+以上版本号仅作格式示例，需替换为真实发布版本。PowerShell 可直接使用 `-Version`、`-InstallDir`、`-Repo`、`-BinaryName` 参数；两个平台均支持以下环境变量：
 
 | 环境变量 | 默认值 / 作用 |
 | --- | --- |
-| `WEBHOOK_REPO` | xtulnx/webhook |
-| `WEBHOOK_VERSION` | latest，也可指定已发布 tag |
+| `WEBHOOK_REPO` | `xtulnx/webhook`，格式为 owner/repo |
+| `WEBHOOK_VERSION` | `latest`，也可指定 `vX.Y.Z` 或 `X.Y.Z`；预发布版本需显式指定 |
 | `WEBHOOK_INSTALL_DIR` | Unix `/usr/local/bin`；Windows `%LOCALAPPDATA%\Programs\webhook` |
-| `WEBHOOK_BINARY_NAME` | webhook / webhook.exe |
+| `WEBHOOK_BINARY_NAME` | `webhook` / `webhook.exe`，仅文件名，Windows 自动补 `.exe` |
 
-Unix 可用 `WEBHOOK_INSTALL_DIR="$HOME/.local/bin" sh scripts/install.sh` 安装到用户目录；重复运行安装脚本可覆盖旧版。安装脚本的 SHA256 校验与下述更新清单签名验证是两个不同机制。
+```sh
+WEBHOOK_VERSION=v2.8.4 WEBHOOK_INSTALL_DIR="$HOME/.local/bin" sh install.sh
+```
+
+脚本先将 latest 解析为固定 tag，再下载对应归档及 checksums.txt，强制核验 SHA256，运行新程序确认版本，最后替换目标。下载、校验、解压或版本检查失败时保留原文件。Unix 使用同目录临时文件和重命名，可替换正在运行的二进制；Windows 更新前需停止占用 webhook.exe 的服务或进程。
+
+安装脚本只替换指定目录下的程序，不修改服务配置，也不自动重启服务。更新已有安装时，`WEBHOOK_INSTALL_DIR` / `-InstallDir` 应指向原安装目录；安装后手动重启服务。需要更新状态和回滚记录时，使用下文内置 `webhook update` 命令。
+
+运行环境需要能访问 GitHub API、GitHub Releases 及其下载域名。Unix 需要 curl 或 wget、tar，以及 sha256sum / shasum / sha256 中的一种；缺少校验工具时会报错。Windows ZIP 和安装脚本也随新 Release 发布。安装脚本的 SHA256 校验与下述更新清单签名验证是两个不同机制。
 
 ## systemd 常驻
 
