@@ -25,19 +25,20 @@ func (v *agentValues) Set(s string) error { *v = append(*v, s); return nil }
 func runAgentCommand(args []string, stdout, stderr io.Writer) int {
 	flags := flag.NewFlagSet("webhook agent", flag.ContinueOnError)
 	flags.SetOutput(stderr)
+	setCommandHelp(flags, "使用 Hub 预先授权的节点标识和令牌临时加入组网，可选发布服务或建立本机转发。")
 	cfg := &network.AgentConfig{}
-	flags.StringVar(&cfg.Server, "server", "", "hub origin, normally wss://hub.example.com")
-	flags.StringVar(&cfg.ID, "id", "", "node identity pre-authorized by the hub")
-	flags.StringVar(&cfg.Token, "token", "", "literal node token (visible in process arguments; prefer token-env or token-file)")
-	flags.StringVar(&cfg.TokenEnv, "token-env", "", "environment variable containing the node token")
-	flags.StringVar(&cfg.TokenFile, "token-file", "", "file containing the node token")
-	flags.StringVar(&cfg.CAFile, "ca-file", "", "optional private CA certificate")
-	flags.IntVar(&cfg.MaxConnections, "max-connections", 8, "maximum concurrent tunnels")
-	lifetime := flags.Duration("duration", time.Hour, "stop after this duration; must be positive")
+	flags.StringVar(&cfg.Server, "server", "", "Hub 基础地址，需包含自定义反向代理路径前缀（如有）")
+	flags.StringVar(&cfg.ID, "id", "", "Hub 预先授权的节点标识")
+	flags.StringVar(&cfg.Token, "token", "", "直接指定节点令牌（会出现在进程参数中，建议使用 token-env 或 token-file）")
+	flags.StringVar(&cfg.TokenEnv, "token-env", "", "保存节点令牌的环境变量名称")
+	flags.StringVar(&cfg.TokenFile, "token-file", "", "保存节点令牌的文件路径")
+	flags.StringVar(&cfg.CAFile, "ca-file", "", "私有 CA 证书路径（可选）")
+	flags.IntVar(&cfg.MaxConnections, "max-connections", 8, "最大并发隧道数")
+	lifetime := flags.Duration("duration", time.Hour, "到达指定时长后退出，必须大于 0（例如 30m、1h）")
 	var shares, publishes, forwards agentValues
-	flags.Var(&shares, "share", "read-only file or directory: URL-name=path; repeatable; service name is files")
-	flags.Var(&publishes, "publish", "publish a TCP service: name=host:port; repeatable")
-	flags.Var(&forwards, "forward", "local loopback entry: host:port=node/service; repeatable")
+	flags.Var(&shares, "share", "共享只读文件或目录，格式为 URL名称=本地路径，可重复指定；服务名为 files")
+	flags.Var(&publishes, "publish", "发布 TCP 服务，格式为 服务名=主机:端口，可重复指定")
+	flags.Var(&forwards, "forward", "本机回环转发入口，格式为 主机:端口=节点/服务，可重复指定")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0

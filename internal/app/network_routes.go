@@ -3,10 +3,41 @@ package app
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/adnanh/webhook/internal/network"
+	"github.com/gorilla/mux"
 )
+
+func networkTransportHandler(next http.Handler, hub *network.Hub) http.Handler {
+	if hub == nil {
+		return next
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if hub.Handles(req.URL.Path) {
+			hub.ServeHTTP(w, req)
+			return
+		}
+		next.ServeHTTP(w, req)
+	})
+}
+
+func registerNetworkHookRoutes(r *mux.Router, hub *network.Hub) {
+	if hub == nil {
+		return
+	}
+	for _, route := range hub.Routes() {
+		r.Path(route.Path).HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			clientIP := extractIP(resolveRealIP(req))
+			if clientIP == nil {
+				http.Error(w, "invalid client IP", http.StatusForbidden)
+				return
+			}
+			hub.ServeHook(w, req, network.RequestOrigin{ClientIP: clientIP.String(), Scheme: resolveOriginalProto(req)}, *maxBodySize)
+		})
+	}
+}
 
 func validateNetworkRoutes(routes []network.HookRoute) error {
 	const reserved = "__webhook_network"

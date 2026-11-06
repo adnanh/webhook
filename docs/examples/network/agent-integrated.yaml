@@ -5,7 +5,8 @@ hooks:
 network:
   mode: agent
   agent:
-    server: wss://hub.example.com
+    # Public base URL; Nginx removes /wh1/ before proxying to the hub.
+    server: wss://hub.example.com/wh1/
     id: app-a
     token_file: app-a.token
     with_webhook: true

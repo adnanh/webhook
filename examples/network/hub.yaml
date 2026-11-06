@@ -1,6 +1,8 @@
 ip: 127.0.0.1
 port: 19000
 verbose: true
+# Used if Admin is enabled with the nginx-subpath.conf demo.
+admin-path: wh1/admin
 network:
   mode: hub
   hub:

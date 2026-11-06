@@ -244,8 +244,8 @@ func validateAgent(cfg *AgentConfig, base string) error {
 		return errors.New("webhook_only_via_hub requires with_webhook")
 	}
 	u, err := url.Parse(cfg.Server)
-	if err != nil || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
-		return errors.New("server must be a ws:// or wss:// origin without a path")
+	if err != nil || u.Host == "" || u.User != nil || u.RawQuery != "" || u.ForceQuery || strings.Contains(cfg.Server, "#") {
+		return errors.New("server must be a ws:// or wss:// base URL without credentials, query, or fragment")
 	}
 	if u.Scheme != "wss" && (u.Scheme != "ws" || !isLoopbackHost(u.Hostname())) {
 		return errors.New("server must use wss:// (ws:// is allowed only for loopback)")

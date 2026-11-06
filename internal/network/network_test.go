@@ -11,6 +11,8 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,6 +23,14 @@ import (
 )
 
 func TestNetworkForwardAndAccessControl(t *testing.T) {
+	for _, prefix := range []string{"", "/wh1", "/wh1/", "/custom-hub", "/teams/project-a/hub/"} {
+		t.Run("prefix="+prefix, func(t *testing.T) {
+			testNetworkForwardAndAccessControl(t, prefix)
+		})
+	}
+}
+
+func testNetworkForwardAndAccessControl(t *testing.T, prefix string) {
 	target, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -78,6 +88,20 @@ hub:
 	defer server.Close()
 	defer hub.Close()
 	serverURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	if prefix != "" {
+		upstream, err := url.Parse(server.URL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Model an arbitrary Nginx deployment prefix with proxy_pass http://hub/:
+		// strip the public prefix before proxying both WebSocket endpoints.
+		basePath := strings.TrimRight(prefix, "/")
+		mux := http.NewServeMux()
+		mux.Handle(basePath+"/", http.StripPrefix(basePath, httputil.NewSingleHostReverseProxy(upstream)))
+		proxy := httptest.NewServer(mux)
+		defer proxy.Close()
+		serverURL = "ws" + strings.TrimPrefix(proxy.URL, "http") + prefix
+	}
 	pathB := writeNetworkConfig(t, dir, "b.yaml", fmt.Sprintf(`mode: agent
 agent:
   server: %s
@@ -182,7 +206,7 @@ agent:
 			head.Set(roleHeader, "source")
 			head.Set(toHeader, test.to)
 			head.Set("Authorization", "Network-HMAC "+connectionProof(sha256.Sum256([]byte(test.token)), "webhook-network-agent-proof-v1", nonce, test.node, DataPath, "source", test.to, ""))
-			conn, response, err := websocket.DefaultDialer.Dial(serverURL+DataPath, head)
+			conn, response, err := websocket.DefaultDialer.Dial(strings.TrimRight(serverURL, "/")+DataPath, head)
 			if conn != nil {
 				_ = conn.Close()
 			}

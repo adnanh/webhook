@@ -11,7 +11,7 @@ import (
 )
 
 func platformFlags() {
-	flag.StringVar(&socket, "socket", "", "path to a Windows named pipe (e.g. \\\\.\\pipe\\webhook) to use instead of listening on an ip and port; if specified, the ip and port options are ignored")
+	flag.StringVar(&socket, "socket", "", `Windows 命名管道路径（例如 \\.\pipe\webhook）；指定后忽略 ip 和 port 参数`)
 }
 
 func trySocketListener() (net.Listener, error) {

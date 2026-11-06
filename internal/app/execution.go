@@ -14,8 +14,8 @@ import (
 )
 
 var (
-	commandTimeout     = flag.String("command-timeout", "", "default timeout for hook command execution (for example 30s); 0 disables the timeout")
-	maxConcurrency     = flag.Int("max-concurrency", 0, "default maximum number of concurrent executions per hook; 0 disables the limit")
+	commandTimeout     = flag.String("command-timeout", "", "Hook 命令的默认执行超时（例如 30s）；0 表示不限制")
+	maxConcurrency     = flag.Int("max-concurrency", 0, "每个 Hook 的默认最大并发执行数；0 表示不限制")
 	defaultExecTimeout time.Duration
 
 	errHookConcurrencyLimit = errors.New("hook concurrency limit reached")

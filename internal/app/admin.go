@@ -22,11 +22,11 @@ import (
 )
 
 var (
-	adminEnabled    = flag.Bool("admin", false, "enable the admin UI and API for managing hooks")
-	adminURLPrefix  = flag.String("admin-path", "admin", "url prefix to use for the admin UI and API")
-	adminTOTPSecret = flag.String("admin-totp-secret", "", "base32 encoded TOTP secret for admin login")
-	adminJWTSecret  = flag.String("admin-jwt-secret", "", "secret used to sign admin JWT sessions")
-	adminSessionTTL = flag.String("admin-session-ttl", "12h", "lifetime of an admin JWT session")
+	adminEnabled    = flag.Bool("admin", false, "启用管理 Hook 的 Admin 页面和 API")
+	adminURLPrefix  = flag.String("admin-path", "admin", "Admin 页面和 API 的 URL 前缀")
+	adminTOTPSecret = flag.String("admin-totp-secret", "", "Admin 登录使用的 Base32 编码 TOTP 密钥")
+	adminJWTSecret  = flag.String("admin-jwt-secret", "", "签名 Admin JWT 会话使用的密钥")
+	adminSessionTTL = flag.String("admin-session-ttl", "12h", "Admin JWT 会话的有效期")
 )
 
 const adminTokenCookieName = "webhook_admin_token"

@@ -11,9 +11,9 @@ import (
 )
 
 func platformFlags() {
-	flag.StringVar(&socket, "socket", "", "path to a Unix socket (e.g. /tmp/webhook.sock) to use instead of listening on an ip and port; if specified, the ip and port options are ignored")
-	flag.IntVar(&setGID, "setgid", 0, "set group ID after opening listening port; must be used with setuid, not permitted with -socket")
-	flag.IntVar(&setUID, "setuid", 0, "set user ID after opening listening port; must be used with setgid, not permitted with -socket")
+	flag.StringVar(&socket, "socket", "", "Unix socket 路径（例如 /tmp/webhook.sock）；指定后忽略 ip 和 port 参数")
+	flag.IntVar(&setGID, "setgid", 0, "打开监听端口后切换的用户组 ID；须与 setuid 同时使用，不可与 socket 同时使用")
+	flag.IntVar(&setUID, "setuid", 0, "打开监听端口后切换的用户 ID；须与 setgid 同时使用，不可与 socket 同时使用")
 }
 
 func trySocketListener() (net.Listener, error) {

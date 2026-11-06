@@ -176,6 +176,48 @@ curl -i 'http://127.0.0.1:19000/demo/hello?env=dev' \
 
 `/demo/hello` 由 Hub 转成 Agent 的 `/hooks/hello`；Agent 仍会完整校验 Hook 规则。未上线路由可能先返回 503，稍候再试；Hub 不会自动重试已发到 Agent 的请求。`ws://` 只允许本机回环演示，生产使用 `wss://`。完整 TCP、级联、临时文件共享和节点状态见[组网指南](../docs/Network.md)。结束后分别停止两个进程并 `unset DEMO_NODE_TOKEN`。
 
+## Nginx 子路径下的 Hub/Agent
+
+在上一节基础上，增加一个 Nginx 终端，演示公网前缀 `/wh1/`。需要本机已安装 Nginx；所有命令仍从仓库根目录执行。先按上一节启动 `examples/network/hub.yaml`，并停止原先直连的 Agent。
+
+`/wh1/` 仅为示例，可换为任意前缀或多级路径。更换时同步修改 Agent 的 `server`、Nginx 的外部 `location`/重定向地址、下方 curl 地址，以及启用 Admin 时的 `admin-path`；Hub 的内部组网端点和业务路由不加部署前缀。具体示例见[自定义部署前缀](../docs/Network.md#子路径部署与路由分类)。
+
+Nginx 终端运行[独立演示配置](network/nginx-subpath.conf)：
+
+```sh
+mkdir -p build/nginx-network/logs
+nginx -p "$PWD/build/nginx-network/" -c "$PWD/examples/network/nginx-subpath.conf" -t
+nginx -p "$PWD/build/nginx-network/" -c "$PWD/examples/network/nginx-subpath.conf" -g 'daemon off;'
+# 前台运行，监听 127.0.0.1:19001；结束时 Ctrl+C
+```
+
+Agent 终端使用与 Hub 相同的 `DEMO_NODE_TOKEN`：
+
+```sh
+./build/webhook -c examples/network/agent-subpath.yaml
+# server: ws://127.0.0.1:19001/wh1/
+```
+
+请求终端通过 Nginx 调用：
+
+```sh
+curl -i 'http://127.0.0.1:19001/wh1/demo/hello?env=dev' \
+  -H 'Content-Type: application/json' \
+  -H 'X-Demo-Token: local-demo-only' -H 'X-Trace: via-nginx-subpath' \
+  --data '{"user":{"name":"子路径节点"}}'
+# Agent 上报清单后返回 200，trace=via-nginx-subpath
+curl http://127.0.0.1:19001/wh1/status
+# status=ok
+curl -i http://127.0.0.1:19001/wh1/__webhook_network/v1/control
+# 无节点认证返回 401，表明请求已到达 Hub
+curl -i http://127.0.0.1:19001/demo/hello
+# 404，未通过 /wh1/ 入口
+```
+
+配置按组网、业务、管理、状态四类组织：Nginx 将 `/wh1/__webhook_network/` 和 `/wh1/demo/` 分别转到 Hub 的 `/__webhook_network/` 和 `/demo/`，所以 Hub 的 `hook_routes[].path` 仍是 `/demo/hello`。Agent 的 `server` 包含 `/wh1/`；默认本地 `/hooks` 前缀不变。管理入口预留为 `/wh1/admin/`，启用时 Hub 的 `admin-path` 须为 `wh1/admin`，该类代理保留完整 URI。未列出的路径返回 404。
+
+该示例的 HTTP 和 `ws://` 仅用于本机回环。HTTPS 部署使用 `wss://hub.example.com/wh1/`，配套文件和完整路由规划见[组网指南](../docs/Network.md#子路径部署与路由分类)。演示结束停止 Nginx、Hub 和 Agent。
+
 ## 清理
 
 停止演示进程，删除自己创建的 `examples/hotreload/hooks/pong.yaml`，执行 `unset DEMO_HMAC_SECRET DEMO_NODE_TOKEN`。构建、演示 cookie 和复制后的 Admin 配置在忽略的 `build/` 中，确认不再需要后可用 `make clean` 清理。不要删除自己的业务配置。

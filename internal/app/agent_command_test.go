@@ -7,6 +7,8 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -89,10 +91,19 @@ hub:
 	}
 	start("-network-config", path, "-ip", host, "-port", port)
 	waitForServerReady(t, origin, http.DefaultClient)
-	start("agent", "--server", "ws://"+origin, "--id", "temp", "--token-env", "NETWORK_CLI_TEST_TOKEN", "--share", "pkg="+file, "--duration", "30s")
+	upstream, err := url.Parse("http://" + origin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mux := http.NewServeMux()
+	mux.Handle("/wh1/", http.StripPrefix("/wh1", httputil.NewSingleHostReverseProxy(upstream)))
+	proxy := httptest.NewServer(mux)
+	t.Cleanup(proxy.Close)
+	serverURL := "ws" + strings.TrimPrefix(proxy.URL, "http") + "/wh1/"
+	start("agent", "--server", serverURL, "--id", "temp", "--token-env", "NETWORK_CLI_TEST_TOKEN", "--share", "pkg="+file, "--duration", "30s")
 	localHost, localPort := serverAddress(t)
 	entry := net.JoinHostPort(localHost, localPort)
-	start("agent", "--server", "ws://"+origin, "--id", "ops", "--token-env", "NETWORK_CLI_TEST_TOKEN", "--forward", entry+"=temp/files", "--duration", "30s")
+	start("agent", "--server", serverURL, "--id", "ops", "--token-env", "NETWORK_CLI_TEST_TOKEN", "--forward", entry+"=temp/files", "--duration", "30s")
 	deadline := time.Now().Add(5 * time.Second)
 	for {
 		response, err := (&http.Client{Timeout: time.Second}).Get("http://" + entry + "/pkg")

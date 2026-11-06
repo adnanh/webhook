@@ -4,7 +4,7 @@
 
 推荐部署是：公网 Hub 接收指定路径的 HTTP 请求，内网 Agent 主动通过 `wss://` 连接 Hub，并在进程内执行 webhook。Agent 设置 `with_webhook: true`、`webhook_only_via_hub: true`，无需监听本地 webhook 端口。Hub 只允许配置在 `hook_routes` 中的入口，并按节点令牌、hook 清单和许可规则路由。
 
-初次部署使用 [Hub 总配置](examples/network/hub-integrated.yaml)和 [Agent 总配置](examples/network/agent-integrated.yaml)。只需要 webhook 时，无需 `forwards`、SSH 服务或级联。每个 Agent 使用独立令牌；外部调用者仍须通过 hook 自身的签名或其他触发规则认证，Agent 的连接令牌不负责认证外部调用者。Hub 是受信任的流量中转方，能读取请求内容。
+初次部署使用 [Hub 总配置](examples/network/hub-integrated.yaml)、[Agent 总配置](examples/network/agent-integrated.yaml)和 [Nginx 子路径配置](examples/network/nginx-subpath.conf)，三者演示 `https://hub.example.com/wh1/` 部署。只需要 webhook 时，无需 `forwards`、SSH 服务或级联。每个 Agent 使用独立令牌；外部调用者仍须通过 hook 自身的签名或其他触发规则认证，Agent 的连接令牌不负责认证外部调用者。Hub 是受信任的流量中转方，能读取请求内容。
 
 通用 TCP 转发与级联作为可选功能保留，适用于已有运维场景。当前不增加 Hub TCP 端口发布、通用 HTTP 正向代理、动态端口分配或正则 rewrite，以控制维护成本。这项功能不创建虚拟网卡或虚拟 IP，也不转发 UDP。
 
@@ -154,6 +154,66 @@ server {
 ```
 
 WebSocket 的 `Upgrade` 和 `Connection` 头需要显式转发，参见 [Nginx 官方说明](https://nginx.org/en/docs/http/websocket.html)。后端 `9000` 只应由本机 Nginx 访问；不要在 Nginx 之外公开该端口。
+
+### 子路径部署与路由分类
+
+**部署前缀可以自定义，支持多级路径，也可以不设置。本文的 `/wh1/` 只是示例，不是程序内置路径。** 例如部署在 `/teams/project-a/hub/` 下时：
+
+- Agent 的 `server` 或 CLI `--server` 填写 `wss://hub.example.com/teams/project-a/hub/`。
+- 将 Nginx 示例中外部入口的 `/wh1` 全部替换为 `/teams/project-a/hub`；去除部署前缀的 `proxy_pass` 后端路径保持原配置。
+- 若启用 Admin，将 `admin-path` 相应设置为 `teams/project-a/hub/admin`，并保留管理请求的完整 URI。
+
+Agent 从配置中读取完整基础地址，再追加控制或数据端点；Hub 内部端点不依赖外部部署前缀。业务路径同样可以通过 `hook_routes[].path` 自定义，`/ingress/` 也只是本套示例的分类约定。
+
+Hub 挂在 `/wh1/` 下时，Agent 的 `server`（CLI 中的 `--server`）填写**包含部署前缀的 WebSocket 基础地址**，不要填写完整的 control 或 data 端点：
+
+```yaml
+network:
+  mode: agent
+  agent:
+    server: wss://hub.example.com/wh1/
+    id: app-a
+    token_file: app-a.token
+    with_webhook: true
+    webhook_only_via_hub: true
+```
+
+结尾 `/` 可有可无。Agent 会分别连接 `/wh1/__webhook_network/v1/control` 和 `/wh1/__webhook_network/v1/data`。临时加入同样使用基础地址，例如 Hub 已授权 `temp` 后：
+
+```sh
+webhook agent --server wss://hub.example.com/wh1/ --id temp \
+  --token-env WEBHOOK_TEMP_TOKEN --duration 30m
+```
+
+建议按用途规划路径。`/wh1` 是 Nginx 部署前缀；组网端点固定；业务路径由 `hook_routes` 决定。现有 `/deploy` 等业务路径仍可使用，只需在 Nginx 配置对应入口。总配置示例统一将业务入口放在 `/ingress/` 下：
+
+| 分类 | 外部路径 | Hub 收到的路径 | 用途与认证 |
+| --- | --- | --- | --- |
+| 组网控制 | `/wh1/__webhook_network/v1/control` | `/__webhook_network/v1/control` | Agent 注册、清单、心跳；节点 HMAC 双向验证 |
+| 组网数据 | `/wh1/__webhook_network/v1/data` | `/__webhook_network/v1/data` | 每次转发的数据通道；节点 HMAC 和会话权限 |
+| 业务 Hook | `/wh1/ingress/deploy` | `/ingress/deploy` | Hub 路由到 Agent 的 `/hooks/deploy`；执行 Hook 自身触发规则 |
+| 管理 | `/wh1/admin/`、`/wh1/admin/api/*`、`/wh1/admin/assets/*` | 保留完整 `/wh1/admin/...` | 可选 Admin UI/API/资源；API 使用 TOTP 登录后的 JWT 会话 |
+| 服务状态 | `/wh1/status`、`/wh1/` | `/status`、`/` | 状态 JSON 和已有的 `OK` 探针，不代表 Agent 已全部在线 |
+| Hub 本地 Hook | 默认不通过示例 Nginx 暴露 | `/hooks/{id}` | 如需运行 Hub 本机 Hook，另加对应代理入口 |
+
+完整可用配置见 [nginx-subpath.conf](examples/network/nginx-subpath.conf)，其 `location` 按上述分类组织，共用 WebSocket 和来源 IP 请求头设置。组网及业务代理使用带 URI 的 `proxy_pass` 替换前缀，例如：
+
+```nginx
+location /wh1/__webhook_network/ {
+    proxy_pass http://127.0.0.1:9000/__webhook_network/;
+}
+location /wh1/ingress/ {
+    proxy_pass http://127.0.0.1:9000/ingress/;
+}
+```
+
+两处路径尾部的 `/` 都要保留，使 `/wh1/` 被去掉；这符合 [Nginx 的 URI 替换规则](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_pass)。Hub 的 `hook_routes[].path` 写 `/ingress/deploy`，不加 `/wh1`；Agent 的本地 `urlprefix` 也保持默认 `hooks`。不要把 `X-Forwarded-Prefix` 当作应用的部署前缀配置，Hub 不读取该头。
+
+管理路径需要单独处理：启用 Admin 时将 Hub 的 `admin-path` 设置为 `wh1/admin`，并像完整 Nginx 示例那样对 `/wh1/admin` 和 `/wh1/admin/` 使用**不带 URI 的** `proxy_pass http://127.0.0.1:9000;`，保留完整请求路径。这样 HTML 中的资源地址、前端 API 基础地址以及会话 Cookie Path 都一致；只剥掉前缀转发到默认 `/admin` 会导致这些地址不匹配。示例仅设置 `admin-path`，不会自动启用 Admin，启用步骤见 [Admin 文档](Admin.md)。
+
+Go 中的注册入口集中在 `internal/app/routes.go`，分别注册服务、管理和业务路由；`internal/app/network_routes.go` 负责组网传输分发、Hub 业务路由与冲突检查。组网传输保持独立的节点认证，不经过 HTTP IP 黑白名单；业务、管理和状态路由保留原有 HTTP 中间件。Agent 的 `server` 前缀只用于它主动连接 Hub，不会修改这些内部路由。
+
+从零运行含 Nginx 的回环演示见[本机子路径演示](../examples/README.md#nginx-子路径下的-hubagent)。
 
 `-access-whitelist` 与 `-access-blacklist` 继续保护 webhook 路由，包括 Hub 分配的公开 Hook 路由；组网控制和数据端点仅接受通过独立令牌认证的 Agent。Hub 能看到转发的明文流量；需要端到端保密的服务应继续使用自己的 TLS 或 SSH。示例中的 SSH 端口只在 `ops` 节点的 loopback 上开放。
 

@@ -1,0 +1,12 @@
+# Nginx: examples/network/nginx-subpath.conf; Hub: examples/network/hub.yaml.
+# /wh1/ is only an example; any prefix works when it matches Nginx.
+hooks: [examples/basic/hooks.yaml]
+verbose: true
+network:
+  mode: agent
+  agent:
+    server: ws://127.0.0.1:19001/wh1/
+    id: demo
+    token_env: DEMO_NODE_TOKEN
+    with_webhook: true
+    webhook_only_via_hub: true

@@ -215,7 +215,7 @@ func TestDocumentedExamples(t *testing.T) {
 
 func TestDocumentedNetworkConfigs(t *testing.T) {
 	t.Setenv("DEMO_NODE_TOKEN", strings.Repeat("a", 64))
-	for _, name := range []string{"hub", "agent"} {
+	for _, name := range []string{"hub", "agent", "agent-subpath"} {
 		t.Run(name, func(t *testing.T) {
 			path := filepath.Join("../../examples/network", name+".yaml")
 			data, err := os.ReadFile(path)

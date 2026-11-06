@@ -24,7 +24,6 @@ import (
 	"github.com/adnanh/webhook/internal/network"
 	"github.com/adnanh/webhook/internal/pidfile"
 
-	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/gorilla/mux"
 )
 
@@ -33,34 +32,34 @@ var (
 )
 
 var (
-	ip                 = flag.String("ip", "0.0.0.0", "ip the webhook should serve hooks on")
-	port               = flag.Int("port", 9000, "port the webhook should serve hooks on")
-	verbose            = flag.Bool("verbose", false, "show verbose output")
-	logPath            = flag.String("logfile", "", "send log output to a file; implicitly enables verbose logging")
-	debug              = flag.Bool("debug", false, "show debug output")
-	noPanic            = flag.Bool("nopanic", false, "do not panic if hooks cannot be loaded when webhook is not running in verbose mode")
-	hotReload          = flag.Bool("hotreload", false, "watch hooks file for changes and reload them automatically")
-	statusURLPrefix    = flag.String("status-path", "status", "URL path for the service status endpoint")
-	hooksURLPrefix     = flag.String("urlprefix", "hooks", "url prefix to use for served hooks (protocol://yourserver:port/PREFIX/:hook-id)")
-	secure             = flag.Bool("secure", false, "use HTTPS instead of HTTP")
-	asTemplate         = flag.Bool("template", false, "parse hooks file as a Go template")
-	cert               = flag.String("cert", "cert.pem", "path to the HTTPS certificate pem file")
-	key                = flag.String("key", "key.pem", "path to the HTTPS certificate private key pem file")
-	justDisplayVersion = flag.Bool("version", false, "display webhook version and quit")
-	justListCiphers    = flag.Bool("list-cipher-suites", false, "list available TLS cipher suites")
-	tlsMinVersion      = flag.String("tls-min-version", "1.2", "minimum TLS version (1.0, 1.1, 1.2, 1.3)")
-	tlsCipherSuites    = flag.String("cipher-suites", "", "comma-separated list of supported TLS cipher suites")
-	useXRequestID      = flag.Bool("x-request-id", false, "use X-Request-Id header, if present, as request ID")
-	xRequestIDLimit    = flag.Int("x-request-id-limit", 0, "truncate X-Request-Id header to limit; default no limit")
-	maxMultipartMem    = flag.Int64("max-multipart-mem", 1<<20, "maximum memory in bytes for parsing multipart form data before disk caching")
-	httpMethods        = flag.String("http-methods", "", `set default allowed HTTP methods (ie. "POST"); separate methods with comma`)
-	pidPath            = flag.String("pidfile", "", "create PID file at the given path")
-	realIPHeader       = flag.String("real-ip-header", "", "header to extract real client IP from when behind a reverse proxy (e.g. X-Real-Ip)")
-	trustedProxies     = flag.String("trusted-proxies", "", "comma-separated list of trusted proxy IPs or CIDRs; required for real-ip-header to take effect")
-	accessWhitelist    = flag.String("access-whitelist", "", "comma-separated list of client IPs or CIDRs allowed to access the service")
-	accessBlacklist    = flag.String("access-blacklist", "", "comma-separated list of client IPs or CIDRs denied from accessing the service")
-	maxBodySize        = flag.Int64("max-body-size", 10<<20, "maximum webhook request body size in bytes (0 disables the limit)")
-	networkConfigPath  = flag.String("network-config", "", "path to a standalone network hub or agent YAML config (overrides config file network section)")
+	ip                 = flag.String("ip", "0.0.0.0", "Webhook 服务监听的 IP 地址")
+	port               = flag.Int("port", 9000, "Webhook 服务监听的端口")
+	verbose            = flag.Bool("verbose", false, "输出详细日志")
+	logPath            = flag.String("logfile", "", "将日志写入指定文件，并自动开启详细日志")
+	debug              = flag.Bool("debug", false, "输出调试日志")
+	noPanic            = flag.Bool("nopanic", false, "未开启详细日志时，允许在无法加载 Hook 的情况下继续运行")
+	hotReload          = flag.Bool("hotreload", false, "监视 Hook 文件变化并自动重新加载")
+	statusURLPrefix    = flag.String("status-path", "status", "服务状态接口的 URL 路径")
+	hooksURLPrefix     = flag.String("urlprefix", "hooks", "本地 Hook 的 URL 前缀（访问路径为 /前缀/Hook标识）")
+	secure             = flag.Bool("secure", false, "使用 HTTPS 提供服务")
+	asTemplate         = flag.Bool("template", false, "将 Hook 配置文件作为 Go 模板解析")
+	cert               = flag.String("cert", "cert.pem", "HTTPS 证书的 PEM 文件路径")
+	key                = flag.String("key", "key.pem", "HTTPS 证书私钥的 PEM 文件路径")
+	justDisplayVersion = flag.Bool("version", false, "显示 Webhook 版本后退出")
+	justListCiphers    = flag.Bool("list-cipher-suites", false, "列出可用的 TLS 加密套件")
+	tlsMinVersion      = flag.String("tls-min-version", "1.2", "最低 TLS 版本（1.0、1.1、1.2、1.3）")
+	tlsCipherSuites    = flag.String("cipher-suites", "", "允许使用的 TLS 加密套件，多个值用逗号分隔")
+	useXRequestID      = flag.Bool("x-request-id", false, "优先使用请求头 X-Request-Id 作为请求标识")
+	xRequestIDLimit    = flag.Int("x-request-id-limit", 0, "请求头 X-Request-Id 的最大长度，超出时截断；0 表示不限制")
+	maxMultipartMem    = flag.Int64("max-multipart-mem", 1<<20, "解析 multipart 表单时的内存上限（字节），超出后缓存到磁盘")
+	httpMethods        = flag.String("http-methods", "", `默认允许的 HTTP 方法（例如 POST），多个方法用逗号分隔`)
+	pidPath            = flag.String("pidfile", "", "在指定路径创建 PID 文件")
+	realIPHeader       = flag.String("real-ip-header", "", "从可信反向代理的指定请求头提取客户端真实 IP（例如 X-Real-IP）")
+	trustedProxies     = flag.String("trusted-proxies", "", "可信代理的 IP 或 CIDR，多个值用逗号分隔；real-ip-header 仅对这些代理生效")
+	accessWhitelist    = flag.String("access-whitelist", "", "允许访问服务的客户端 IP 或 CIDR，多个值用逗号分隔")
+	accessBlacklist    = flag.String("access-blacklist", "", "禁止访问服务的客户端 IP 或 CIDR，多个值用逗号分隔")
+	maxBodySize        = flag.Int64("max-body-size", 10<<20, "Webhook 请求体大小上限（字节）；0 表示不限制")
+	networkConfigPath  = flag.String("network-config", "", "独立 Hub/Agent 组网 YAML 配置路径，优先于总配置中的 network 部分")
 
 	responseHeaders  hook.ResponseHeaders
 	hooksFiles       hook.HooksFiles
@@ -114,12 +113,14 @@ func Main(buildVersion, manifestPublicKey string) {
 		os.Exit(runUpdateCommand(os.Args[2:], os.Stdin, os.Stdout, os.Stderr))
 	}
 
-	flag.Var(&hooksFiles, "hooks", "path to the json file containing defined hooks the webhook should serve, use multiple times to load from different files")
-	flag.Var(&hooksDirectories, "hooks-dir", "directory containing JSON or YAML hooks files; use multiple times to load and watch multiple directories")
-	flag.Var(&responseHeaders, "header", "response header to return, specified in format name=value, use multiple times to set multiple headers")
+	flag.Var(&hooksFiles, "hooks", "Hook 配置文件路径（JSON 或 YAML），可重复指定以加载多个文件")
+	flag.Var(&hooksDirectories, "hooks-dir", "包含 JSON 或 YAML Hook 配置的目录，可重复指定；自动监视目录变化")
+	flag.Var(&responseHeaders, "header", "返回的响应头，格式为 名称=值，可重复指定")
 
 	// register platform-specific flags
 	platformFlags()
+	flag.Usage = writeMainHelp
+	flag.CommandLine.Usage = writeMainHelp
 
 	// Extract -config / -c from os.Args before flag.Parse() sees it.
 	configFile = extractConfigFlag()
@@ -344,35 +345,9 @@ func Main(buildVersion, manifestPublicKey string) {
 		go watchForFileChange()
 	}
 
-	r := mux.NewRouter()
-
-	r.Use(middleware.RequestID(
-		middleware.UseXRequestIDHeaderOption(*useXRequestID),
-		middleware.XRequestIDLimitOption(*xRequestIDLimit),
-	))
-	r.Use(middleware.NewLogger())
-	r.Use(chimiddleware.Recoverer)
-	r.Use(accessControlMiddleware)
-
-	if *debug {
-		r.Use(middleware.Dumper(log.Writer()))
-	}
-
 	// Clean up input
 	*httpMethods = strings.ToUpper(strings.ReplaceAll(*httpMethods, " ", ""))
 
-	hooksURL := makeRoutePattern(hooksURLPrefix)
-
-	r.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
-		for _, responseHeader := range responseHeaders {
-			w.Header().Set(responseHeader.Name, responseHeader.Value)
-		}
-
-		fmt.Fprint(w, "OK")
-	})
-
-	registerAdminRoutes(r)
-	registerStatusRoute(r)
 	var hub *network.Hub
 	if networkConfig != nil && networkConfig.Hub != nil {
 		if err := validateNetworkRoutes(networkConfig.Hub.Routes); err != nil {
@@ -380,29 +355,8 @@ func Main(buildVersion, manifestPublicKey string) {
 		}
 		hub = network.NewHub(networkConfig.Hub)
 		defer hub.Close()
-		registerNetworkAdminRoutes(r, hub)
-		for _, route := range hub.Routes() {
-			r.Path(route.Path).HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-				clientIP := extractIP(resolveRealIP(req))
-				if clientIP == nil {
-					http.Error(w, "invalid client IP", http.StatusForbidden)
-					return
-				}
-				hub.ServeHook(w, req, network.RequestOrigin{ClientIP: clientIP.String(), Scheme: resolveOriginalProto(req)}, *maxBodySize)
-			})
-		}
 	}
-	r.HandleFunc(hooksURL, hookHandler)
-	var handler http.Handler = r
-	if hub != nil {
-		handler = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			if hub.Handles(req.URL.Path) {
-				hub.ServeHTTP(w, req)
-				return
-			}
-			r.ServeHTTP(w, req)
-		})
-	}
+	handler := newHTTPHandler(hub)
 
 	// Create common HTTP server settings
 	svr := &http.Server{

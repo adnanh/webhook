@@ -1,9 +1,12 @@
 # Main config: webhook -c hub-integrated.yaml
-# Nginx terminates HTTPS and proxies to this loopback listener.
+# nginx-subpath.conf terminates HTTPS and strips /wh1/ before proxying here.
 ip: 127.0.0.1
 port: 9000
 real-ip-header: X-Real-IP
 trusted-proxies: 127.0.0.1
+# Optional Admin uses this full public path; enable it and configure its secrets
+# separately. Nginx preserves this prefix for UI assets, APIs, and cookies.
+admin-path: wh1/admin
 network:
   mode: hub
   hub:
@@ -14,6 +17,6 @@ network:
         token_file: app-a.token
         services: [webhook]
     hook_routes:
-      - path: /deploy
+      - path: /ingress/deploy
         hook: deploy
         agents: [app-a]

@@ -17,9 +17,9 @@ import (
 )
 
 var (
-	updateEnabled    = flag.Bool("update-enabled", true, "enable update checks in the admin API")
-	updateRepository = flag.String("update-repository", webhookupdate.DefaultRepository, "GitHub repository used for updates")
-	updateStateDir   = flag.String("update-state-dir", "", "reserved update state directory (currently unused by the admin API)")
+	updateEnabled    = flag.Bool("update-enabled", true, "启用 Admin API 的更新检查功能")
+	updateRepository = flag.String("update-repository", webhookupdate.DefaultRepository, "获取更新的 GitHub 仓库（所有者/仓库名）")
+	updateStateDir   = flag.String("update-state-dir", "", "预留的更新状态目录（当前 Admin API 不使用）")
 
 	updateManifestPublicKey string
 )
@@ -58,7 +58,7 @@ func runUpdateCommand(args []string, stdin io.Reader, stdout, stderr io.Writer) 
 		writeUpdateUsage(stdout)
 		return 0
 	default:
-		fmt.Fprintf(stderr, "unknown update command %q\n", args[0])
+		fmt.Fprintf(stderr, "未知的更新子命令 %q\n", args[0])
 		writeUpdateUsage(stderr)
 		return 2
 	}
@@ -67,10 +67,14 @@ func runUpdateCommand(args []string, stdin io.Reader, stdout, stderr io.Writer) 
 func runUpdateCheck(args []string, stdout, stderr io.Writer) int {
 	flags := flag.NewFlagSet("webhook update check", flag.ContinueOnError)
 	flags.SetOutput(stderr)
-	repository := flags.String("repository", webhookupdate.DefaultRepository, "GitHub repository")
-	requestedVersion := flags.String("version", "", "release version; defaults to latest")
-	jsonOutput := flags.Bool("json", false, "write JSON output")
+	setCommandHelp(flags, "检查指定 GitHub 仓库的发布版本，可选择以 JSON 格式输出结果。")
+	repository := flags.String("repository", webhookupdate.DefaultRepository, "GitHub 仓库（所有者/仓库名）")
+	requestedVersion := flags.String("version", "", "发布版本号，默认使用最新版本")
+	jsonOutput := flags.Bool("json", false, "以 JSON 格式输出结果")
 	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
 		return 2
 	}
 	if flags.NArg() != 0 {
@@ -111,13 +115,17 @@ func runUpdateCheck(args []string, stdout, stderr io.Writer) int {
 func runUpdateApply(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	flags := flag.NewFlagSet("webhook update apply", flag.ContinueOnError)
 	flags.SetOutput(stderr)
-	repository := flags.String("repository", webhookupdate.DefaultRepository, "GitHub repository")
-	requestedVersion := flags.String("version", "", "release version; defaults to latest")
-	target := flags.String("target", "", "executable to replace; defaults to the current executable")
-	stateDir := flags.String("state-dir", "", "update state directory; defaults to the current working directory")
-	yes := flags.Bool("yes", false, "apply without interactive confirmation")
-	allowUnsigned := flags.Bool("allow-unsigned", false, "allow applying a manifest without a configured signature key")
+	setCommandHelp(flags, "下载并验证更新，替换指定的可执行文件；更新后需重启服务。")
+	repository := flags.String("repository", webhookupdate.DefaultRepository, "GitHub 仓库（所有者/仓库名）")
+	requestedVersion := flags.String("version", "", "发布版本号，默认使用最新版本")
+	target := flags.String("target", "", "要替换的可执行文件路径，默认为当前程序")
+	stateDir := flags.String("state-dir", "", "更新状态目录，默认为当前工作目录")
+	yes := flags.Bool("yes", false, "直接应用更新，跳过交互确认")
+	allowUnsigned := flags.Bool("allow-unsigned", false, "允许在未配置签名公钥时应用未经验证的更新清单")
 	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
 		return 2
 	}
 	if flags.NArg() != 0 {
@@ -167,9 +175,13 @@ func runUpdateApply(args []string, stdin io.Reader, stdout, stderr io.Writer) in
 func runUpdateRollback(args []string, stdout, stderr io.Writer) int {
 	flags := flag.NewFlagSet("webhook update rollback", flag.ContinueOnError)
 	flags.SetOutput(stderr)
-	target := flags.String("target", "", "executable to restore; defaults to the current executable")
-	stateDir := flags.String("state-dir", "", "update state directory; defaults to the current working directory")
+	setCommandHelp(flags, "根据已有更新状态恢复上一版本的可执行文件；回滚后需重启服务。")
+	target := flags.String("target", "", "要恢复的可执行文件路径，默认为当前程序")
+	stateDir := flags.String("state-dir", "", "更新状态目录，默认为当前工作目录")
 	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
 		return 2
 	}
 	if flags.NArg() != 0 {
@@ -192,8 +204,12 @@ func runUpdateRollback(args []string, stdout, stderr io.Writer) int {
 }
 
 func writeUpdateUsage(output io.Writer) {
-	fmt.Fprintln(output, "Usage:")
-	fmt.Fprintln(output, "  webhook update check [--repository owner/name] [--version vX.Y.Z] [--json]")
-	fmt.Fprintln(output, "  webhook update apply [--repository owner/name] [--version vX.Y.Z] [--state-dir path] [--yes] [--allow-unsigned]")
-	fmt.Fprintln(output, "  webhook update rollback [--state-dir path]")
+	fmt.Fprintln(output, "用法：")
+	fmt.Fprintln(output, "  webhook update check [--repository 所有者/仓库名] [--version 版本号] [--json]")
+	fmt.Fprintln(output, "    检查可用更新，默认检查最新版本。")
+	fmt.Fprintln(output, "  webhook update apply [--repository 所有者/仓库名] [--version 版本号] [--target 程序路径] [--state-dir 目录] [--yes] [--allow-unsigned]")
+	fmt.Fprintln(output, "    下载并应用更新，保存回滚状态；默认需要交互确认。")
+	fmt.Fprintln(output, "  webhook update rollback [--target 程序路径] [--state-dir 目录]")
+	fmt.Fprintln(output, "    使用已有更新状态恢复上一版本。")
+	fmt.Fprintln(output, "\n在具体子命令后添加 --help 查看参数说明，例如 webhook update apply --help。")
 }

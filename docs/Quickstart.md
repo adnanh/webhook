@@ -2,6 +2,17 @@
 
 以下命令均从仓库根目录运行。需要 Go 和 curl；源码最低语言版本为 Go 1.21，`go.mod` 建议工具链为 1.22.0，实际使用建议选择仍受 Go 官方支持的稳定版本。
 
+命令帮助和参数说明使用中文，参数名称保持兼容。构建后可通过以下命令查看：
+
+```sh
+./build/webhook --help
+./build/webhook agent --help
+./build/webhook update --help
+./build/webhook update check --help
+./build/webhook update apply --help
+./build/webhook update rollback --help
+```
+
 ## 构建与启动
 
 ```sh
