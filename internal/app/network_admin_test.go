@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/adnanh/webhook/internal/network"
 	"github.com/gorilla/mux"
+	"github.com/xtulnx/webhook/internal/network"
 )
 
 func TestNetworkAdminAPIAuthentication(t *testing.T) {

@@ -35,9 +35,32 @@ function Get-Download([string] $Uri, [string] $OutFile) {
             Invoke-WebRequest -UseBasicParsing -Uri $Uri -OutFile $OutFile -TimeoutSec 300
             return
         } catch {
-            if ($Attempt -eq 3) { throw }
+            if ($Attempt -eq 3) { throw "Failed to download $Uri. $($_.Exception.Message)" }
             Start-Sleep -Seconds $Attempt
         }
+    }
+}
+
+function Get-ArchiveSha256([string] $Archive) {
+    # Use .NET directly: script-based cmdlets may be unavailable when Windows
+    # PowerShell inherits a PSModulePath configured for PowerShell 7.
+    $Hasher = [Security.Cryptography.SHA256]::Create()
+    $Stream = $null
+    try {
+        $Stream = [IO.File]::OpenRead($Archive)
+        return [BitConverter]::ToString($Hasher.ComputeHash($Stream)).Replace("-", "")
+    } finally {
+        if ($Stream) { $Stream.Dispose() }
+        $Hasher.Dispose()
+    }
+}
+
+function Expand-ReleaseZip([string] $Archive, [string] $Destination) {
+    try {
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        [IO.Compression.ZipFile]::ExtractToDirectory($Archive, $Destination)
+    } catch {
+        throw "Failed to extract ZIP archive $Archive. $($_.Exception.Message)"
     }
 }
 
@@ -71,12 +94,12 @@ try {
     $Archive = Join-Path $TempDir $Asset
     Get-Download "$BaseUrl/$Asset" $Archive
     $ExpectedHash = ($ChecksumLines[0] -split "\s+")[0]
-    $ActualHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $Archive).Hash
+    $ActualHash = Get-ArchiveSha256 $Archive
     if ($ActualHash -ne $ExpectedHash) { throw "Checksum mismatch for $Asset" }
 
     $ExtractDir = Join-Path $TempDir "extracted"
     if ($Asset.EndsWith(".zip")) {
-        Expand-Archive -LiteralPath $Archive -DestinationPath $ExtractDir
+        Expand-ReleaseZip $Archive $ExtractDir
     } else {
         $Tar = Get-Command tar.exe -ErrorAction SilentlyContinue
         if (-not $Tar) { throw "This older release only provides tar.gz; install tar.exe or select a newer release with ZIP assets" }

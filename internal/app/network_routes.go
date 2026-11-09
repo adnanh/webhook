@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/adnanh/webhook/internal/network"
 	"github.com/gorilla/mux"
+	"github.com/xtulnx/webhook/internal/network"
 )
 
 func networkTransportHandler(next http.Handler, hub *network.Hub) http.Handler {

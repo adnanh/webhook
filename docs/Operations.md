@@ -29,11 +29,11 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 webhook -version
 ```
 
-ZIP 通过 PowerShell 原生解压，无需另外安装 tar；旧 Release 若只有 tar.gz，在系统已有 `tar.exe` 时自动回退安装。下载后可以先审阅脚本；执行策略仅对本次 PowerShell 进程生效。仓库中还提供 CMD/双击入口，需将 `install.cmd` 和 `install.ps1` 放在同一目录：
+SHA256 校验和 ZIP 解压直接使用 .NET，不依赖 `Get-FileHash` / `Expand-Archive` 的模块自动发现，无需另外安装 tar；旧 Release 若只有 tar.gz，在系统已有 `tar.exe` 时自动回退安装。下载后可以先审阅脚本；执行策略仅对本次 PowerShell 进程生效。仓库中还提供 CMD/双击入口，需将 `install.cmd` 和 `install.ps1` 放在同一目录：
 
 ```bat
 scripts\install.cmd
-scripts\install.cmd -Version v2.8.4 -InstallDir "D:\Tools\webhook"
+scripts\install.cmd -Version v1.0.0 -InstallDir "D:\Tools\webhook"
 ```
 
 以上版本号仅作格式示例，需替换为真实发布版本。PowerShell 可直接使用 `-Version`、`-InstallDir`、`-Repo`、`-BinaryName` 参数；两个平台均支持以下环境变量：
@@ -46,7 +46,7 @@ scripts\install.cmd -Version v2.8.4 -InstallDir "D:\Tools\webhook"
 | `WEBHOOK_BINARY_NAME` | `webhook` / `webhook.exe`，仅文件名，Windows 自动补 `.exe` |
 
 ```sh
-WEBHOOK_VERSION=v2.8.4 WEBHOOK_INSTALL_DIR="$HOME/.local/bin" sh install.sh
+WEBHOOK_VERSION=v1.0.0 WEBHOOK_INSTALL_DIR="$HOME/.local/bin" sh install.sh
 ```
 
 脚本先将 latest 解析为固定 tag，再下载对应归档及 checksums.txt，强制核验 SHA256，运行新程序确认版本，最后替换目标。下载、校验、解压或版本检查失败时保留原文件。Unix 使用同目录临时文件和重命名，可替换正在运行的二进制；Windows 更新前需停止占用 webhook.exe 的服务或进程。
@@ -54,6 +54,10 @@ WEBHOOK_VERSION=v2.8.4 WEBHOOK_INSTALL_DIR="$HOME/.local/bin" sh install.sh
 安装脚本只替换指定目录下的程序，不修改服务配置，也不自动重启服务。更新已有安装时，`WEBHOOK_INSTALL_DIR` / `-InstallDir` 应指向原安装目录；安装后手动重启服务。需要更新状态和回滚记录时，使用下文内置 `webhook update` 命令。
 
 运行环境需要能访问 GitHub API、GitHub Releases 及其下载域名。Unix 需要 curl 或 wget、tar，以及 sha256sum / shasum / sha256 中的一种；缺少校验工具时会报错。Windows ZIP 和安装脚本也随新 Release 发布。安装脚本的 SHA256 校验与下述更新清单签名验证是两个不同机制。
+
+## 历史版本迁移
+
+当前版本线从 `v1.0.0` 开始；源码构建默认显示 `1.0.0-dev`，正式发布以 tag 为准。历史安装若显示 `2.8.3` 等版本，内置更新器不会自动将较小的 `1.0.0` 判断为更新。首次使用安装脚本指定已发布的 1.x 版本完成迁移，并指向原安装目录；命令名、配置和服务路径可继续沿用。操作步骤见[迁移说明](Project-Origin.md#从历史-2x-构建迁移)。
 
 ## systemd 常驻
 

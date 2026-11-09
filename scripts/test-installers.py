@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Exercise installers offline against real archives and a small native executable."""
 import hashlib
-import io
 import json
 import os
 from pathlib import Path
 import platform
+import re
 import shutil
 import subprocess
 import tarfile
@@ -28,13 +28,16 @@ class InstallerTests(unittest.TestCase):
         source = cls.suite_dir / "main.go"
         source.write_text('''package main
 import ("fmt"; "os"; "time")
+var version = "9.8.7"
 func main() {
     if len(os.Args) > 1 && os.Args[1] == "--hold" { time.Sleep(time.Hour); return }
-    fmt.Println("webhook version 9.8.7")
+    fmt.Println("webhook version " + version)
 }
 ''')
         cls.binary = cls.suite_dir / ("webhook.exe" if WINDOWS else "webhook")
         subprocess.run(["go", "build", "-o", str(cls.binary), str(source)], check=True, cwd=ROOT)
+        cls.wrong_version_binary = cls.suite_dir / ("wrong-version.exe" if WINDOWS else "wrong-version")
+        subprocess.run(["go", "build", "-ldflags=-X main.version=9.8.6", "-o", str(cls.wrong_version_binary), str(source)], check=True, cwd=ROOT)
         cls.goos = "windows" if WINDOWS else platform.system().lower()
         cls.arch = {"x86_64": "amd64", "amd64": "amd64", "aarch64": "arm64",
                     "arm64": "arm64", "i386": "386", "i686": "386"}[platform.machine().lower()]
@@ -64,15 +67,16 @@ func main() {
         else:
             self.prepare_shell()
 
-    def make_archive(self, member=None):
+    def make_archive(self, member=None, binary=None):
         name = member or f"{self.bundle_name}/{self.binary.name}"
+        source = binary or self.binary
         archive = self.work / self.asset
         if WINDOWS:
             with zipfile.ZipFile(archive, "w") as output:
-                output.write(self.binary, name)
+                output.write(source, name)
         else:
             with tarfile.open(archive, "w:gz") as output:
-                output.add(self.binary, arcname=name)
+                output.add(source, arcname=name)
 
     def set_checksums(self, text=None):
         if text is None:
@@ -110,6 +114,10 @@ cp "$FIXTURES/$file" "$output"
     def prepare_powershell(self):
         wrapper = self.work / "run.ps1"
         wrapper.write_text('''$ErrorActionPreference = "Stop"
+# Reproduce installations where script-based module commands cannot be found.
+# Neither hashing nor ZIP extraction may depend on module discovery.
+function Get-FileHash { throw "Installer must not depend on Get-FileHash" }
+function Expand-Archive { throw "Installer must not depend on Expand-Archive" }
 function Invoke-WebRequest {
     param($Uri, $OutFile, $TimeoutSec, [switch] $UseBasicParsing)
     if ($Uri -eq "https://api.github.com/repos/fixtures/webhook/releases/latest") {
@@ -128,7 +136,8 @@ try {
 }
 ''')
         self.env.update(FIXTURES=str(self.work), INSTALLER_ROOT=str(ROOT))
-        self.command = ["powershell.exe", "-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(wrapper)]
+        engine = os.environ.get("WEBHOOK_TEST_POWERSHELL", "powershell.exe")
+        self.command = [engine, "-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(wrapper)]
 
     def run_installer(self):
         return subprocess.run(self.command, env=self.env, capture_output=True, text=True, timeout=60, cwd=ROOT)
@@ -139,10 +148,17 @@ try {
         self.assertEqual(probe.stdout.strip(), "webhook version " + VERSION)
         self.assertFalse(list(self.install_dir.glob(".*.tmp")))
 
-    def assert_preserves_existing(self):
+    def assert_failure(self, result, expected_error):
+        output = result.stdout + result.stderr
+        self.assertNotEqual(result.returncode, 0, output)
+        # PowerShell 7 can decorate and wrap redirected error messages.
+        plain = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", output)
+        self.assertIn(expected_error.casefold(), " ".join(plain.casefold().split()), output)
+
+    def assert_preserves_existing(self, expected_error):
         self.target.write_bytes(b"previous version")
         result = self.run_installer()
-        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assert_failure(result, expected_error)
         self.assertEqual(self.target.read_bytes(), b"previous version")
 
     def test_latest_install_and_repeat_update(self):
@@ -169,72 +185,62 @@ try {
 
     def test_download_failure_preserves_existing(self):
         (self.work / self.asset).unlink()
-        self.assert_preserves_existing()
+        self.assert_preserves_existing("failed to download")
 
     def test_checksum_mismatch_preserves_existing(self):
         self.set_checksums("0" * 64 + "  " + self.asset + "\n")
-        self.assert_preserves_existing()
+        self.assert_preserves_existing("checksum mismatch")
 
     def test_missing_checksum_preserves_existing(self):
         self.set_checksums("0" * 64 + "  other-asset.tar.gz\n")
-        self.assert_preserves_existing()
+        self.assert_preserves_existing("exactly one checksum")
 
     def test_duplicate_checksum_preserves_existing(self):
         checksums = (self.work / "checksums.txt").read_text()
         self.set_checksums(checksums * 2)
-        self.assert_preserves_existing()
+        self.assert_preserves_existing("exactly one checksum")
 
     def test_corrupt_archive_preserves_existing(self):
         (self.work / self.asset).write_bytes(b"not an archive")
         self.set_checksums()
-        self.assert_preserves_existing()
+        self.assert_preserves_existing("failed to extract")
 
     def test_missing_binary_preserves_existing(self):
         self.make_archive(member=f"{self.bundle_name}/wrong-binary")
         self.set_checksums()
-        self.assert_preserves_existing()
+        self.assert_preserves_existing("archive does not contain" if WINDOWS else "failed to extract")
 
     def test_version_mismatch_preserves_existing(self):
-        # Keep the native executable valid but change the version it reports.
-        binary_data = self.binary.read_bytes()
-        changed = binary_data.replace(b"webhook version 9.8.7", b"webhook version 9.8.6")
-        self.assertNotEqual(changed, binary_data)
-        if WINDOWS:
-            with zipfile.ZipFile(self.work / self.asset, "w") as output:
-                output.writestr(f"{self.bundle_name}/webhook.exe", changed)
-        else:
-            with tarfile.open(self.work / self.asset, "w:gz") as output:
-                info = tarfile.TarInfo(f"{self.bundle_name}/webhook")
-                info.size, info.mode = len(changed), 0o755
-                output.addfile(info, io.BytesIO(changed))
+        # Build a real executable; patching bytes invalidates macOS code signatures.
+        self.make_archive(binary=self.wrong_version_binary)
         self.set_checksums()
-        self.assert_preserves_existing()
+        self.assert_preserves_existing("downloaded binary reported an unexpected version")
 
     def test_invalid_binary_name(self):
         self.env["WEBHOOK_BINARY_NAME"] = "../outside"
-        self.assertNotEqual(self.run_installer().returncode, 0)
+        self.assert_failure(self.run_installer(), "filename")
         self.assertFalse((self.work / "outside").exists())
 
     def test_destination_directory_is_rejected(self):
         self.target.mkdir()
         result = self.run_installer()
-        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assert_failure(result, "cannot replace" if WINDOWS else "target is a directory")
         self.assertEqual(list(self.target.iterdir()), [])
 
-    @unittest.skipIf(WINDOWS, "Windows uses the built-in Get-FileHash")
+    @unittest.skipIf(WINDOWS, "Windows uses .NET SHA256")
     def test_missing_hash_tool_preserves_existing(self):
         tools = self.work / "no-hash-tools"
         tools.mkdir()
         for name in ("sh", "uname", "tar", "awk", "sed", "install", "tr"):
             (tools / name).symlink_to(shutil.which(name))
         self.env["PATH"] = str(tools)
-        self.assert_preserves_existing()
+        self.assert_preserves_existing("sha256sum, shasum or sha256 is required")
 
     @unittest.skipUnless(WINDOWS, "Windows batch entrypoint")
     def test_batch_propagates_failure(self):
         result = subprocess.run(["cmd.exe", "/d", "/c", str(ROOT / "scripts/install.cmd"),
-                                 "-BinaryName", "../outside"], env=self.env, capture_output=True, timeout=30)
-        self.assertNotEqual(result.returncode, 0)
+                                 "-BinaryName", "../outside"], env=self.env, capture_output=True, text=True, timeout=30)
+        self.assert_failure(result, "filename")
 
     @unittest.skipIf(WINDOWS, "Windows requires stopping running executables")
     def test_update_running_unix_binary(self):

@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/adnanh/webhook/internal/hook"
 	"github.com/ghodss/yaml"
+	"github.com/xtulnx/webhook/internal/hook"
 )
 
 var (

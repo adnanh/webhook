@@ -42,6 +42,7 @@ func main() {
 				fmt.Printf("Failed to read %s (%s): %v", key, path, err)
 				os.Exit(-1)
 			}
+			fmt.Printf("file-path: %s=%q\n", key, path)
 			fmt.Printf("file: %s=%s\n", key, string(content))
 
 		case strings.HasPrefix(arg, "sleep="):

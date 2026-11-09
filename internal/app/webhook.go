@@ -19,16 +19,17 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/adnanh/webhook/internal/hook"
-	"github.com/adnanh/webhook/internal/middleware"
-	"github.com/adnanh/webhook/internal/network"
-	"github.com/adnanh/webhook/internal/pidfile"
+	"github.com/xtulnx/webhook/internal/buildinfo"
+	"github.com/xtulnx/webhook/internal/hook"
+	"github.com/xtulnx/webhook/internal/middleware"
+	"github.com/xtulnx/webhook/internal/network"
+	"github.com/xtulnx/webhook/internal/pidfile"
 
 	"github.com/gorilla/mux"
 )
 
 var (
-	version = "2.8.3"
+	version = buildinfo.Version
 )
 
 var (

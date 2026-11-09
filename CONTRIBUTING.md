@@ -1,67 +1,42 @@
-# Contribute
+# 参与贡献
 
-## Introduction
+欢迎为 webhook 提交问题、文档和代码改进。项目提供 Webhook 自动化、Admin 管理及 Hub/Agent 内网执行，来源与许可见[项目说明](docs/Project-Origin.md)。
 
-First, thank you for considering contributing to webhook! It's people like you that make the open source community such a great community! 😊
+## 提交问题
 
-We welcome any type of contribution, not only code. You can help with 
-- **QA**: file bug reports, the more details you can give the better (e.g. screenshots with the console open)
-- **Marketing**: writing blog posts, howto's, printing stickers, ...
-- **Community**: presenting the project at meetups, organizing a dedicated meetup for the local community, ...
-- **Code**: take a look at the [open issues](issues). Even if you can't write code, commenting on them, showing that you care about a given issue matters. It helps us triage them.
-- **Money**: we welcome financial contributions in full transparency on our [open collective](https://opencollective.com/webhook).
+请在 [项目 Issues](https://github.com/xtulnx/webhook/issues) 搜索已有讨论，再说明：
 
-## Your First Contribution
+- `webhook -version` 输出、操作系统和 CPU 架构。
+- 预期行为、实际行为和最小复现步骤。
+- 已去除真实密钥、令牌、业务数据的配置与相关日志。
 
-Working on your first Pull Request? You can learn how from this *free* series, [How to Contribute to an Open Source Project on GitHub](https://egghead.io/series/how-to-contribute-to-an-open-source-project-on-github).
+请区分当前 1.x 版本、历史构建以及上游 adnanh/webhook 的版本，方便定位代码来源。
 
-## Submitting code
+## 开发与验证
 
-Any code change should be submitted as a pull request. The description should explain what the code does and give steps to execute it. The pull request should also contain tests.
+规范入口为 `./cmd/webhook`，Go module 为 `github.com/xtulnx/webhook`。使用 go.mod / go.sum 中锁定的依赖，代码提交前执行 gofmt。
 
-## Code review process
+```sh
+go build ./cmd/webhook
+go test ./...
+go vet ./...
+```
 
-The bigger the pull request, the longer it will take to review and merge. Try to break down large pull requests in smaller chunks that are easier to review and merge.
-It is also always helpful to have some context for your pull request. What was the purpose? Why does it matter to you?
+修改安装或发布逻辑时运行对应的离线测试：
 
-## Financial contributions
+```sh
+python3 scripts/test-installers.py
+python3 scripts/test-release.py
+```
 
-We also welcome financial contributions in full transparency on our [open collective](https://opencollective.com/webhook).
-Anyone can file an expense. If the expense makes sense for the development of the community, it will be "merged" in the ledger of our open collective by the core contributors and the person who filed the expense will be reimbursed.
+涉及演示、参数或配置行为时，更新相关文档和样例，并运行 `python3 scripts/smoke-examples.py`。更多命令和发布签名说明见[开发指南](docs/Development.md)。
 
-## Questions
+## Pull Request
 
-If you have any questions, create an [issue](issue) (protip: do a quick search first to see if someone else didn't ask the same question before!).
-You can also reach us at hello@webhook.opencollective.com.
+PR 应说明解决的问题、最终行为和验证结果。行为变化应包含有意义的测试；影响 CLI、配置或安装更新时同步更新中文文档。保持改动集中，避免顺带升级依赖或混入其他功能。
 
-## Credits
+保留已有 `webhook` 命令、配置与协议的兼容性；涉及不兼容行为时，请明确描述影响和迁移方法。版本号由本项目的发布 tag 决定，不沿用上游版本数字来表示功能进度。
 
-### Contributors
+## 致谢与许可
 
-Thank you to all the people who have already contributed to webhook!
-<a href="graphs/contributors"><img src="https://opencollective.com/webhook/contributors.svg?width=890" /></a>
-
-
-### Backers
-
-Thank you to all our backers! [[Become a backer](https://opencollective.com/webhook#backer)]
-
-<a href="https://opencollective.com/webhook#backers" target="_blank"><img src="https://opencollective.com/webhook/backers.svg?width=890"></a>
-
-
-### Sponsors
-
-Thank you to all our sponsors! (please ask your company to also support this open source project by [becoming a sponsor](https://opencollective.com/webhook#sponsor))
-
-<a href="https://opencollective.com/webhook/sponsor/0/website" target="_blank"><img src="https://opencollective.com/webhook/sponsor/0/avatar.svg"></a>
-<a href="https://opencollective.com/webhook/sponsor/1/website" target="_blank"><img src="https://opencollective.com/webhook/sponsor/1/avatar.svg"></a>
-<a href="https://opencollective.com/webhook/sponsor/2/website" target="_blank"><img src="https://opencollective.com/webhook/sponsor/2/avatar.svg"></a>
-<a href="https://opencollective.com/webhook/sponsor/3/website" target="_blank"><img src="https://opencollective.com/webhook/sponsor/3/avatar.svg"></a>
-<a href="https://opencollective.com/webhook/sponsor/4/website" target="_blank"><img src="https://opencollective.com/webhook/sponsor/4/avatar.svg"></a>
-<a href="https://opencollective.com/webhook/sponsor/5/website" target="_blank"><img src="https://opencollective.com/webhook/sponsor/5/avatar.svg"></a>
-<a href="https://opencollective.com/webhook/sponsor/6/website" target="_blank"><img src="https://opencollective.com/webhook/sponsor/6/avatar.svg"></a>
-<a href="https://opencollective.com/webhook/sponsor/7/website" target="_blank"><img src="https://opencollective.com/webhook/sponsor/7/avatar.svg"></a>
-<a href="https://opencollective.com/webhook/sponsor/8/website" target="_blank"><img src="https://opencollective.com/webhook/sponsor/8/avatar.svg"></a>
-<a href="https://opencollective.com/webhook/sponsor/9/website" target="_blank"><img src="https://opencollective.com/webhook/sponsor/9/avatar.svg"></a>
-
-<!-- This `CONTRIBUTING.md` is based on @nayafia's template https://github.com/nayafia/contributing-template -->
+感谢 [adnanh/webhook](https://github.com/adnanh/webhook) 及其贡献者提供基础实现，也感谢本仓库的贡献者。贡献内容应与仓库的 [MIT License](LICENSE) 兼容；保留原作者的版权及许可信息。

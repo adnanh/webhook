@@ -19,8 +19,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/adnanh/webhook/internal/hook"
-	"github.com/adnanh/webhook/internal/network"
+	"github.com/xtulnx/webhook/internal/hook"
+	"github.com/xtulnx/webhook/internal/network"
 	"gopkg.in/yaml.v2"
 )
 
@@ -241,19 +241,28 @@ func TestDocumentedNetworkConfigs(t *testing.T) {
 
 func TestEntrypointBuildVersion(t *testing.T) {
 	for _, target := range []string{"../..", "../../cmd/webhook"} {
-		t.Run(target, func(t *testing.T) {
-			binary := filepath.Join(t.TempDir(), "webhook")
-			if runtime.GOOS == "windows" {
-				binary += ".exe"
-			}
-			cmd := exec.Command(filepath.Join(runtime.GOROOT(), "bin", "go"), "build", "-ldflags=-X main.version=9.8.7", "-o", binary, target)
-			if output, err := cmd.CombinedOutput(); err != nil {
-				t.Fatalf("build: %v\n%s", err, output)
-			}
-			output, err := exec.Command(binary, "-version").CombinedOutput()
-			if err != nil || strings.TrimSpace(string(output)) != "webhook version 9.8.7" {
-				t.Fatalf("version metadata not preserved: %v, %s", err, output)
-			}
-		})
+		for _, test := range []struct {
+			name    string
+			ldflags string
+			version string
+		}{
+			{name: "development", version: "1.0.0-dev"},
+			{name: "release", ldflags: "-X main.version=9.8.7", version: "9.8.7"},
+		} {
+			t.Run(target+"/"+test.name, func(t *testing.T) {
+				binary := filepath.Join(t.TempDir(), "webhook")
+				if runtime.GOOS == "windows" {
+					binary += ".exe"
+				}
+				cmd := exec.Command(filepath.Join(runtime.GOROOT(), "bin", "go"), "build", "-ldflags="+test.ldflags, "-o", binary, target)
+				if output, err := cmd.CombinedOutput(); err != nil {
+					t.Fatalf("build: %v\n%s", err, output)
+				}
+				output, err := exec.Command(binary, "-version").CombinedOutput()
+				if err != nil || strings.TrimSpace(string(output)) != "webhook version "+test.version {
+					t.Fatalf("version metadata not preserved: %v, %s", err, output)
+				}
+			})
+		}
 	}
 }

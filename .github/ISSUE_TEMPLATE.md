@@ -1,2 +1,20 @@
-<!-- Love webhook? Please consider supporting our collective:
-👉  https://opencollective.com/webhook/donate -->
+## 环境
+
+- webhook 版本（`webhook -version`）：
+- 安装来源（xtulnx/webhook 独立版本、历史构建或其他来源）：
+- 操作系统与 CPU 架构：
+
+## 问题描述
+
+预期行为：
+
+实际行为：
+
+## 复现步骤
+
+1.
+2.
+
+## 最小配置与相关日志
+
+请去除真实密钥、令牌、业务数据和其他敏感信息。

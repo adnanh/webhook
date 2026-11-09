@@ -3,8 +3,8 @@ package app
 import (
 	"net/http"
 
-	"github.com/adnanh/webhook/internal/network"
 	"github.com/gorilla/mux"
+	"github.com/xtulnx/webhook/internal/network"
 )
 
 func registerNetworkAdminRoutes(r *mux.Router, hub *network.Hub) {

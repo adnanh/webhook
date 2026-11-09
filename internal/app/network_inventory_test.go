@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/adnanh/webhook/internal/hook"
+	"github.com/xtulnx/webhook/internal/hook"
 )
 
 func TestMandatoryIPRangesOnlyFromConjunctions(t *testing.T) {

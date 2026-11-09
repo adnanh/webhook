@@ -1,19 +1,41 @@
 package app
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/adnanh/webhook/internal/hook"
 	"github.com/gorilla/mux"
+	"github.com/xtulnx/webhook/internal/hook"
 )
 
 const testAdminBase32Secret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
+
+func adminHooksPathForTest(t *testing.T) string {
+	t.Helper()
+	// Exercise JSON escaping on every OS, including Unix where backslashes
+	// are valid filename characters rather than directory separators.
+	path := filepath.Join(t.TempDir(), `hooks\config with spaces.json`)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func adminRequestBodyForTest(t *testing.T, payload adminHookMutationRequest) *bytes.Reader {
+	t.Helper()
+	body, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("encode admin request: %v", err)
+	}
+	return bytes.NewReader(body)
+}
 
 func setupAdminTestState(t *testing.T) func() {
 	t.Helper()
@@ -169,8 +191,7 @@ func TestAdminCRUDHandlers(t *testing.T) {
 	restore := setupAdminTestState(t)
 	defer restore()
 
-	tmpDir := t.TempDir()
-	hooksPath := filepath.Join(tmpDir, "hooks.json")
+	hooksPath := adminHooksPathForTest(t)
 
 	initialHooks := hook.Hooks{
 		{
@@ -205,15 +226,15 @@ func TestAdminCRUDHandlers(t *testing.T) {
 		t.Fatalf("unexpected config payload: %+v", config)
 	}
 
-	createReq := httptest.NewRequest(http.MethodPost, "/admin/api/hooks", strings.NewReader(`{
-		"file": "`+hooksPath+`",
-		"hook": {
-			"id": "build",
-			"execute-command": "/usr/bin/env",
-			"response-message": "created",
-			"http-methods": [" post ", "get"]
-		}
-	}`))
+	createReq := httptest.NewRequest(http.MethodPost, "/admin/api/hooks", adminRequestBodyForTest(t, adminHookMutationRequest{
+		File: hooksPath,
+		Hook: hook.Hook{
+			ID:              "build",
+			ExecuteCommand:  "/usr/bin/env",
+			ResponseMessage: "created",
+			HTTPMethods:     []string{" post ", "get"},
+		},
+	}))
 	createReq.Header.Set("Content-Type", "application/json")
 	createReq.AddCookie(cookie)
 	createRec := httptest.NewRecorder()
@@ -234,16 +255,16 @@ func TestAdminCRUDHandlers(t *testing.T) {
 		t.Fatalf("created hook methods = %#v, want %#v", got, []string{"POST", "GET"})
 	}
 
-	updateReq := httptest.NewRequest(http.MethodPut, "/admin/api/hooks", strings.NewReader(`{
-		"file": "`+hooksPath+`",
-		"currentId": "build",
-		"hook": {
-			"id": "build-renamed",
-			"execute-command": "/bin/echo",
-			"response-message": "updated",
-			"http-methods": ["PATCH"]
-		}
-	}`))
+	updateReq := httptest.NewRequest(http.MethodPut, "/admin/api/hooks", adminRequestBodyForTest(t, adminHookMutationRequest{
+		File:      hooksPath,
+		CurrentID: "build",
+		Hook: hook.Hook{
+			ID:              "build-renamed",
+			ExecuteCommand:  "/bin/echo",
+			ResponseMessage: "updated",
+			HTTPMethods:     []string{"PATCH"},
+		},
+	}))
 	updateReq.Header.Set("Content-Type", "application/json")
 	updateReq.AddCookie(cookie)
 	updateRec := httptest.NewRecorder()
@@ -266,10 +287,10 @@ func TestAdminCRUDHandlers(t *testing.T) {
 		t.Fatalf("updated response message = %q, want %q", renamed.ResponseMessage, "updated")
 	}
 
-	deleteReq := httptest.NewRequest(http.MethodDelete, "/admin/api/hooks", strings.NewReader(`{
-		"file": "`+hooksPath+`",
-		"currentId": "build-renamed"
-	}`))
+	deleteReq := httptest.NewRequest(http.MethodDelete, "/admin/api/hooks", adminRequestBodyForTest(t, adminHookMutationRequest{
+		File:      hooksPath,
+		CurrentID: "build-renamed",
+	}))
 	deleteReq.Header.Set("Content-Type", "application/json")
 	deleteReq.AddCookie(cookie)
 	deleteRec := httptest.NewRecorder()
@@ -324,8 +345,7 @@ func TestAdminUpdateHookWithSlashIDViaRouter(t *testing.T) {
 		*adminEnabled = false
 	}()
 
-	tmpDir := t.TempDir()
-	hooksPath := filepath.Join(tmpDir, "hooks.json")
+	hooksPath := adminHooksPathForTest(t)
 
 	initialHooks := hook.Hooks{
 		{
@@ -345,15 +365,15 @@ func TestAdminUpdateHookWithSlashIDViaRouter(t *testing.T) {
 	registerAdminRoutes(router)
 
 	cookie := loginCookieForTest(t)
-	req := httptest.NewRequest(http.MethodPut, "/admin/api/hooks", strings.NewReader(`{
-		"file": "`+hooksPath+`",
-		"currentId": "iot/thjk/web",
-		"hook": {
-			"id": "iot/thjk/web",
-			"execute-command": "/usr/bin/env",
-			"response-message": "updated slash id"
-		}
-	}`))
+	req := httptest.NewRequest(http.MethodPut, "/admin/api/hooks", adminRequestBodyForTest(t, adminHookMutationRequest{
+		File:      hooksPath,
+		CurrentID: "iot/thjk/web",
+		Hook: hook.Hook{
+			ID:              "iot/thjk/web",
+			ExecuteCommand:  "/usr/bin/env",
+			ResponseMessage: "updated slash id",
+		},
+	}))
 	req.Header.Set("Content-Type", "application/json")
 	req.AddCookie(cookie)
 

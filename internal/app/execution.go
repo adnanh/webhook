@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/adnanh/webhook/internal/hook"
+	"github.com/xtulnx/webhook/internal/hook"
 )
 
 var (

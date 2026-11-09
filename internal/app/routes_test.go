@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/adnanh/webhook/internal/network"
+	"github.com/xtulnx/webhook/internal/network"
 )
 
 func TestHTTPRouteGroups(t *testing.T) {

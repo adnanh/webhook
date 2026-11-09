@@ -5,10 +5,10 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/adnanh/webhook/internal/middleware"
-	"github.com/adnanh/webhook/internal/network"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/gorilla/mux"
+	"github.com/xtulnx/webhook/internal/middleware"
+	"github.com/xtulnx/webhook/internal/network"
 )
 
 // newHTTPHandler assembles service, management, and business routes. Network

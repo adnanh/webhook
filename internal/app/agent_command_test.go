@@ -17,8 +17,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/adnanh/webhook/internal/hook"
-	"github.com/adnanh/webhook/internal/network"
+	"github.com/xtulnx/webhook/internal/hook"
+	"github.com/xtulnx/webhook/internal/network"
 )
 
 func TestTemporaryShares(t *testing.T) {

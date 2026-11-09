@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/adnanh/webhook/internal/hook"
+	"github.com/xtulnx/webhook/internal/hook"
 )
 
 func resetHookSourceTestState(t *testing.T) {

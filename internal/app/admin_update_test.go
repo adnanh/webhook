@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	webhookupdate "github.com/adnanh/webhook/internal/update"
+	webhookupdate "github.com/xtulnx/webhook/internal/update"
 )
 
 func TestAdminUpdateStatusRequiresAuth(t *testing.T) {

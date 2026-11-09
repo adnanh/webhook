@@ -16,13 +16,14 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
 	"text/template"
 	"time"
 
-	"github.com/adnanh/webhook/internal/hook"
+	"github.com/xtulnx/webhook/internal/hook"
 )
 
 func TestStaticParams(t *testing.T) {
@@ -733,6 +734,14 @@ func TestWebhookKeepFileEnvironment(t *testing.T) {
 	webhookBin, cleanupWebhook := buildWebhook(t)
 	defer cleanupWebhook()
 
+	uploadDir := filepath.Join(t.TempDir(), "uploads with spaces")
+	if err := os.MkdirAll(uploadDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"TMPDIR", "TMP", "TEMP"} {
+		t.Setenv(name, uploadDir)
+	}
+
 	tests := []struct {
 		name        string
 		id          string
@@ -786,13 +795,22 @@ func TestWebhookKeepFileEnvironment(t *testing.T) {
 					t.Fatalf("response did not contain file contents for %s: %s", tt.fileEnv, body)
 				}
 
-				match := regexp.MustCompile(`(?m)^env: .*` + regexp.QuoteMeta(tt.fileEnv) + `=([^ ]+)`).FindStringSubmatch(body)
+				// Read the explicitly quoted path instead of splitting the joined
+				// environment line on spaces or accidentally consuming a newline.
+				match := regexp.MustCompile(`(?m)^file-path: ` + regexp.QuoteMeta(tt.fileEnv) + `=("[^\r\n]*")\r?$`).FindStringSubmatch(body)
 				if len(match) != 2 {
 					t.Fatalf("could not extract temp file path from response: %s", body)
 				}
 
-				if _, err := os.Stat(match[1]); !os.IsNotExist(err) {
-					t.Fatalf("expected temp file %s to be removed after execution, stat err=%v", match[1], err)
+				path, err := strconv.Unquote(match[1])
+				if err != nil {
+					t.Fatalf("decode temp file path %q: %v", match[1], err)
+				}
+				if !strings.Contains(path, "uploads with spaces") {
+					t.Fatalf("temp file path lost its directory: %q", path)
+				}
+				if _, err := os.Stat(path); !os.IsNotExist(err) {
+					t.Fatalf("expected temp file %q to be removed after execution, stat err=%v", path, err)
 				}
 			})
 		}

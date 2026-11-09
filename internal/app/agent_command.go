@@ -14,7 +14,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/adnanh/webhook/internal/network"
+	"github.com/xtulnx/webhook/internal/network"
 )
 
 type agentValues []string

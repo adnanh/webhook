@@ -31,6 +31,9 @@ func TestCompareVersions(t *testing.T) {
 		{left: "2.8.3-rc.1", right: "2.8.3", want: -1},
 		{left: "2.8.3-rc.2", right: "2.8.3-rc.1", want: 1},
 		{left: "dev", right: "2.8.3", want: -1},
+		{left: "v1.0.0", right: "1.0.0-dev", want: 1},
+		// Crossing from the historical upstream version line is an explicit migration.
+		{left: "v1.0.0", right: "2.8.3", want: -1},
 	}
 	for _, test := range tests {
 		if got := CompareVersions(test.left, test.right); normalizeComparison(got) != test.want {

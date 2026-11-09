@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adnanh/webhook/internal/hook"
 	"github.com/fsnotify/fsnotify"
+	"github.com/xtulnx/webhook/internal/hook"
 )
 
 type hookLoadMetadata struct {

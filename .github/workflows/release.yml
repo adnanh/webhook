@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Existing release tag, for example v2.8.4 (or 2.8.4)'
+        description: 'Existing project release tag, for example v1.0.0 (or 1.0.0)'
         required: true
         type: string
 
@@ -183,7 +183,9 @@ jobs:
         run: |
           if [ -z "$UPDATE_SIGNING_PRIVATE_KEY" ] && [ -z "$UPDATE_MANIFEST_PUBLIC_KEY" ]; then
             echo '::warning::No update signing key configured; built-in update apply will require --allow-unsigned'
-            : > dist/update-manifest.json.sig
+            # GitHub rejects zero-byte assets. Whitespace still represents no
+            # signature to the updater, which trims it before validation.
+            printf '\n' > dist/update-manifest.json.sig
           else
             # An incomplete/mismatched key pair must never produce a broken release.
             if [ -z "$UPDATE_SIGNING_PRIVATE_KEY" ] || [ -z "$UPDATE_MANIFEST_PUBLIC_KEY" ]; then
@@ -211,6 +213,12 @@ jobs:
         env:
           PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
         run: |
+          for asset in dist/*.*; do
+            if [ ! -s "$asset" ]; then
+              echo "::error::Release asset is empty: $asset"
+              exit 1
+            fi
+          done
           # Draft first so latest/download never observes a partly uploaded release.
           if gh release view "$TAG" --json isDraft --jq .isDraft > is-draft.txt; then
             if [ "$(cat is-draft.txt)" != true ]; then
@@ -221,4 +229,10 @@ jobs:
             gh release create "$TAG" --verify-tag --draft --title "$TAG" --generate-notes
           fi
           gh release upload "$TAG" dist/*.* --clobber
-          gh release edit "$TAG" --draft=false --prerelease="$PRERELEASE"
+          # This project's v1 releases supersede inherited upstream v2 releases.
+          # Explicit latest selection must not depend on numeric tag ordering.
+          if [ "$PRERELEASE" = true ]; then
+            gh release edit "$TAG" --draft=false --prerelease --latest=false
+          else
+            gh release edit "$TAG" --draft=false --prerelease=false --latest
+          fi

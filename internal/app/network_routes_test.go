@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/adnanh/webhook/internal/network"
+	"github.com/xtulnx/webhook/internal/network"
 )
 
 func TestWebhookAutoServiceUsesInProcessWithTLSOrSocket(t *testing.T) {

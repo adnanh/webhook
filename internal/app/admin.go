@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adnanh/webhook/internal/hook"
 	"github.com/gorilla/mux"
+	"github.com/xtulnx/webhook/internal/hook"
 )
 
 var (

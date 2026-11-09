@@ -1,6 +1,10 @@
 # webhook
 
-用 Go 编写的 HTTP 回调执行服务：验证请求、提取参数，再运行指定命令。适合自动部署、通知和内部运维入口。本仓库基于 [adnanh/webhook](https://github.com/adnanh/webhook)，增加了 YAML 总配置、Admin、超时/并发控制、状态接口、可信代理、安全更新和 Hub/Agent 内网组网。
+**Webhook 自动化与内网执行服务。**
+
+使用 Go 编写，支持回调认证、参数提取、命令执行、Admin 可视化管理，以及 Hub/Agent 跨内网执行和 HTTP/TCP 转发。适合自动部署、内部运维和多节点自动化。
+
+本项目保持 `webhook` 命令和已有配置兼容，使用 [Go Modules](go.mod) 管理依赖，当前版本线为 1.x。从历史 2.x 构建升级时，请先阅读[项目来源与迁移说明](docs/Project-Origin.md)。
 
 在线阅读也可访问[仓库文档](https://github.com/xtulnx/webhook/blob/master/docs/README.md)。
 
@@ -69,6 +73,10 @@ go vet ./...
 
 代码组织为 `cmd/webhook` 命令入口、`internal/app` 应用及多个 `internal` 功能包。根目录 `go build` 继续兼容；参考配置已移至 [examples/config](examples/config/)。
 
-依赖默认使用 `go.mod` / `go.sum`，不再提交 vendor。vendor 仍是 Go 支持的离线分发方式；按需 `go mod vendor`，取舍与迁移说明见[开发指南](docs/Development.md#vendor-是不是过时了)。最低语言版本保持 Go 1.21，推荐使用仍受支持的稳定 Go 工具链。
+依赖默认使用 `go.mod` / `go.sum`，不再提交 vendor。vendor 仍是 Go 支持的离线分发方式；按需 `go mod vendor`，取舍与迁移说明见[开发指南](docs/Development.md#vendor-是不是过时了)。Go module 为 `github.com/xtulnx/webhook`。最低语言版本保持 Go 1.21，推荐使用仍受支持的稳定 Go 工具链。
 
 已有组网和 OSS 场景保留在 [docs/examples](docs/examples/)。贡献方式见 [CONTRIBUTING.md](CONTRIBUTING.md)。项目沿用 [MIT License](LICENSE)。
+
+## 项目来源
+
+本项目起源于 [adnanh/webhook](https://github.com/adnanh/webhook)，感谢 Adnan Hajdarevic 和上游贡献者提供基础实现。原始提交历史及版权声明继续保留，详见[来源与致谢](docs/Project-Origin.md#来源与致谢)。

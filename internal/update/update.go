@@ -20,10 +20,12 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/xtulnx/webhook/internal/buildinfo"
 )
 
 const (
-	DefaultRepository = "xtulnx/webhook"
+	DefaultRepository = buildinfo.Repository
 	manifestName      = "update-manifest.json"
 	signatureName     = "update-manifest.json.sig"
 	maxManifestSize   = 2 << 20

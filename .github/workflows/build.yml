@@ -63,8 +63,19 @@ jobs:
         if: matrix.go-version == 'stable'
         run: python scripts/test-installers.py
 
-      - name: Check shell syntax and examples
+      - name: Test installers (PowerShell 7)
+        if: runner.os == 'Windows' && matrix.go-version == 'stable'
+        env:
+          WEBHOOK_TEST_POWERSHELL: pwsh
+        run: python scripts/test-installers.py
+
+      - name: Test PowerShell hash and ZIP functions
+        if: runner.os == 'Windows' && matrix.go-version == 'stable'
+        run: ./scripts/test-install-powershell.ps1
+
+      - name: Check release workflow and examples
         if: runner.os == 'Linux' && matrix.go-version == 'stable'
         run: |
           sh -n scripts/install.sh
+          python3 scripts/test-release.py
           python3 scripts/smoke-examples.py

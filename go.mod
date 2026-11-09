@@ -1,4 +1,4 @@
-module github.com/adnanh/webhook
+module github.com/xtulnx/webhook
 
 go 1.21
 

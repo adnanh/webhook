@@ -26,7 +26,7 @@ scripts/                   shell / PowerShell 安装脚本
 
 按照 [Go 官方模块组织建议](https://go.dev/doc/modules/layout)，命令集中在 `cmd`，不可供其他模块导入的实现放在 `internal`，无需为了目录数量拆成多个 Go module。此仓库保持一个 go.mod，没有引入没有实际需求的 `pkg/` 或 go.work。应用层仍是进程级 CLI，使用全局 flag，不承诺作为可反复启动的库使用。
 
-模块路径继续保留 `github.com/adnanh/webhook`，避免修改现有 import 身份。本次没有顺带升级依赖或提升最低语言版本：`go 1.21` 是兼容下限，`toolchain go1.22.0` 是工具链建议，不等于生产环境应长期使用旧工具链；推荐使用[仍受支持的稳定 Go](https://go.dev/doc/devel/release#policy)，CI 同时覆盖最低语言版本和 stable。
+模块路径为 `github.com/xtulnx/webhook`，代码中的内部 import 同步迁移到本仓库；二进制名称和配置格式继续保持兼容。来源与版本迁移见[项目说明](Project-Origin.md)。本次没有顺带升级依赖或提升最低语言版本：`go 1.21` 是兼容下限，`toolchain go1.22.0` 是工具链建议，不等于生产环境应长期使用旧工具链；推荐使用[仍受支持的稳定 Go](https://go.dev/doc/devel/release#policy)，CI 同时覆盖最低语言版本和 stable。
 
 ## vendor 是不是过时了？
 
@@ -64,6 +64,7 @@ GOTOOLCHAIN=local GOPROXY=off GOSUMDB=off go build -mod=vendor ./cmd/webhook
 - 根目录 `adminui/` 随应用移到 `internal/app/adminui/`，embed 路径仍相对同一包，不影响最终二进制。
 - `test/` 移到 `internal/app/testdata/`，集成测试仍编译辅助命令，并同时验证 JSON/YAML。
 - 旧的 `go test -run ... .` 应改成 `go test -run ... ./internal/app`；`go test ./...` 保持不变。
+- `internal/buildinfo` 统一源码构建版本 `1.0.0-dev` 和仓库身份；正式发布的版本来自 tag，覆盖两个入口的 `main.version`。
 - 保留 `make install` 的 INSTALL_DIR / BINARY_NAME 自定义以及 release-linux/release-linux-x86/release-windows。
 - 发布仍可使用 `-X main.version=...`、`-X main.updateManifestPublicKey=...`；两个入口使用同一套应用逻辑。
 - 不再使用 Go 1.14 的遗留 Travis 配置，统一 GitHub Actions。
@@ -89,22 +90,26 @@ Release 目标按 `go tool dist list` 过滤不支持的平台组合；构建失
 
 ## 发布和签名
 
-`.github/workflows/build.yml` 在分支推送和 PR 时运行，也作为 Release 的可复用检查流程。Ubuntu 覆盖 Go 1.21 兼容下限，Linux / macOS / Windows 覆盖 stable；使用 go.sum 缓存依赖及构建结果，同一分支新任务取消过期 CI。检查包含 build、test、vet、离线安装器测试，以及 Linux 上的演示 smoke。安装器测试也可本地执行：
+`.github/workflows/build.yml` 在分支推送和 PR 时运行，也作为 Release 的可复用检查流程。Ubuntu 覆盖 Go 1.21 兼容下限，Linux / macOS / Windows 覆盖 stable；使用 go.sum 缓存依赖及构建结果，同一分支新任务取消过期 CI。检查包含 build、test、vet、离线安装器测试，以及 Linux 上的发布流程测试与演示 smoke。Windows 安装测试分别运行 Windows PowerShell 5.1 和 PowerShell 7，校验与解压不依赖模块自动发现；失败场景同时验证错误原因与旧文件保留。安装和发布流程测试也可本地执行：
 
 ```sh
 python3 scripts/test-installers.py
+python3 scripts/test-release.py
+# 在 PowerShell 5.1 / 7 中验证实际 SHA256、文件句柄释放和 ZIP 函数：
+# ./scripts/test-install-powershell.ps1
 ```
 
-`.github/workflows/release.yml` 在推送 `v*` tag 或手动指定**已存在的 tag** 时发布。手动输入 `2.8.4` 会归一化为 `v2.8.4`，所有检查、构建和清单都使用该 tag 对应的同一提交，避免把运行工作流的分支误发为指定版本。文档中的 `vX.Y.Z` 均应替换为实际新版本。
+`.github/workflows/release.yml` 在推送 `v*` tag 或手动指定**已存在的 tag** 时发布。手动输入 `1.0.0` 会归一化为 `v1.0.0`，所有检查、构建和清单都使用该 tag 对应的同一提交，避免把运行工作流的分支误发为指定版本。文档中的 `vX.Y.Z` 均应替换为实际新版本。
 
 发布构建按 5 个系统分组复用工具链，生成 15 个平台的 tar.gz；Windows 另外生成 386 / amd64 / arm64 ZIP，Linux ARM 使用 GOARM=6（ARMv6 / ARMv7）。所有二进制禁用 CGO、使用 trimpath 并注入版本。Release 包含 checksums.txt、update-manifest.json、签名文件及三个安装入口 `install.sh` / `install.ps1` / `install.cmd`；内置更新清单继续引用 tar.gz，保持更新器兼容。
 
-签名使用 GitHub secret `UPDATE_SIGNING_PRIVATE_KEY`（PEM Ed25519 私钥），构建使用 repository variable `UPDATE_MANIFEST_PUBLIC_KEY`（Base64 编码的原始 32 字节公钥；格式以 `internal/update` 实现为准）。私钥留在 CI secret 或独立签名系统，不能提交仓库。公私钥均未设置时发布空签名文件，并输出警告；内置 apply 默认仍需受信签名，显式 `--allow-unsigned` 才可降级安装。只配置一项或公私钥不匹配会使发布失败。
+签名使用 GitHub secret `UPDATE_SIGNING_PRIVATE_KEY`（PEM Ed25519 私钥），构建使用 repository variable `UPDATE_MANIFEST_PUBLIC_KEY`（Base64 编码的原始 32 字节公钥；格式以 `internal/update` 实现为准）。私钥留在 CI secret 或独立签名系统，不能提交仓库。公私钥均未设置时发布仅含一个换行的未签名占位文件（避免 GitHub 拒绝零字节资产），并输出警告；内置 apply 默认仍需受信签名，显式 `--allow-unsigned` 才可降级安装。只配置一项或公私钥不匹配会使发布失败。
 
-发布先创建草稿，全部资产上传后才公开，避免安装脚本看到不完整的 latest；带 `-rc.1` 等后缀的版本自动标为 prerelease，不参与默认 latest 安装。失败的草稿可重新运行补齐，已公开的版本拒绝覆盖，应使用新 tag 修复。工作流默认仅有 contents:read，只有 publish 任务有 contents:write。
+发布前拒绝零字节资产，再创建草稿，全部资产上传后才公开，避免安装脚本看到不完整的 latest；正式版本显式标记为 Latest，避免历史上游 2.x tag 影响当前 1.x 版本的默认安装；带 `-rc.1` 等后缀的版本自动标为 prerelease，不参与默认 latest 安装。失败的草稿可重新运行补齐，已公开的版本拒绝覆盖，应使用新 tag 修复。工作流默认仅有 contents:read，只有 publish 任务有 contents:write。
+
 ```sh
 # 示例构建元数据注入；不要把私钥传给 -ldflags。
-go build -trimpath -ldflags='-s -w -X main.version=2.8.4' -o build/webhook ./cmd/webhook
+go build -trimpath -ldflags='-s -w -X main.version=1.0.0' -o build/webhook ./cmd/webhook
 ./build/webhook -version
 ```
 

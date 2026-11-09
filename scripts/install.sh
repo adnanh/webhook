@@ -56,9 +56,9 @@ fi
 
 download() {
   if command -v curl >/dev/null 2>&1; then
-    curl --fail --silent --show-error --location --retry 3 --connect-timeout 15 --max-time 300 --output "$2" "$1"
+    curl --fail --silent --show-error --location --retry 3 --connect-timeout 15 --max-time 300 --output "$2" "$1" || fail "failed to download $1"
   elif command -v wget >/dev/null 2>&1; then
-    wget -q --tries=3 --timeout=30 -O "$2" "$1"
+    wget -q --tries=3 --timeout=30 -O "$2" "$1" || fail "failed to download $1"
   else
     fail 'curl or wget is required'
   fi
@@ -106,7 +106,7 @@ expected="$(printf '%s' "$expected" | tr '[:upper:]' '[:lower:]')"
 
 # Extract only the expected binary; never install an archive-provided symlink.
 member="webhook-$os-$arch/webhook"
-tar -xzf "$archive" -C "$tmp" "$member"
+tar -xzf "$archive" -C "$tmp" "$member" || fail "failed to extract $asset"
 source="$tmp/$member"
 [ -f "$source" ] && [ ! -L "$source" ] || fail 'archive does not contain a regular webhook binary'
 chmod 0755 "$source"

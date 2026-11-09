@@ -4,8 +4,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/adnanh/webhook/internal/hook"
-	"github.com/adnanh/webhook/internal/network"
+	"github.com/xtulnx/webhook/internal/hook"
+	"github.com/xtulnx/webhook/internal/network"
 )
 
 func networkHookInventory() []network.HookInfo {

@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	webhookupdate "github.com/adnanh/webhook/internal/update"
+	webhookupdate "github.com/xtulnx/webhook/internal/update"
 )
 
 type adminUpdateStatus struct {
