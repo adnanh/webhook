@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"strings"
@@ -19,11 +18,16 @@ var defaultCompressibleContentTypes = []string{
 	"text/css",
 	"text/plain",
 	"text/javascript",
+	"text/markdown",
+	"text/csv",
+	"text/vtt",
 	"application/javascript",
 	"application/x-javascript",
 	"application/json",
 	"application/atom+xml",
 	"application/rss+xml",
+	"application/xml",
+	"text/xml",
 	"image/svg+xml",
 }
 
@@ -61,6 +65,10 @@ type Compressor struct {
 //
 // The level should be one of the ones defined in the flate package.
 // The types are the content types that are allowed to be compressed.
+//
+// Catch-all wildcards ("*/*", "/*") are rejected: compressing every response
+// wastes CPU on already-compressed types like zip, jpeg or png. Pass explicit
+// types instead, e.g. "text/html" or "application/*".
 func NewCompressor(level int, types ...string) *Compressor {
 	// If types are provided, set those as the allowed types. If none are
 	// provided, use the default list.
@@ -69,10 +77,13 @@ func NewCompressor(level int, types ...string) *Compressor {
 	if len(types) > 0 {
 		for _, t := range types {
 			if strings.Contains(strings.TrimSuffix(t, "/*"), "*") {
-				panic(fmt.Sprintf("middleware/compress: Unsupported content-type wildcard pattern '%s'. Only '/*' supported", t))
+				panic(fmt.Sprintf("middleware/compress: Unsupported content-type wildcard pattern '%s'. Only '<type>/*' supported", t))
 			}
-			if strings.HasSuffix(t, "/*") {
-				allowedWildcards[strings.TrimSuffix(t, "/*")] = struct{}{}
+			if before, ok := strings.CutSuffix(t, "/*"); ok {
+				if before == "" {
+					panic(fmt.Sprintf("middleware/compress: Unsupported content-type wildcard pattern '%s'. Only '<type>/*' supported", t))
+				}
+				allowedWildcards[before] = struct{}{}
 			} else {
 				allowedTypes[t] = struct{}{}
 			}
@@ -137,13 +148,21 @@ func NewCompressor(level int, types ...string) *Compressor {
 //
 // For example, add the Brotli algorithm:
 //
-//	import brotli_enc "gopkg.in/kothar/brotli-go.v0/enc"
+//	import "github.com/google/brotli/go/cbrotli"
 //
 //	compressor := middleware.NewCompressor(5, "text/html")
 //	compressor.SetEncoder("br", func(w io.Writer, level int) io.Writer {
-//		params := brotli_enc.NewBrotliParams()
-//		params.SetQuality(level)
-//		return brotli_enc.NewBrotliWriter(params, w)
+//		return cbrotli.NewWriter(w, cbrotli.WriterOptions{Quality: level})
+//	})
+//
+// Alternatively, this Cgo-free Brotli module can be used:
+//
+//	import "github.com/andybalholm/brotli"
+//
+//	compressor := middleware.NewCompressor(5, "text/html")
+//
+//	compressor.SetEncoder("br", func(w io.Writer, level int) io.Writer {
+//		return brotli.NewWriterV2(w, level)
 //	})
 func (c *Compressor) SetEncoder(encoding string, fn EncoderFunc) {
 	encoding = strings.ToLower(encoding)
@@ -160,16 +179,14 @@ func (c *Compressor) SetEncoder(encoding string, fn EncoderFunc) {
 	delete(c.encoders, encoding)
 
 	// If the encoder supports Resetting (IoReseterWriter), then it can be pooled.
-	encoder := fn(ioutil.Discard, c.level)
-	if encoder != nil {
-		if _, ok := encoder.(ioResetterWriter); ok {
-			pool := &sync.Pool{
-				New: func() interface{} {
-					return fn(ioutil.Discard, c.level)
-				},
-			}
-			c.pooledEncoders[encoding] = pool
+	encoder := fn(io.Discard, c.level)
+	if _, ok := encoder.(ioResetterWriter); ok {
+		pool := &sync.Pool{
+			New: func() any {
+				return fn(io.Discard, c.level)
+			},
 		}
+		c.pooledEncoders[encoding] = pool
 	}
 	// If the encoder is not in the pooledEncoders, add it to the normal encoders.
 	if _, ok := c.pooledEncoders[encoding]; !ok {
@@ -277,16 +294,13 @@ type compressResponseWriter struct {
 func (cw *compressResponseWriter) isCompressible() bool {
 	// Parse the first part of the Content-Type response header.
 	contentType := cw.Header().Get("Content-Type")
-	if idx := strings.Index(contentType, ";"); idx >= 0 {
-		contentType = contentType[0:idx]
-	}
+	contentType, _, _ = strings.Cut(contentType, ";")
 
 	// Is the content type compressible?
 	if _, ok := cw.contentTypes[contentType]; ok {
 		return true
 	}
-	if idx := strings.Index(contentType, "/"); idx > 0 {
-		contentType = contentType[0:idx]
+	if contentType, _, hadSlash := strings.Cut(contentType, "/"); hadSlash {
 		_, ok := cw.contentWildcards[contentType]
 		return ok
 	}

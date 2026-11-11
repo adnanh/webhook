@@ -463,6 +463,11 @@ TEXT libc_mknodat_trampoline<>(SB),NOSPLIT,$0-0
 GLOBL	·libc_mknodat_trampoline_addr(SB), RODATA, $4
 DATA	·libc_mknodat_trampoline_addr(SB)/4, $libc_mknodat_trampoline<>(SB)
 
+TEXT libc_mount_trampoline<>(SB),NOSPLIT,$0-0
+	JMP	libc_mount(SB)
+GLOBL	·libc_mount_trampoline_addr(SB), RODATA, $4
+DATA	·libc_mount_trampoline_addr(SB)/4, $libc_mount_trampoline<>(SB)
+
 TEXT libc_nanosleep_trampoline<>(SB),NOSPLIT,$0-0
 	JMP	libc_nanosleep(SB)
 GLOBL	·libc_nanosleep_trampoline_addr(SB), RODATA, $4
@@ -492,6 +497,26 @@ TEXT libc_pwrite_trampoline<>(SB),NOSPLIT,$0-0
 	JMP	libc_pwrite(SB)
 GLOBL	·libc_pwrite_trampoline_addr(SB), RODATA, $4
 DATA	·libc_pwrite_trampoline_addr(SB)/4, $libc_pwrite_trampoline<>(SB)
+
+TEXT libc_readv_trampoline<>(SB),NOSPLIT,$0-0
+	JMP	libc_readv(SB)
+GLOBL	·libc_readv_trampoline_addr(SB), RODATA, $4
+DATA	·libc_readv_trampoline_addr(SB)/4, $libc_readv_trampoline<>(SB)
+
+TEXT libc_writev_trampoline<>(SB),NOSPLIT,$0-0
+	JMP	libc_writev(SB)
+GLOBL	·libc_writev_trampoline_addr(SB), RODATA, $4
+DATA	·libc_writev_trampoline_addr(SB)/4, $libc_writev_trampoline<>(SB)
+
+TEXT libc_preadv_trampoline<>(SB),NOSPLIT,$0-0
+	JMP	libc_preadv(SB)
+GLOBL	·libc_preadv_trampoline_addr(SB), RODATA, $4
+DATA	·libc_preadv_trampoline_addr(SB)/4, $libc_preadv_trampoline<>(SB)
+
+TEXT libc_pwritev_trampoline<>(SB),NOSPLIT,$0-0
+	JMP	libc_pwritev(SB)
+GLOBL	·libc_pwritev_trampoline_addr(SB), RODATA, $4
+DATA	·libc_pwritev_trampoline_addr(SB)/4, $libc_pwritev_trampoline<>(SB)
 
 TEXT libc_read_trampoline<>(SB),NOSPLIT,$0-0
 	JMP	libc_read(SB)

@@ -167,6 +167,12 @@ type Msghdr struct {
 	_          [4]byte
 }
 
+type Mmsghdr struct {
+	Hdr Msghdr
+	Len uint32
+	_   [4]byte
+}
+
 type Cmsghdr struct {
 	Len   uint64
 	Level int32
@@ -182,6 +188,7 @@ const (
 	SizeofSockaddrNFCLLCP = 0x60
 	SizeofIovec           = 0x10
 	SizeofMsghdr          = 0x38
+	SizeofMmsghdr         = 0x40
 	SizeofCmsghdr         = 0x10
 )
 
@@ -358,6 +365,30 @@ type Taskstats struct {
 	Wpcopy_delay_total        uint64
 	Irq_count                 uint64
 	Irq_delay_total           uint64
+	Cpu_delay_max             uint64
+	Cpu_delay_min             uint64
+	Blkio_delay_max           uint64
+	Blkio_delay_min           uint64
+	Swapin_delay_max          uint64
+	Swapin_delay_min          uint64
+	Freepages_delay_max       uint64
+	Freepages_delay_min       uint64
+	Thrashing_delay_max       uint64
+	Thrashing_delay_min       uint64
+	Compact_delay_max         uint64
+	Compact_delay_min         uint64
+	Wpcopy_delay_max          uint64
+	Wpcopy_delay_min          uint64
+	Irq_delay_max             uint64
+	Irq_delay_min             uint64
+	Cpu_delay_max_ts          KernelTimespec
+	Blkio_delay_max_ts        KernelTimespec
+	Swapin_delay_max_ts       KernelTimespec
+	Freepages_delay_max_ts    KernelTimespec
+	Thrashing_delay_max_ts    KernelTimespec
+	Compact_delay_max_ts      KernelTimespec
+	Wpcopy_delay_max_ts       KernelTimespec
+	Irq_delay_max_ts          KernelTimespec
 }
 
 type cpuMask uint64
@@ -498,15 +529,6 @@ type BlkpgPartition struct {
 const (
 	BLKPG = 0x1269
 )
-
-type XDPUmemReg struct {
-	Addr     uint64
-	Len      uint64
-	Size     uint32
-	Headroom uint32
-	Flags    uint32
-	_        [4]byte
-}
 
 type CryptoUserAlg struct {
 	Name        [64]uint8
@@ -689,7 +711,18 @@ const (
 )
 
 const (
-	PIDFD_NONBLOCK = 0x800
+	PIDFD_NONBLOCK                        = 0x800
+	PIDFD_THREAD                          = 0x80
+	PIDFD_GET_CGROUP_NAMESPACE            = 0xff01
+	PIDFD_GET_IPC_NAMESPACE               = 0xff02
+	PIDFD_GET_MNT_NAMESPACE               = 0xff03
+	PIDFD_GET_NET_NAMESPACE               = 0xff04
+	PIDFD_GET_PID_NAMESPACE               = 0xff05
+	PIDFD_GET_PID_FOR_CHILDREN_NAMESPACE  = 0xff06
+	PIDFD_GET_TIME_NAMESPACE              = 0xff07
+	PIDFD_GET_TIME_FOR_CHILDREN_NAMESPACE = 0xff08
+	PIDFD_GET_USER_NAMESPACE              = 0xff09
+	PIDFD_GET_UTS_NAMESPACE               = 0xff0a
 )
 
 type SysvIpcPerm struct {
@@ -736,6 +769,37 @@ const (
 	RISCV_HWPROBE_EXT_ZBA                = 0x8
 	RISCV_HWPROBE_EXT_ZBB                = 0x10
 	RISCV_HWPROBE_EXT_ZBS                = 0x20
+	RISCV_HWPROBE_EXT_ZICBOZ             = 0x40
+	RISCV_HWPROBE_EXT_ZBC                = 0x80
+	RISCV_HWPROBE_EXT_ZBKB               = 0x100
+	RISCV_HWPROBE_EXT_ZBKC               = 0x200
+	RISCV_HWPROBE_EXT_ZBKX               = 0x400
+	RISCV_HWPROBE_EXT_ZKND               = 0x800
+	RISCV_HWPROBE_EXT_ZKNE               = 0x1000
+	RISCV_HWPROBE_EXT_ZKNH               = 0x2000
+	RISCV_HWPROBE_EXT_ZKSED              = 0x4000
+	RISCV_HWPROBE_EXT_ZKSH               = 0x8000
+	RISCV_HWPROBE_EXT_ZKT                = 0x10000
+	RISCV_HWPROBE_EXT_ZVBB               = 0x20000
+	RISCV_HWPROBE_EXT_ZVBC               = 0x40000
+	RISCV_HWPROBE_EXT_ZVKB               = 0x80000
+	RISCV_HWPROBE_EXT_ZVKG               = 0x100000
+	RISCV_HWPROBE_EXT_ZVKNED             = 0x200000
+	RISCV_HWPROBE_EXT_ZVKNHA             = 0x400000
+	RISCV_HWPROBE_EXT_ZVKNHB             = 0x800000
+	RISCV_HWPROBE_EXT_ZVKSED             = 0x1000000
+	RISCV_HWPROBE_EXT_ZVKSH              = 0x2000000
+	RISCV_HWPROBE_EXT_ZVKT               = 0x4000000
+	RISCV_HWPROBE_EXT_ZFH                = 0x8000000
+	RISCV_HWPROBE_EXT_ZFHMIN             = 0x10000000
+	RISCV_HWPROBE_EXT_ZIHINTNTL          = 0x20000000
+	RISCV_HWPROBE_EXT_ZVFH               = 0x40000000
+	RISCV_HWPROBE_EXT_ZVFHMIN            = 0x80000000
+	RISCV_HWPROBE_EXT_ZFA                = 0x100000000
+	RISCV_HWPROBE_EXT_ZTSO               = 0x200000000
+	RISCV_HWPROBE_EXT_ZACAS              = 0x400000000
+	RISCV_HWPROBE_EXT_ZICOND             = 0x800000000
+	RISCV_HWPROBE_EXT_ZIHINTPAUSE        = 0x1000000000
 	RISCV_HWPROBE_KEY_CPUPERF_0          = 0x5
 	RISCV_HWPROBE_MISALIGNED_UNKNOWN     = 0x0
 	RISCV_HWPROBE_MISALIGNED_EMULATED    = 0x1
@@ -743,4 +807,29 @@ const (
 	RISCV_HWPROBE_MISALIGNED_FAST        = 0x3
 	RISCV_HWPROBE_MISALIGNED_UNSUPPORTED = 0x4
 	RISCV_HWPROBE_MISALIGNED_MASK        = 0x7
+	RISCV_HWPROBE_KEY_ZICBOZ_BLOCK_SIZE  = 0x6
+	RISCV_HWPROBE_WHICH_CPUS             = 0x1
 )
+
+const (
+	GPIO_GET_CHIPINFO_IOCTL = 0x8044b401
+)
+
+const (
+	IPMICTL_SEND_COMMAND = 0x8028690d
+	IPMICTL_RECEIVE_MSG  = 0xc030690c
+)
+
+type IPMIReq struct {
+	Addr  *uint8
+	Len   uint32
+	Msgid int64
+	Msg   IPMIMsg
+}
+type IPMIRecv struct {
+	Recv_type int32
+	Addr      *uint8
+	Addr_len  uint32
+	Msgid     int64
+	Msg       IPMIMsg
+}

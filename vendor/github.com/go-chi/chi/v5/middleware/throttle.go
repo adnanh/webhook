@@ -18,15 +18,19 @@ var (
 
 // ThrottleOpts represents a set of throttling options.
 type ThrottleOpts struct {
+	// RetryAfterFn, if set, enables the Retry-After header on rejected requests.
+	// The result is rounded up to whole seconds and clamped at 0, because the
+	// header carries a non-negative integer (RFC 9110 section 10.2.3).
 	RetryAfterFn   func(ctxDone bool) time.Duration
 	Limit          int
 	BacklogLimit   int
 	BacklogTimeout time.Duration
+	StatusCode     int
 }
 
 // Throttle is a middleware that limits number of currently processed requests
 // at a time across all users. Note: Throttle is not a rate-limiter per user,
-// instead it just puts a ceiling on the number of currently in-flight requests
+// instead it just puts a ceiling on the number of current in-flight requests
 // being processed from the point from where the Throttle middleware is mounted.
 func Throttle(limit int) func(http.Handler) http.Handler {
 	return ThrottleWithOpts(ThrottleOpts{Limit: limit, BacklogTimeout: defaultBacklogTimeout})
@@ -49,10 +53,16 @@ func ThrottleWithOpts(opts ThrottleOpts) func(http.Handler) http.Handler {
 		panic("chi/middleware: Throttle expects backlogLimit to be positive")
 	}
 
+	statusCode := opts.StatusCode
+	if statusCode == 0 {
+		statusCode = http.StatusTooManyRequests
+	}
+
 	t := throttler{
 		tokens:         make(chan token, opts.Limit),
 		backlogTokens:  make(chan token, opts.Limit+opts.BacklogLimit),
 		backlogTimeout: opts.BacklogTimeout,
+		statusCode:     statusCode,
 		retryAfterFn:   opts.RetryAfterFn,
 	}
 
@@ -72,25 +82,36 @@ func ThrottleWithOpts(opts ThrottleOpts) func(http.Handler) http.Handler {
 
 			case <-ctx.Done():
 				t.setRetryAfterHeaderIfNeeded(w, true)
-				http.Error(w, errContextCanceled, http.StatusTooManyRequests)
+				http.Error(w, errContextCanceled, t.statusCode)
 				return
 
 			case btok := <-t.backlogTokens:
-				timer := time.NewTimer(t.backlogTimeout)
-
 				defer func() {
 					t.backlogTokens <- btok
 				}()
 
+				// Try to get a processing token immediately first
+				select {
+				case tok := <-t.tokens:
+					defer func() {
+						t.tokens <- tok
+					}()
+					next.ServeHTTP(w, r)
+					return
+				default:
+					// No immediate token available, need to wait with timer
+				}
+
+				timer := time.NewTimer(t.backlogTimeout)
 				select {
 				case <-timer.C:
 					t.setRetryAfterHeaderIfNeeded(w, false)
-					http.Error(w, errTimedOut, http.StatusTooManyRequests)
+					http.Error(w, errTimedOut, t.statusCode)
 					return
 				case <-ctx.Done():
 					timer.Stop()
 					t.setRetryAfterHeaderIfNeeded(w, true)
-					http.Error(w, errContextCanceled, http.StatusTooManyRequests)
+					http.Error(w, errContextCanceled, t.statusCode)
 					return
 				case tok := <-t.tokens:
 					defer func() {
@@ -103,7 +124,7 @@ func ThrottleWithOpts(opts ThrottleOpts) func(http.Handler) http.Handler {
 
 			default:
 				t.setRetryAfterHeaderIfNeeded(w, false)
-				http.Error(w, errCapacityExceeded, http.StatusTooManyRequests)
+				http.Error(w, errCapacityExceeded, t.statusCode)
 				return
 			}
 		}
@@ -121,6 +142,7 @@ type throttler struct {
 	backlogTokens  chan token
 	retryAfterFn   func(ctxDone bool) time.Duration
 	backlogTimeout time.Duration
+	statusCode     int
 }
 
 // setRetryAfterHeaderIfNeeded sets Retry-After HTTP header if corresponding retryAfterFn option of throttler is initialized.
@@ -128,5 +150,14 @@ func (t throttler) setRetryAfterHeaderIfNeeded(w http.ResponseWriter, ctxDone bo
 	if t.retryAfterFn == nil {
 		return
 	}
-	w.Header().Set("Retry-After", strconv.Itoa(int(t.retryAfterFn(ctxDone).Seconds())))
+	// delay-seconds is non-negative, and rounding up avoids asking clients to
+	// retry before the duration returned by RetryAfterFn has elapsed.
+	delay := t.retryAfterFn(ctxDone)
+	seconds := delay / time.Second
+	if delay < 0 {
+		seconds = 0
+	} else if delay%time.Second != 0 {
+		seconds++
+	}
+	w.Header().Set("Retry-After", strconv.FormatInt(int64(seconds), 10))
 }

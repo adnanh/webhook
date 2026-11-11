@@ -84,6 +84,8 @@ const (
 	SYS_SPLICE                  = 76
 	SYS_TEE                     = 77
 	SYS_READLINKAT              = 78
+	SYS_NEWFSTATAT              = 79
+	SYS_FSTAT                   = 80
 	SYS_SYNC                    = 81
 	SYS_FSYNC                   = 82
 	SYS_FDATASYNC               = 83
@@ -304,6 +306,7 @@ const (
 	SYS_LANDLOCK_CREATE_RULESET = 444
 	SYS_LANDLOCK_ADD_RULE       = 445
 	SYS_LANDLOCK_RESTRICT_SELF  = 446
+	SYS_MEMFD_SECRET            = 447
 	SYS_PROCESS_MRELEASE        = 448
 	SYS_FUTEX_WAITV             = 449
 	SYS_SET_MEMPOLICY_HOME_NODE = 450
@@ -313,4 +316,19 @@ const (
 	SYS_FUTEX_WAKE              = 454
 	SYS_FUTEX_WAIT              = 455
 	SYS_FUTEX_REQUEUE           = 456
+	SYS_STATMOUNT               = 457
+	SYS_LISTMOUNT               = 458
+	SYS_LSM_GET_SELF_ATTR       = 459
+	SYS_LSM_SET_SELF_ATTR       = 460
+	SYS_LSM_LIST_MODULES        = 461
+	SYS_MSEAL                   = 462
+	SYS_SETXATTRAT              = 463
+	SYS_GETXATTRAT              = 464
+	SYS_LISTXATTRAT             = 465
+	SYS_REMOVEXATTRAT           = 466
+	SYS_OPEN_TREE_ATTR          = 467
+	SYS_FILE_GETATTR            = 468
+	SYS_FILE_SETATTR            = 469
+	SYS_LISTNS                  = 470
+	SYS_RSEQ_SLICE_YIELD        = 471
 )

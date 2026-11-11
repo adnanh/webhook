@@ -67,8 +67,8 @@ type LogFormatter interface {
 // LogEntry records the final log when a request completes.
 // See defaultLogEntry for an example implementation.
 type LogEntry interface {
-	Write(status, bytes int, header http.Header, elapsed time.Duration, extra interface{})
-	Panic(v interface{}, stack []byte)
+	Write(status, bytes int, header http.Header, elapsed time.Duration, extra any)
+	Panic(v any, stack []byte)
 }
 
 // GetLogEntry returns the in-context LogEntry for a request.
@@ -85,7 +85,7 @@ func WithLogEntry(r *http.Request, entry LogEntry) *http.Request {
 
 // LoggerInterface accepts printing to stdlib logger or compatible logger.
 type LoggerInterface interface {
-	Print(v ...interface{})
+	Print(v ...any)
 }
 
 // DefaultLogFormatter is a simple logger that implements a LogFormatter.
@@ -96,6 +96,8 @@ type DefaultLogFormatter struct {
 
 // NewLogEntry creates a new LogEntry for the request.
 func (l *DefaultLogFormatter) NewLogEntry(r *http.Request) LogEntry {
+	ctx := r.Context()
+
 	useColor := !l.NoColor
 	entry := &defaultLogEntry{
 		DefaultLogFormatter: l,
@@ -104,7 +106,7 @@ func (l *DefaultLogFormatter) NewLogEntry(r *http.Request) LogEntry {
 		useColor:            useColor,
 	}
 
-	reqID := GetReqID(r.Context())
+	reqID := GetReqID(ctx)
 	if reqID != "" {
 		cW(entry.buf, useColor, nYellow, "[%s] ", reqID)
 	}
@@ -118,7 +120,11 @@ func (l *DefaultLogFormatter) NewLogEntry(r *http.Request) LogEntry {
 	cW(entry.buf, useColor, nCyan, "%s://%s%s %s\" ", scheme, r.Host, r.RequestURI, r.Proto)
 
 	entry.buf.WriteString("from ")
-	entry.buf.WriteString(r.RemoteAddr)
+	clientIP := GetClientIP(ctx)
+	if clientIP == "" {
+		clientIP = r.RemoteAddr
+	}
+	entry.buf.WriteString(clientIP)
 	entry.buf.WriteString(" - ")
 
 	return entry
@@ -131,7 +137,7 @@ type defaultLogEntry struct {
 	useColor bool
 }
 
-func (l *defaultLogEntry) Write(status, bytes int, header http.Header, elapsed time.Duration, extra interface{}) {
+func (l *defaultLogEntry) Write(status, bytes int, header http.Header, elapsed time.Duration, extra any) {
 	switch {
 	case status < 200:
 		cW(l.buf, l.useColor, bBlue, "%03d", status)
@@ -159,8 +165,8 @@ func (l *defaultLogEntry) Write(status, bytes int, header http.Header, elapsed t
 	l.Logger.Print(l.buf.String())
 }
 
-func (l *defaultLogEntry) Panic(v interface{}, stack []byte) {
-	PrintPrettyStack(v)
+func (l *defaultLogEntry) Panic(v any, stack []byte) {
+	printPrettyStack(v, l.useColor)
 }
 
 func init() {

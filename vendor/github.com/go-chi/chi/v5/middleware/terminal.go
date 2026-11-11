@@ -52,7 +52,7 @@ func init() {
 }
 
 // colorWrite
-func cW(w io.Writer, useColor bool, color []byte, s string, args ...interface{}) {
+func cW(w io.Writer, useColor bool, color []byte, s string, args ...any) {
 	if IsTTY && useColor {
 		w.Write(color)
 	}
