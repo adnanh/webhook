@@ -1,20 +1,18 @@
 module github.com/adnanh/webhook
 
-go 1.21
-
-toolchain go1.22.0
+go 1.26.0
 
 require (
-	github.com/Microsoft/go-winio v0.6.2
+	github.com/Microsoft/go-winio v0.6.4
 	github.com/clbanning/mxj/v2 v2.7.0
-	github.com/coreos/go-systemd/v22 v22.5.0
-	github.com/dustin/go-humanize v1.0.1
-	github.com/fsnotify/fsnotify v1.7.0
+	github.com/coreos/go-systemd/v22 v22.7.0
+	github.com/dustin/go-humanize v1.1.0
+	github.com/fsnotify/fsnotify v1.10.1
 	github.com/ghodss/yaml v1.0.0
-	github.com/go-chi/chi/v5 v5.0.12
-	github.com/gofrs/uuid/v5 v5.0.0
+	github.com/go-chi/chi/v5 v5.5.0
+	github.com/gofrs/uuid/v5 v5.5.1
 	github.com/gorilla/mux v1.8.1
-	golang.org/x/sys v0.18.0
+	golang.org/x/sys v0.50.0
 )
 
 require (

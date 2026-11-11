@@ -58,6 +58,7 @@ includes_Darwin='
 #define _DARWIN_USE_64_BIT_INODE
 #define __APPLE_USE_RFC_3542
 #include <stdint.h>
+#include <sys/stdio.h>
 #include <sys/attr.h>
 #include <sys/clonefile.h>
 #include <sys/kern_control.h>
@@ -157,6 +158,16 @@ includes_Linux='
 #endif
 #define _GNU_SOURCE
 
+// See the description in unix/linux/types.go
+#if defined(__ARM_EABI__) || \
+	(defined(__mips__) && (_MIPS_SIM == _ABIO32)) || \
+	(defined(__powerpc__) && (!defined(__powerpc64__)))
+# ifdef   _TIME_BITS
+#  undef  _TIME_BITS
+# endif
+# define  _TIME_BITS 32
+#endif
+
 // <sys/ioctl.h> is broken on powerpc64, as it fails to include definitions of
 // these structures. We just include them copied from <bits/termios.h>.
 #if defined(__powerpc__)
@@ -215,6 +226,7 @@ struct ltchars {
 #include <linux/cryptouser.h>
 #include <linux/devlink.h>
 #include <linux/dm-ioctl.h>
+#include <linux/elf.h>
 #include <linux/errqueue.h>
 #include <linux/ethtool_netlink.h>
 #include <linux/falloc.h>
@@ -244,6 +256,7 @@ struct ltchars {
 #include <linux/loop.h>
 #include <linux/lwtunnel.h>
 #include <linux/magic.h>
+#include <linux/mei.h>
 #include <linux/memfd.h>
 #include <linux/module.h>
 #include <linux/mount.h>
@@ -255,6 +268,7 @@ struct ltchars {
 #include <linux/nsfs.h>
 #include <linux/perf_event.h>
 #include <linux/pps.h>
+#include <linux/ptp_clock.h>
 #include <linux/ptrace.h>
 #include <linux/random.h>
 #include <linux/reboot.h>
@@ -263,6 +277,7 @@ struct ltchars {
 #include <linux/sched.h>
 #include <linux/seccomp.h>
 #include <linux/serial.h>
+#include <linux/sock_diag.h>
 #include <linux/sockios.h>
 #include <linux/taskstats.h>
 #include <linux/tipc.h>
@@ -275,14 +290,7 @@ struct ltchars {
 #include <mtd/mtd-user.h>
 #include <net/route.h>
 
-#if defined(__sparc__)
-// On sparc{,64}, the kernel defines struct termios2 itself which clashes with the
-// definition in glibc. As only the error constants are needed here, include the
-// generic termibits.h (which is included by termbits.h on sparc).
-#include <asm-generic/termbits.h>
-#else
 #include <asm/termbits.h>
-#endif
 
 #ifndef PTRACE_GETREGS
 #define PTRACE_GETREGS	0xc
@@ -336,6 +344,12 @@ struct ltchars {
 #define _HIDIOCGRAWPHYS		HIDIOCGRAWPHYS(_HIDIOCGRAWPHYS_LEN)
 #define _HIDIOCGRAWUNIQ		HIDIOCGRAWUNIQ(_HIDIOCGRAWUNIQ_LEN)
 
+// Renamed in v6.16, commit c6d732c38f93 ("net: ethtool: remove duplicate defines for family info")
+#define ETHTOOL_FAMILY_NAME	ETHTOOL_GENL_NAME
+#define ETHTOOL_FAMILY_VERSION	ETHTOOL_GENL_VERSION
+
+// Removed in v6.17, commit 760e6f7befba ("futex: Remove support for IMMUTABLE")
+#define PR_FUTEX_HASH_GET_IMMUTABLE 3
 '
 
 includes_NetBSD='
@@ -513,6 +527,7 @@ ccflags="$@"
 		$2 ~ /^O[CNPFPL][A-Z]+[^_][A-Z]+$/ ||
 		$2 ~ /^(NL|CR|TAB|BS|VT|FF)DLY$/ ||
 		$2 ~ /^(NL|CR|TAB|BS|VT|FF)[0-9]$/ ||
+		$2 ~ /^(DT|EI|ELF|EV|NN|NT|PF|SHF|SHN|SHT|STB|STT|VER)_/ ||
 		$2 ~ /^O?XTABS$/ ||
 		$2 ~ /^TC[IO](ON|OFF)$/ ||
 		$2 ~ /^IN_/ ||
@@ -522,9 +537,10 @@ ccflags="$@"
 		$2 ~ /^LO_(KEY|NAME)_SIZE$/ ||
 		$2 ~ /^LOOP_(CLR|CTL|GET|SET)_/ ||
 		$2 == "LOOP_CONFIGURE" ||
-		$2 ~ /^(AF|SOCK|SO|SOL|IPPROTO|IP|IPV6|TCP|MCAST|EVFILT|NOTE|SHUT|PROT|MAP|MREMAP|MFD|T?PACKET|MSG|SCM|MCL|DT|MADV|PR|LOCAL|TCPOPT|UDP)_/ ||
+		$2 ~ /^(AF|SOCK|SO|SOL|IPPROTO|IP|IPV6|TCP|MCAST|EVFILT|NOTE|SHUT|PROT|MAP|MREMAP|MFD|MLOCK|T?PACKET|MSG|SCM|MCL|DT|MADV|PR|LOCAL|TCPOPT|UDP)_/ ||
 		$2 ~ /^NFC_(GENL|PROTO|COMM|RF|SE|DIRECTION|LLCP|SOCKPROTO)_/ ||
 		$2 ~ /^NFC_.*_(MAX)?SIZE$/ ||
+		$2 ~ /^PTP_/ ||
 		$2 ~ /^RAW_PAYLOAD_/ ||
 		$2 ~ /^[US]F_/ ||
 		$2 ~ /^TP_STATUS_/ ||
@@ -549,6 +565,8 @@ ccflags="$@"
 		$2 !~ "NLA_TYPE_MASK" &&
 		$2 !~ /^RTC_VL_(ACCURACY|BACKUP|DATA)/ &&
 		$2 ~ /^(NETLINK|NLM|NLMSG|NLA|IFA|IFAN|RT|RTC|RTCF|RTN|RTPROT|RTNH|ARPHRD|ETH_P|NETNSA)_/ ||
+		$2 ~ /^SOCK_|SK_DIAG_|SKNLGRP_$/ ||
+		$2 ~ /^(CONNECT|SAE)_/ ||
 		$2 ~ /^FIORDCHK$/ ||
 		$2 ~ /^SIOC/ ||
 		$2 ~ /^TIOC/ ||
@@ -561,7 +579,7 @@ ccflags="$@"
 		$2 ~ /^DIOC/ ||
 		$2 ~ /^RUSAGE_(SELF|CHILDREN|THREAD)/ ||
 		$2 ~ /^RLIMIT_(AS|CORE|CPU|DATA|FSIZE|LOCKS|MEMLOCK|MSGQUEUE|NICE|NOFILE|NPROC|RSS|RTPRIO|RTTIME|SIGPENDING|STACK)|RLIM_INFINITY/ ||
-		$2 ~ /^PRIO_(PROCESS|PGRP|USER)/ ||
+		$2 ~ /^PRIO_(PROCESS|PGRP|USER|DARWIN_(THREAD|PROCESS|BG|NONUI))/ ||
 		$2 ~ /^CLONE_[A-Z_]+/ ||
 		$2 !~ /^(BPF_TIMEVAL|BPF_FIB_LOOKUP_[A-Z]+|BPF_F_LINK)$/ &&
 		$2 ~ /^(BPF|DLT)_/ ||
@@ -592,7 +610,7 @@ ccflags="$@"
 		$2 !~ /IOC_MAGIC/ &&
 		$2 ~ /^[A-Z][A-Z0-9_]+_MAGIC2?$/ ||
 		$2 ~ /^(VM|VMADDR)_/ ||
-		$2 ~ /^IOCTL_VM_SOCKETS_/ ||
+		$2 ~ /^(IOCTL_VM_SOCKETS_|IOCTL_MEI_)/ ||
 		$2 ~ /^(TASKSTATS|TS)_/ ||
 		$2 ~ /^CGROUPSTATS_/ ||
 		$2 ~ /^GENL_/ ||
@@ -652,7 +670,7 @@ errors=$(
 signals=$(
 	echo '#include <signal.h>' | $CC -x c - -E -dM $ccflags |
 	awk '$1=="#define" && $2 ~ /^SIG[A-Z0-9]+$/ { print $2 }' |
-	grep -v 'SIGSTKSIZE\|SIGSTKSZ\|SIGRT\|SIGMAX64' |
+	grep -E -v '(SIGSTKSIZE|SIGSTKSZ|SIGRT|SIGMAX64)' |
 	sort
 )
 
@@ -662,7 +680,7 @@ echo '#include <errno.h>' | $CC -x c - -E -dM $ccflags |
 	sort >_error.grep
 echo '#include <signal.h>' | $CC -x c - -E -dM $ccflags |
 	awk '$1=="#define" && $2 ~ /^SIG[A-Z0-9]+$/ { print "^\t" $2 "[ \t]*=" }' |
-	grep -v 'SIGSTKSIZE\|SIGSTKSZ\|SIGRT\|SIGMAX64' |
+	grep -E -v '(SIGSTKSIZE|SIGSTKSZ|SIGRT|SIGMAX64)' |
 	sort >_signal.grep
 
 echo '// mkerrors.sh' "$@"

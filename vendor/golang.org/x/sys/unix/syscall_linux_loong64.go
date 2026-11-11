@@ -8,7 +8,6 @@ package unix
 
 import "unsafe"
 
-//sys	EpollWait(epfd int, events []EpollEvent, msec int) (n int, err error) = SYS_EPOLL_PWAIT
 //sys	Fadvise(fd int, offset int64, length int64, advice int) (err error) = SYS_FADVISE64
 //sys	Fchown(fd int, uid int, gid int) (err error)
 //sys	Fstatfs(fd int, buf *Statfs_t) (err error)
@@ -150,6 +149,9 @@ func Time(t *Time_t) (Time_t, error) {
 }
 
 func Utime(path string, buf *Utimbuf) error {
+	if buf == nil {
+		return Utimes(path, nil)
+	}
 	tv := []Timeval{
 		{Sec: buf.Actime},
 		{Sec: buf.Modtime},
@@ -214,3 +216,5 @@ func KexecFileLoad(kernelFd int, initrdFd int, cmdline string, flags int) error 
 	}
 	return kexecFileLoad(kernelFd, initrdFd, cmdlineLen, cmdline, flags)
 }
+
+const SYS_FSTATAT = SYS_NEWFSTATAT
