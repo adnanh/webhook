@@ -282,25 +282,37 @@ func CheckScalrSignature(r *Request, signingKey string, checkDate bool) (bool, e
 // (in CIDR form or a single IP address).
 func CheckIPWhitelist(remoteAddr, ipRange string) (bool, error) {
 	// Extract IP address from remote address.
-
-	// IPv6 addresses will likely be surrounded by [].
 	ip := strings.Trim(remoteAddr, " []")
-
-	if i := strings.LastIndex(ip, ":"); i != -1 {
-		ip = ip[:i]
-		ip = strings.Trim(ip, " []")
+	parsedIP := net.ParseIP(ip)
+	if parsedIP == nil {
+		if host, _, err := net.SplitHostPort(strings.TrimSpace(remoteAddr)); err == nil {
+			ip = strings.Trim(host, " []")
+			parsedIP = net.ParseIP(ip)
+		}
+	}
+	if parsedIP == nil {
+		if i := strings.LastIndex(ip, ":"); i != -1 {
+			ip = strings.Trim(ip[:i], " []")
+			parsedIP = net.ParseIP(ip)
+		}
 	}
 
-	parsedIP := net.ParseIP(ip)
 	if parsedIP == nil {
 		return false, fmt.Errorf("invalid IP address found in remote address '%s'", remoteAddr)
 	}
 
 	for _, r := range strings.Fields(ipRange) {
 		// Extract IP range in CIDR form.  If a single IP address is provided, turn it into CIDR form.
-
 		if !strings.Contains(r, "/") {
-			r = r + "/32"
+			if singleIP := net.ParseIP(r); singleIP != nil {
+				if singleIP.To4() != nil {
+					r = r + "/32"
+				} else {
+					r = r + "/128"
+				}
+			} else {
+				r = r + "/32"
+			}
 		}
 
 		_, cidr, err := net.ParseCIDR(r)
@@ -317,38 +329,51 @@ func CheckIPWhitelist(remoteAddr, ipRange string) (bool, error) {
 }
 
 // ReplaceParameter replaces parameter value with the passed value in the passed map
-// (please note you should pass pointer to the map, because we're modifying it)
+// (please note you can pass either map[string]interface{} or a pointer to it, because we're modifying it)
 // based on the passed string
 func ReplaceParameter(s string, params, value interface{}) bool {
 	if params == nil {
 		return false
 	}
 
-	if paramsValue := reflect.ValueOf(params); paramsValue.Kind() == reflect.Slice {
-		if paramsValueSliceLength := paramsValue.Len(); paramsValueSliceLength > 0 {
-			if p := strings.SplitN(s, ".", 2); len(p) > 1 {
-				index, err := strconv.ParseUint(p[0], 10, 64)
-
-				if err != nil || paramsValueSliceLength <= int(index) {
-					return false
-				}
-
-				return ReplaceParameter(p[1], params.([]interface{})[index], value)
-			}
+	// Unwrap pointer to map if provided
+	if ptr, ok := params.(*map[string]interface{}); ok {
+		if ptr == nil {
+			return false
 		}
+		params = *ptr
+	}
 
+	if slice, ok := params.([]interface{}); ok {
+		if len(slice) > 0 {
+			p := strings.SplitN(s, ".", 2)
+			index, err := strconv.ParseUint(p[0], 10, 64)
+			if err != nil || len(slice) <= int(index) {
+				return false
+			}
+
+			if len(p) > 1 {
+				return ReplaceParameter(p[1], slice[index], value)
+			}
+			slice[index] = value
+			return true
+		}
 		return false
 	}
 
-	if p := strings.SplitN(s, ".", 2); len(p) > 1 {
-		if pValue, ok := params.(map[string]interface{})[p[0]]; ok {
-			return ReplaceParameter(p[1], pValue, value)
+	if m, ok := params.(map[string]interface{}); ok {
+		p := strings.SplitN(s, ".", 2)
+		if len(p) > 1 {
+			if pValue, ok := m[p[0]]; ok {
+				return ReplaceParameter(p[1], pValue, value)
+			}
+			return false
 		}
-	} else {
-		if _, ok := (*params.(*map[string]interface{}))[p[0]]; ok {
-			(*params.(*map[string]interface{}))[p[0]] = value
+		if _, ok := m[p[0]]; ok {
+			m[p[0]] = value
 			return true
 		}
+		return false
 	}
 
 	return false
@@ -711,10 +736,11 @@ func (h *Hook) ExtractCommandArgumentsForFile(r *Request) ([]FileParameter, []er
 			continue
 		}
 
-		if h.PassFileToCommand[i].EnvName == "" {
+		envName := h.PassFileToCommand[i].EnvName
+		if envName == "" {
 			// if no environment-variable name is set, fall-back on the name
 			log.Printf("no ENVVAR name specified, falling back to [%s]", EnvNamespace+strings.ToUpper(h.PassFileToCommand[i].Name))
-			h.PassFileToCommand[i].EnvName = EnvNamespace + strings.ToUpper(h.PassFileToCommand[i].Name)
+			envName = EnvNamespace + strings.ToUpper(h.PassFileToCommand[i].Name)
 		}
 
 		var fileContent []byte
@@ -728,7 +754,7 @@ func (h *Hook) ExtractCommandArgumentsForFile(r *Request) ([]FileParameter, []er
 			fileContent = []byte(arg)
 		}
 
-		args = append(args, FileParameter{EnvName: h.PassFileToCommand[i].EnvName, Data: fileContent})
+		args = append(args, FileParameter{EnvName: envName, Data: fileContent})
 	}
 
 	if len(errors) > 0 {
