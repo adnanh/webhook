@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/adnanh/webhook/internal/hook"
@@ -54,7 +55,8 @@ var (
 	responseHeaders hook.ResponseHeaders
 	hooksFiles      hook.HooksFiles
 
-	loadedHooksFromFiles = make(map[string]hook.Hooks)
+	loadedHooksFromFiles     = make(map[string]hook.Hooks)
+	loadedHooksFromFilesLock sync.RWMutex
 
 	watcher *fsnotify.Watcher
 	signals chan os.Signal
@@ -65,7 +67,7 @@ var (
 	addr    = ""
 )
 
-func matchLoadedHook(id string) *hook.Hook {
+func matchLoadedHookNoLock(id string) *hook.Hook {
 	for _, hooks := range loadedHooksFromFiles {
 		if hook := hooks.Match(id); hook != nil {
 			return hook
@@ -75,13 +77,27 @@ func matchLoadedHook(id string) *hook.Hook {
 	return nil
 }
 
-func lenLoadedHooks() int {
+func matchLoadedHook(id string) *hook.Hook {
+	loadedHooksFromFilesLock.RLock()
+	defer loadedHooksFromFilesLock.RUnlock()
+
+	return matchLoadedHookNoLock(id)
+}
+
+func lenLoadedHooksNoLock() int {
 	sum := 0
 	for _, hooks := range loadedHooksFromFiles {
 		sum += len(hooks)
 	}
 
 	return sum
+}
+
+func lenLoadedHooks() int {
+	loadedHooksFromFilesLock.RLock()
+	defer loadedHooksFromFilesLock.RUnlock()
+
+	return lenLoadedHooksNoLock()
 }
 
 func main() {
@@ -679,6 +695,9 @@ func reloadHooks(hooksFilePath string) {
 
 		log.Printf("found %d hook(s) in file\n", len(hooksInFile))
 
+		loadedHooksFromFilesLock.Lock()
+		defer loadedHooksFromFilesLock.Unlock()
+
 		for _, hook := range hooksInFile {
 			wasHookIDAlreadyLoaded := false
 
@@ -689,7 +708,7 @@ func reloadHooks(hooksFilePath string) {
 				}
 			}
 
-			if (matchLoadedHook(hook.ID) != nil && !wasHookIDAlreadyLoaded) || seenHooksIds[hook.ID] {
+			if (matchLoadedHookNoLock(hook.ID) != nil && !wasHookIDAlreadyLoaded) || seenHooksIds[hook.ID] {
 				log.Printf("error: hook with the id %s has already been loaded!\nplease check your hooks file for duplicate hooks ids!", hook.ID)
 				log.Println("reverting hooks back to the previous configuration")
 				return
@@ -704,12 +723,20 @@ func reloadHooks(hooksFilePath string) {
 }
 
 func reloadAllHooks() {
-	for _, hooksFilePath := range hooksFiles {
+	loadedHooksFromFilesLock.RLock()
+	files := make([]string, len(hooksFiles))
+	copy(files, hooksFiles)
+	loadedHooksFromFilesLock.RUnlock()
+
+	for _, hooksFilePath := range files {
 		reloadHooks(hooksFilePath)
 	}
 }
 
 func removeHooks(hooksFilePath string) {
+	loadedHooksFromFilesLock.Lock()
+	defer loadedHooksFromFilesLock.Unlock()
+
 	for _, hook := range loadedHooksFromFiles[hooksFilePath] {
 		log.Printf("\tremoving: %s\n", hook.ID)
 	}
@@ -729,7 +756,7 @@ func removeHooks(hooksFilePath string) {
 
 	log.Printf("removed %d hook(s) that were loaded from file %s\n", removedHooksCount, hooksFilePath)
 
-	if !*verbose && !*noPanic && lenLoadedHooks() == 0 {
+	if !*verbose && !*noPanic && lenLoadedHooksNoLock() == 0 {
 		log.SetOutput(os.Stdout)
 		log.Fatalln("couldn't load any hooks from file!\naborting webhook execution since the -verbose flag is set to false.\nIf, for some reason, you want webhook to run without the hooks, either use -verbose flag, or -nopanic")
 	}

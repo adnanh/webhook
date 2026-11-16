@@ -205,6 +205,12 @@ var checkIPWhitelistTests = []struct {
 	{" [2001:db8:1:2::1:1234] ", "  2001:db8:1::/48 ", true, true},
 	{" [2001:db8:1:2::1:1234] ", "  2001:db8:1::/48 2001:db8:1::/64", true, true},
 	{" [2001:db8:1:2::1:1234] ", "  2001:db8:1::/64 ", false, true},
+	{"::1", "::1", true, true},
+	{"::1", "::2", false, true},
+	{"[::1]:8080", "::1", true, true},
+	{"2001:db8::1", "2001:db8::1", true, true},
+	{"2001:db8::1", "2001:db8::/64", true, true},
+	{"2001:db8::1", "2001:db8::2", false, true},
 }
 
 func TestCheckIPWhitelist(t *testing.T) {
@@ -213,6 +219,107 @@ func TestCheckIPWhitelist(t *testing.T) {
 		if (err == nil) != tt.ok || result != tt.expect {
 			t.Errorf("ip whitelist test failed {%q, %q}:\nwant {expect:%#v, ok:%#v},\ngot {result:%#v, ok:%#v}", tt.addr, tt.ipRange, tt.expect, tt.ok, result, err)
 		}
+	}
+}
+
+func TestReplaceParameter(t *testing.T) {
+	// 1. Flat key with pointer to map
+	m1 := map[string]interface{}{"foo": "old"}
+	if !ReplaceParameter("foo", &m1, "new") || m1["foo"] != "new" {
+		t.Errorf("expected m1[foo] == 'new', got %v", m1["foo"])
+	}
+
+	// 2. Flat key with map value directly
+	m2 := map[string]interface{}{"foo": "old"}
+	if !ReplaceParameter("foo", m2, "new") || m2["foo"] != "new" {
+		t.Errorf("expected m2[foo] == 'new', got %v", m2["foo"])
+	}
+
+	// 3. Nested key with pointer to map
+	m3 := map[string]interface{}{
+		"a": map[string]interface{}{
+			"b": "old",
+		},
+	}
+	if !ReplaceParameter("a.b", &m3, "new") {
+		t.Fatalf("expected ReplaceParameter a.b to return true")
+	}
+	if aMap, ok := m3["a"].(map[string]interface{}); !ok || aMap["b"] != "new" {
+		t.Errorf("expected m3.a.b == 'new', got %v", m3)
+	}
+
+	// 4. Nested key with map directly
+	m4 := map[string]interface{}{
+		"a": map[string]interface{}{
+			"b": "old",
+		},
+	}
+	if !ReplaceParameter("a.b", m4, "new") {
+		t.Fatalf("expected ReplaceParameter a.b on direct map to return true")
+	}
+	if aMap, ok := m4["a"].(map[string]interface{}); !ok || aMap["b"] != "new" {
+		t.Errorf("expected m4.a.b == 'new', got %v", m4)
+	}
+
+	// 5. Nested with slice
+	m5 := map[string]interface{}{
+		"items": []interface{}{
+			map[string]interface{}{"name": "first"},
+			map[string]interface{}{"name": "second"},
+		},
+	}
+	if !ReplaceParameter("items.1.name", &m5, "updated") {
+		t.Fatalf("expected ReplaceParameter items.1.name to return true")
+	}
+	items := m5["items"].([]interface{})
+	item1 := items[1].(map[string]interface{})
+	if item1["name"] != "updated" {
+		t.Errorf("expected second item name == 'updated', got %v", item1["name"])
+	}
+
+	// 6. Direct slice index replacement
+	slice := []interface{}{"a", "b", "c"}
+	if !ReplaceParameter("1", slice, "z") || slice[1] != "z" {
+		t.Errorf("expected slice[1] == 'z', got %v", slice[1])
+	}
+
+	// 7. Non-existent keys & nil map should fail gracefully without panic
+	if ReplaceParameter("nonexistent", &m1, "val") {
+		t.Errorf("expected false for nonexistent key")
+	}
+	if ReplaceParameter("a.nonexistent", &m3, "val") {
+		t.Errorf("expected false for nonexistent nested key")
+	}
+	if ReplaceParameter("a", nil, "val") {
+		t.Errorf("expected false for nil params")
+	}
+	var nilMap *map[string]interface{}
+	if ReplaceParameter("a", nilMap, "val") {
+		t.Errorf("expected false for nil pointer map")
+	}
+}
+
+func TestExtractCommandArgumentsForFile_NoMutation(t *testing.T) {
+	h := &Hook{
+		PassFileToCommand: []Argument{
+			{Source: "string", Name: "my_payload"},
+		},
+	}
+	r := &Request{}
+
+	files, errs := h.ExtractCommandArgumentsForFile(r)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	if len(files) != 1 {
+		t.Fatalf("expected 1 file, got %d", len(files))
+	}
+	if files[0].EnvName != "HOOK_MY_PAYLOAD" {
+		t.Errorf("expected files[0].EnvName == 'HOOK_MY_PAYLOAD', got %q", files[0].EnvName)
+	}
+	// Verify the original hook was not mutated
+	if h.PassFileToCommand[0].EnvName != "" {
+		t.Errorf("expected hook EnvName to remain empty (no mutation), got %q", h.PassFileToCommand[0].EnvName)
 	}
 }
 
@@ -351,20 +458,21 @@ func TestHookExtractCommandArguments(t *testing.T) {
 // we test both cases where the name of the data is used as the name of the
 // env key & the case where the hook definition sets the env var name to a
 // fixed value using the envname construct like so::
-//    [
-//      {
-//        "id": "push",
-//        "execute-command": "bb2mm",
-//        "command-working-directory": "/tmp",
-//        "pass-environment-to-command":
-//        [
-//          {
-//            "source": "entire-payload",
-//            "envname": "PAYLOAD"
-//          },
-//        ]
-//      }
-//    ]
+//
+//	[
+//	  {
+//	    "id": "push",
+//	    "execute-command": "bb2mm",
+//	    "command-working-directory": "/tmp",
+//	    "pass-environment-to-command":
+//	    [
+//	      {
+//	        "source": "entire-payload",
+//	        "envname": "PAYLOAD"
+//	      },
+//	    ]
+//	  }
+//	]
 var hookExtractCommandArgumentsForEnvTests = []struct {
 	exec                    string
 	args                    []Argument

@@ -1217,3 +1217,49 @@ func (b *buffer) Reset() {
 	defer b.m.Unlock()
 	b.b.Reset()
 }
+
+func TestConcurrentHookAccess(t *testing.T) {
+	loadedHooksFromFilesLock.Lock()
+	loadedHooksFromFiles["test.json"] = hook.Hooks{
+		{ID: "hook1"},
+		{ID: "hook2"},
+	}
+	loadedHooksFromFilesLock.Unlock()
+
+	defer func() {
+		loadedHooksFromFilesLock.Lock()
+		delete(loadedHooksFromFiles, "test.json")
+		loadedHooksFromFilesLock.Unlock()
+	}()
+
+	var wg sync.WaitGroup
+	// Spin up readers
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 100; j++ {
+				_ = matchLoadedHook("hook1")
+				_ = lenLoadedHooks()
+			}
+		}()
+	}
+
+	// Spin up writers simulating reload
+	for i := 0; i < 5; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 50; j++ {
+				loadedHooksFromFilesLock.Lock()
+				loadedHooksFromFiles["test.json"] = hook.Hooks{
+					{ID: "hook1"},
+					{ID: "hook2"},
+				}
+				loadedHooksFromFilesLock.Unlock()
+			}
+		}()
+	}
+
+	wg.Wait()
+}
