@@ -1,0 +1,55 @@
+name: goreleaser
+
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+    goreleaser:
+        runs-on: ubuntu-latest
+        steps:
+            -
+                name: Checkout
+                uses: actions/checkout@v2
+                with:
+                    fetch-depth: 0
+            -
+                name: Set up Go
+                uses: actions/setup-go@v2
+                with:
+                    go-version: 1.16
+            -
+                name: Build
+                env:
+                    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                    CGO_ENABLED: "0"
+                run: |
+                    go mod download
+                    GOOS=linux GOARCH=amd64 go build -a -o /tmp/builds/linux_amd64/webhook .
+                    GOOS=linux GOARCH=arm GOARM=6 go build -a -o /tmp/builds/linux_armv6/webhook .
+                    GOOS=linux GOARCH=arm GOARM=7 go build -a -o /tmp/builds/linux_armv7/webhook .
+                    GOOS=linux GOARCH=arm64 go build -a -o /tmp/builds/linux_arm64/webhook .
+                    GOOS=linux GOARCH=386 go build -a -o /tmp/builds/linux_i686/webhook .
+                    GOOS=freebsd GOARCH=amd64 go build -a -o /tmp/builds/freebsd_amd64/webhook .
+                    GOOS=freebsd GOARCH=arm64 go build -a -o /tmp/builds/freebsd_arm64/webhook .
+                    GOOS=freebsd GOARCH=386 go build -a -o /tmp/builds/freebsd_i686/webhook .
+                    GOOS=darwin GOARCH=arm64 go build -a -o /tmp/builds/darwin_arm64/webhook .
+                    GOOS=darwin GOARCH=amd64 go build -a -o /tmp/builds/darwin_amd64/webhook .
+            -
+                name: Gzip assets
+                run: |
+                    mkdir -p /tmp/assets
+                    ver=$(/tmp/builds/linux_amd64/webhook --version | grep -Po "[0-9\.]+$")
+                    for fol in $(find /tmp/builds -maxdepth 1 -mindepth 1 -type d); do
+                        farch=$(echo "${fol}" | grep -Po "[^/]+$")
+                        cd "${fol}"
+                        tar -zcvf /tmp/assets/webhook_v${ver}_${farch}.tar.gz *
+                    done
+            -
+                name: Upload release binaries
+                uses: alexellis/upload-assets@0.3.0
+                env:
+                    GITHUB_TOKEN: ${{ github.token }}
+                with:
+                    asset_paths: '["/tmp/assets/*"]'
